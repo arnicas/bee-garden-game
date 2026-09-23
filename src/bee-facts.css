@@ -1,0 +1,76 @@
+/* An optional page inside the field guide; nothing is added to the live HUD. */
+.modal-overlay.is-reading-facts { z-index: 9; pointer-events: auto; }
+.facts-invitation { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: 100%; padding: 12px 0; margin-top: 18px; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
+.facts-invitation strong { display: block; font: 21px/1.2 var(--serif); font-weight: 400; }
+.facts-invitation small { display: block; margin-top: 4px; font-size: 10px; color: var(--muted); }
+.facts-invitation > span:last-child { font: 25px var(--serif); color: var(--rust); }
+.facts-invitation:hover strong { color: var(--rust); }
+.journal-page.bee-facts-page { width: min(880px, 100%); height: min(650px, calc(100dvh - 48px)); max-height: calc(100dvh - 48px); padding: 27px 31px 20px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(110deg, #f6f0df, #fcf8eb 36%, #faf5e5); }
+.facts-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-shrink: 0; }
+.facts-heading h2 { font-size: 38px; margin: 8px 0 0; }
+.facts-heading h2:focus { outline: none; }
+.facts-back { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 9px 7px; background: transparent; border: 0; border-bottom: 1px solid var(--line); font-size: 11px; }
+.facts-back:hover { color: var(--rust); border-color: var(--rust); }
+.facts-back kbd { font-size: 8px; }
+.facts-intro { max-width: 560px; margin-top: 14px; font: 14px/1.5 var(--serif); color: var(--muted); flex-shrink: 0; }
+.facts-spread { display: grid; grid-template-columns: 180px minmax(0, 1fr); flex: 1; min-height: 0; margin-top: 24px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.facts-index { display: flex; flex-direction: column; gap: 3px; padding: 18px 15px 18px 0; border-right: 1px solid var(--line); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.facts-index button { display: flex; align-items: baseline; gap: 10px; padding: 10px 9px 10px 0; min-height: 37px; border: 0; border-radius: 2px; background: transparent; text-align: left; font-size: 11px; line-height: 1.45; color: var(--muted); }
+.facts-index button > span { padding-left: 6px; font: 10px var(--serif); color: #a39c7b; }
+.facts-index button:hover { background: #e9e5ce88; color: var(--ink); }
+.facts-index button[aria-selected="true"] { color: var(--ink); background: #e7e6cc; box-shadow: inset 2px 0 var(--rust); }
+.facts-index button[aria-selected="true"] > span { color: var(--rust); }
+.facts-index button:focus-visible { outline-offset: -2px; }
+.facts-reader { min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #b8bea0 transparent; }
+.fact-page { padding: 20px 8px 22px 28px; }
+.fact-page:focus-visible { outline: 1px solid #b9604390; outline-offset: -3px; }
+.fact-opening { display: grid; grid-template-columns: minmax(0, 1fr) 135px; align-items: center; gap: 18px; min-height: 96px; }
+.fact-scope { font-size: 9px; line-height: 1.5; letter-spacing: .7px; color: #8b754c; }
+.fact-opening h3 { font: 27px/1.14 var(--serif); font-weight: 400; margin: 8px 0 0; max-width: 290px; }
+.fact-drawing { width: 135px; height: 98px; }
+.fact-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-top: 17px; }
+.fact-comparison h4, .fact-sources h4 { margin: 0 0 9px; font-size: 9px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; }
+.fact-comparison h4 { color: #6c7c49; }
+.fact-comparison section + section h4 { color: #a45f42; }
+.fact-comparison p { font: 15px/1.65 var(--serif); color: #4f5b46; }
+.fact-sources { margin-top: 24px; padding-top: 14px; border-top: 1px dotted var(--line); }
+.fact-sources h4 { color: #8b8466; font-size: 8px; margin-bottom: 8px; }
+.fact-sources a { display: block; width: fit-content; max-width: 100%; color: #596c46; text-decoration-color: #8c9971; text-underline-offset: 3px; font-size: 10px; line-height: 1.6; margin-top: 6px; overflow-wrap: anywhere; }
+.fact-sources a:hover { color: var(--rust); }
+.fact-sources a:focus-visible { outline: 2px solid var(--rust); outline-offset: 3px; }
+.facts-footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 13px; color: var(--muted); font-size: 9px; line-height: 1.5; flex-shrink: 0; }
+.facts-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-height: 650px) {
+  .journal-page.bee-facts-page { padding: 20px 27px 15px; max-height: calc(100dvh - 32px); }
+  .facts-heading h2 { font-size: 30px; margin-top: 5px; }
+  .facts-intro { margin-top: 9px; font-size: 13px; }
+  .facts-spread { margin-top: 15px; }
+  .facts-index { padding-top: 12px; padding-bottom: 12px; }
+  .facts-index button { padding-top: 8px; padding-bottom: 8px; min-height: 34px; }
+  .fact-page { padding-top: 13px; padding-bottom: 17px; }
+  .fact-opening { min-height: 80px; }
+  .fact-opening h3 { font-size: 25px; }
+  .fact-drawing { height: 83px; }
+  .fact-comparison { margin-top: 12px; }
+  .fact-comparison p { font-size: 14px; line-height: 1.55; }
+  .fact-sources { margin-top: 17px; padding-top: 12px; }
+  .facts-footer { margin-top: 10px; }
+}
+@media (max-width: 680px) {
+  .journal-page.bee-facts-page { padding: 19px 19px 15px; }
+  .facts-heading { gap: 12px; }
+  .facts-heading h2 { font-size: 29px; }
+  .facts-back { gap: 5px; font-size: 10px; }
+  .facts-back kbd { display: none; }
+  .facts-spread { grid-template-columns: 127px minmax(0, 1fr); }
+  .facts-index { padding-right: 9px; }
+  .facts-index button { font-size: 10px; gap: 5px; }
+  .fact-page { padding-left: 16px; padding-right: 4px; }
+  .fact-opening { display: block; }
+  .fact-opening h3 { font-size: 23px; }
+  .fact-drawing { width: 105px; height: 73px; margin-top: 8px; }
+  .fact-comparison { grid-template-columns: 1fr; gap: 19px; }
+  .fact-comparison p { font-size: 14px; }
+  .facts-footer { font-size: 8px; }
+  .facts-footer > span:last-child { display: none; }
+}
