@@ -256,6 +256,27 @@ batches. Distance detail uses hysteresis. Above nine art units, aerial detail
 simplifies flowers/grass, keeps 60% of grass instances and omits small ground
 plants and flower shadows; full detail returns below seven units.
 
+Flower and shelter-leaf watercolor is applied inside the existing
+`MeshStandardMaterial` shaders using `onBeforeCompile`. Poppies have coral washes
+and soft pigment pooling; cornflowers fade from indigo bases to pale blue-lilac
+tips. Broad leaves use long, feathered green washes and dark modeled veins,
+avoiding small spot-like patches. These patterns follow local surface coordinates
+as the plants sway. They add fragment-shader work, but no textures, geometry or
+extra rendering passes. Fine brush detail fades with pixel footprint to reduce
+distant shimmer; the performance cost has not been separately benchmarked.
+
+For shader tuning, see `botanicalMaterial()` in [world.ts](src/world.ts) and
+`leafMaterial()` in [shelters.ts](src/shelters.ts). Petal UV bands identify the
+species within shared materials: daisy 0–1, poppy 2–3 and cornflower 4–5 in the
+V coordinate; the vertex shader restores each to 0–1. Non-petal primitives use
+V = -1. Keep that convention consistent across all flower LODs.
+
+Shelter leaves are scaled to 85% of their original length and another 70% across
+their width (59.5% of original width). `LEAF_SIZE`, `LEAF_WIDTH_RATIO`,
+`leafSurfaceHeight()` and `leafPlanarDistance()` keep the mesh, landing surfaces,
+collision and elliptical rain cover aligned. Stem attachments and veins follow
+the same shape.
+
 The moss ground adds one 256×256 procedural texture to the existing ground draw.
 The watercolor warning uses one 256×256 texture and one overlay draw, shared by
 cold, heat and nightfall. Neither requires a second full scene render. The
@@ -410,4 +431,7 @@ Current limits and follow-up work:
 - Pacing, weather costs, fuel availability and remaining HUD text need continued
   playtesting; open work is tracked in [TODO.md](TODO.md).
 - Gameplay shapes, pollen colors, energy costs, weather and time are stylized.
-- A project license has not yet been specified; no `LICENSE` file is included.
+
+## License
+
+Licensed under the [MIT License](LICENSE). Copyright © 2026 Lynn Cherny.

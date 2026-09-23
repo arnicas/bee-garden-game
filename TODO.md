@@ -37,10 +37,12 @@
 - [x] Add About bees to success/failure totals, returning from the journal to the same results; remove the unused Electric flowers topic.
 - [x] Reuse two ending workers as hive visitors: landing, small figure-eights and waggling, with no added models or draw calls.
 - [x] Move the wind arrow closer beneath the sun and add a small windsock that shows wind strength.
+- [x] Hide the wind arrow/windsock for now; swaying vegetation remains the visual wind cue.
 
 ## Next playable slices
 
 - [x] Replace flat green soil with a moss-dominant watercolor ground: earth washes, soft pebble shapes and tiny painted leaves, with distance filtering and no added geometry.
+- [x] Add stronger coral watercolor washes to poppies, indigo-to-pale-tip washes to cornflowers, and broad feathered washes with darker veins on shelter leaves. Narrow the leaves and align collision and rain cover with their elliptical footprint.
 
 - [ ] Reduce persistent on-screen text judiciously; favor existing graphics and show instructions when they are useful. Queen mood text, title-screen taglines, the misleading title-screen Esc prompt, decorative flower descriptions and the Way home button arrow have been removed. Keep the short collection instructions and weather warnings.
 - [ ] Tune a day toward 8–12 minutes through routes, flower supplies and balanced objectives; preserve satisfying collection speed. No forced minimum duration.
