@@ -109,7 +109,7 @@ function flowerHead(species: Species, variant: number, simple = false, medium = 
         const scallop = 1 - Math.pow(u, 8) * (0.025 + Math.sin(v * Math.PI * 5) ** 2 * 0.035);
         const y = 0.30 * r * r + Math.sin(v * Math.PI * 8 + u * 5 + i) * 0.018 * u + 0.027 * Math.sin(u * Math.PI) + 0.025 * side * side;
         const color = C(0xe44739).lerp(C(0xfa7660), Math.pow(u, 1.5) * 0.44 + Math.abs(side) * 0.08).lerp(C(0x502d43), Math.pow(Math.max(0, 1 - u / 0.31), 1.4) * 0.94);
-        return { x: Math.cos(angle) * r * scallop, y, z: Math.sin(angle) * r * scallop, color, u: v, v: u };
+        return { x: Math.cos(angle) * r * scallop, y, z: Math.sin(angle) * r * scallop, color, u: v, v: u + 2 };
       }));
     }
     parts.push(ellipsoid(0, 0.065, 0, 0.117, 0.093, 0.117, C(0x7c895c), 1));
@@ -139,8 +139,8 @@ function flowerHead(species: Species, variant: number, simple = false, medium = 
           const angle = theta + spread * 0.22 * u;
           const edge = (v * 2 - 1) * (0.012 + Math.sin(Math.PI * u) * (simple ? 0.023 : 0.019)) * (1 - u * 0.45);
           const y = 0.035 + 0.075 * u + 0.13 * Math.sin(u * Math.PI) - 0.02 * spread;
-          const color = C(0x6a57a8).lerp(C(0x739be8), Math.pow(u, 0.65)).lerp(C(0xc0c5fb), Math.pow(u, 7) * 0.28);
-          return { x: Math.cos(angle) * radial - Math.sin(angle) * edge, y, z: Math.sin(angle) * radial + Math.cos(angle) * edge, color, u: v, v: u };
+          const color = C(0x403778).lerp(C(0x739be8), Math.pow(u, 0.80)).lerp(C(0xcbd1fa), Math.pow(u, 4) * 0.55);
+          return { x: Math.cos(angle) * radial - Math.sin(angle) * edge, y, z: Math.sin(angle) * radial + Math.cos(angle) * edge, color, u: v, v: u + 4 };
         }));
       }
     }
@@ -220,8 +220,8 @@ function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, 
   material.onBeforeCompile = shader => {
     shader.uniforms.uMeadowTime = clock; shader.uniforms.uMeadowUV = uvMode;
     shader.uniforms.uPollenPulse = pollenPulse;
-    shader.vertexShader = 'uniform float uMeadowTime; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition;\n' + windGLSL + '\n' + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBotanicalUv = uv; vBotanicalPosition = position;');
+    shader.vertexShader = 'uniform float uMeadowTime; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition; varying float vPoppyWash; varying float vCornflowerWash;\n' + windGLSL + '\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBotanicalUv = uv; vCornflowerWash = step(4.0, uv.y); vPoppyWash = step(2.0, uv.y) - vCornflowerWash; vBotanicalUv.y -= vPoppyWash * 2.0 + vCornflowerWash * 4.0; vBotanicalPosition = position;');
     if (bend) shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `
       vec4 mvPosition = vec4(transformed, 1.0);
       vec3 rootPosition = vec3(0.0);
@@ -236,7 +236,7 @@ function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, 
       mvPosition = modelViewMatrix * mvPosition;
       gl_Position = projectionMatrix * mvPosition;
     `);
-    shader.fragmentShader = `uniform float uMeadowUV; uniform float uPollenPulse; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition;
+    shader.fragmentShader = `uniform float uMeadowUV; uniform float uPollenPulse; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition; varying float vPoppyWash; varying float vCornflowerWash;
       float botanicalHash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7))) * 43758.5453); }
       float botanicalNoise(vec2 p) {
         vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
@@ -258,6 +258,28 @@ function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, 
         float vein = sin((vBotanicalUv.x - 0.5) * 63.0 + sin(vBotanicalUv.y * 11.0) * 0.65);
         float filtered = 1.0 - smoothstep(0.04, 0.16, fwidth(vBotanicalUv.x));
         diffuseColor.rgb *= 0.975 + vein * 0.026 * filtered;
+        // Poppy petal charts use y=2..3; other flowers and pollen keep their wash.
+        if (vPoppyWash > 0.5) {
+          vec2 pigmentUv = vBotanicalUv * vec2(4.0, 3.0) + vBotanicalPosition.xz * 0.65;
+          float bloom = botanicalNoise(pigmentUv + wash * 0.8);
+          float pool = smoothstep(0.38, 0.49, bloom) - smoothstep(0.51, 0.65, bloom);
+          float dilute = smoothstep(0.25, 0.85, bloom);
+          vec3 scarlet = diffuseColor.rgb;
+          vec3 paleWash = mix(scarlet, vec3(1.0, 0.52, 0.36), 0.20);
+          diffuseColor.rgb = mix(scarlet * vec3(0.92, 0.82, 0.86), paleWash, dilute);
+          diffuseColor.rgb *= 1.0 - pool * 0.12 - edgePigment * 0.08;
+          float brush = botanicalNoise(vec2(vBotanicalUv.x * 28.0, vBotanicalUv.y * 2.2));
+          diffuseColor.rgb = mix(diffuseColor.rgb, paleWash, smoothstep(0.60, 0.84, brush) * 0.20 * filtered);
+        }
+        // Cornflower charts use y=4..5. Uneven dilution follows each floret.
+        if (vCornflowerWash > 0.5) {
+          float bleed = botanicalNoise(vBotanicalPosition.xz * 5.0 + vec2(3.7, 8.2));
+          float reach = vBotanicalUv.y + (bleed - 0.5) * 0.16;
+          float paleTip = smoothstep(0.55, 1.02, reach);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.60, 0.66, 0.94), paleTip * 0.28);
+          float pool = smoothstep(0.56, 0.70, reach) - smoothstep(0.72, 0.88, reach);
+          diffuseColor.rgb *= 1.0 - pool * 0.075 + (wash - 0.5) * 0.09;
+        }
         float guide = (1.0 - smoothstep(0.1, 0.42, vBotanicalUv.y)) * uMeadowUV;
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.39,0.10,0.64), guide * 0.82);
         // A gold wash stays readable on pale daisies as well as colored petals.
@@ -271,7 +293,7 @@ function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, 
       ${petals ? 'totalEmissiveRadiance += vec3(0.82, 0.64, 0.22) * uPollenPulse * 0.22 * smoothstep(0.15, 0.75, vBotanicalUv.y);' : ''}
     `);
   };
-  material.customProgramCacheKey = () => `bee-garden-botanical-v5-${petals}-${bend}`;
+  material.customProgramCacheKey = () => `bee-garden-botanical-v7-${petals}-${bend}`;
   return material;
 }
 

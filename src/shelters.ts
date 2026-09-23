@@ -80,7 +80,7 @@ function canopyGeometry(): THREE.BufferGeometry {
     const x = Math.sin(angle) * radius, z = -Math.cos(angle) * radius;
     const i = 1 + (ring - 1) * sectors + sector;
     positions.set([x, leafSurfaceHeight(x, z), z], i * 3); uvs.set([x / 4.4 + .5, z / 4.4 + .5], i * 2);
-    const pigment = .5 + .2 * Math.sin(x * 3.7 + Math.cos(z * 2.3)) + .15 * Math.cos(z * 4.1 - x);
+    const pigment = .54 + .10 * Math.sin(x * 1.4 + z * .55) + .06 * Math.cos(z * 1.3 - x * .4);
     color.copy(dark).lerp(light, pigment).lerp(edge, Math.pow(rho, 8) * .38).toArray(colors, i * 3);
     const next = 1 + (ring - 1) * sectors + (sector + 1) % sectors;
     if (ring === 1) indices.push(0, next, i);
@@ -95,8 +95,8 @@ function canopyGeometry(): THREE.BufferGeometry {
   sheet.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   sheet.setIndex(indices); sheet.computeVertexNormals();
   const parts: THREE.BufferGeometry[] = [sheet];
-  const vein = new THREE.Color('#adbd78'), fineVein = new THREE.Color('#91aa61');
-  const topVein = new THREE.Color('#96ad60');
+  const vein = new THREE.Color('#526c38'), fineVein = new THREE.Color('#607c40');
+  const topVein = new THREE.Color('#526e37');
   const point = (x: number, z: number, inset = .025) => new THREE.Vector3(x, leafSurfaceHeight(x, z) - inset, z);
   parts.push(paintedTube(new THREE.CatmullRomCurve3([
     point(.035, 1.57), point(.07, .85), point(.003, .05), point(-.058, -.9), point(0, -2.15),
@@ -141,15 +141,29 @@ function leafMaterial(): THREE.MeshStandardMaterial {
       float leafNoise(vec2 p) { vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
         return mix(mix(leafHash(i),leafHash(i+vec2(1,0)),f.x),mix(leafHash(i+vec2(0,1)),leafHash(i+1.),f.x),f.y); }
       ` + shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      float wash = leafNoise(vLeafPoint.xz * 3.5 + leafNoise(vLeafPoint.xz * 1.3));
-      float pooled = smoothstep(.55,.82,leafNoise(vLeafPoint.xz * 11. + wash));
-      float closeDetail = 1.-smoothstep(.045,.16,length(fwidth(vLeafPoint.xz)));
-      diffuseColor.rgb *= .89 + wash*.23 - pooled*.055*closeDetail;
+      // Low-frequency, lengthwise washes avoid isolated camouflage-like spots.
+      vec2 paint = vLeafPoint.xz;
+      float wash = leafNoise(paint * vec2(.85,.42) + vec2(2.7,5.1));
+      float glaze = leafNoise(paint * vec2(1.6,.65) + vec2(7.3,1.8));
+      float closeDetail = 1.-smoothstep(.045,.16,length(fwidth(paint)));
+      vec3 green = diffuseColor.rgb;
+      vec3 lightWash = mix(green, vec3(.53,.64,.26), .18);
+      diffuseColor.rgb = mix(green * vec3(.88,.93,.85), lightWash, wash*.7 + glaze*.3);
+      // Two long, feathered brush passes: open bands rather than closed spots.
+      float sweep = paint.x + .24*sin(paint.y*1.15) + (wash-.5)*.28;
+      float firstWash = smoothstep(-1.25,-.45,sweep) * (1.-smoothstep(.05,.85,sweep));
+      float secondWash = smoothstep(.15,.70,sweep) * (1.-smoothstep(1.15,1.80,sweep));
+      diffuseColor.rgb *= mix(vec3(1.),vec3(1.11,1.07,.98),firstWash);
+      diffuseColor.rgb *= mix(vec3(1.),vec3(.87,.94,.91),secondWash);
+      float tide = smoothstep(.08,.23,sweep) * (1.-smoothstep(.23,.46,sweep));
+      diffuseColor.rgb *= 1.-tide*.045;
+      float brush = leafNoise(paint * vec2(9.,1.1) + vec2(3.2,8.4));
+      diffuseColor.rgb *= 1.0 + (brush-.5)*.055*closeDetail;
       // Thin leaves retain their painted green beneath the canopy.
       if (!gl_FrontFacing) diffuseColor.rgb *= vec3(1.035,1.065,1.025);
       `);
   };
-  material.customProgramCacheKey = () => 'bee-leaf-shelter-pigment-v1';
+  material.customProgramCacheKey = () => 'bee-leaf-shelter-pigment-v4';
   return material;
 }
 
