@@ -37,8 +37,8 @@ export const dayArt = `<svg class="day-arc" viewBox="0 0 480 100" fill="none" ar
       <path class="rain-drop rain-drop-three" d="m17 20-4 10"/>
     </g>
   </g>
-  <g data-day-wind transform="translate(24 75)">
-    <ellipse cx="10" rx="35" ry="15" fill="#fbf5e5" opacity=".72"/>
+  <g data-day-wind display="none" aria-hidden="true" transform="translate(24 75)">
+    <ellipse cx="10" rx="35" ry="15" fill="#fbf5e5" opacity=".28"/>
     <g data-wind-arrow fill="#829464" stroke="#526447" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
       <path d="M0-12C-2-8-5-4-8-1L-2-3-2 9Q0 12 2 9L2-3 8-1C5-4 2-8 0-12Z"/>
       <path d="M0-7V8" stroke="#fff7d7" stroke-width="1" opacity=".7"/>

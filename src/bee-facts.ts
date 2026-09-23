@@ -22,7 +22,7 @@ export const beeFacts: readonly BeeFact[] = [
   {
     id: 'food', label: 'Two kinds of food', title: 'Sweetness and sunshine.', scope: 'Honeybees & other bees',
     nature: 'Nectar supplies carbohydrates; pollen supplies protein, fats and other nutrients. Honeybee foragers carry nectar in their crop, and can pass some into the gut to fuel their own flight. Not every collected drop is reserved for the colony.',
-    game: 'Nectar feeds your wings and fills the hive’s jar. Pollen fills a separate pouch. The shared harvest goal makes one little journey from several kinds of foraging.',
+    game: 'Hold F or left mouse to sip nectar on a flower. Nectar feeds your wings and fills the hive’s jar. Pollen fills a separate pouch. The shared harvest goal makes one little journey from several kinds of foraging.',
     sources: [
       { label: 'Food for bees · University of Minnesota Extension', url: 'https://extension.umn.edu/agriculture/specialty-crops/pollination/habitat' },
       { label: 'The complex life of the honey bee · Purdue Extension', url: 'https://ag.purdue.edu/department/extension/ppp/resources/ppp-publications/mobile/ppp-116-pol-91.html' },
@@ -31,7 +31,7 @@ export const beeFacts: readonly BeeFact[] = [
   {
     id: 'pollen', label: 'A dusting of gold', title: 'Tiny travellers, carried home.', scope: 'Worker honeybees',
     nature: 'A honeybee grooms pollen from her body and packs it into baskets on her hind legs. A little nectar helps the grains hold together. Loose grains on the body can also travel between flowers.',
-    game: 'Walking through anthers collects pollen. Your newest colour gathers on your knuckles; older colours remain as flecks. These visible front-leg grains are a game reminder, not real pollen baskets.',
+    game: 'Use W A S D to walk through anthers and collect pollen. Your newest colour gathers on your knuckles; older colours remain as flecks. These visible front-leg grains are a game reminder, not real pollen baskets.',
     sources: [
       { label: 'Honeybee basic biology · University of Arizona Extension', url: 'https://extension.arizona.edu/publication/honeybee-series-honeybee-basic-biology' },
       { label: 'Native pollinators · Agriculture and Agri-Food Canada', url: 'https://www.fs.usda.gov/wildflowers/pollinators/documents/AgCanadaNativePollinators.pdf' },
@@ -47,9 +47,9 @@ export const beeFacts: readonly BeeFact[] = [
     ],
   },
   {
-    id: 'weather', label: 'A little shelter', title: 'Let the shower pass.', scope: 'Bumblebees; game weather is simplified',
+    id: 'weather', label: 'Shelter from Rain', title: 'Let the shower pass.', scope: 'Bumblebees; game weather is simplified',
     nature: 'Bumblebees can cope with cool, wet weather. Their hairy bodies and the heat from their flight muscles help; staying still reduces their energy needs. A resting bee is not necessarily in trouble, and different bees tolerate weather differently.',
-    game: 'A brief rest spends stored nectar to restore energy and speeds daylight; stillness alone is not food. Rain builds cold and drains energy: leaf undersides and dense grass shelter you, but flowers and leaf tops remain exposed. Blue edges warn of cold or low energy. The rapid cold penalty is a game choice, not a measured bee temperature.',
+    game: 'Press E to land or shelter; press E again once settled to rest. A brief rest spends stored nectar to restore energy and speeds daylight; stillness alone is not food. Rain builds cold and drains energy: leaf undersides and dense grass shelter you, but flowers and leaf tops remain exposed. Blue edges warn of cold or low energy. The rapid cold penalty is a game choice, not a measured bee temperature.',
     sources: [{ label: 'Bumblebees in bad weather · Bumblebee Conservation Trust', url: 'https://www.bumblebeeconservation.org/learn-about-bumblebees/faqs/bad-weather/' }],
   },
   {
@@ -64,7 +64,7 @@ export const beeFacts: readonly BeeFact[] = [
   {
     id: 'home', label: 'The way home', title: 'A harvest worth sharing.', scope: 'Honeybees',
     nature: 'Back at the hive, successful honeybee foragers can use a waggle dance to share the direction and distance of a profitable flower patch with nestmates. This is a honeybee behaviour, not a dance performed by every kind of bee.',
-    game: 'Your heavier harvest changes the flight home. Follow the hive marker to the meadow edge. One outing stands for a whole day; real trips do not follow this clock. In our ending at the hive, two returning bees perform a simplified, simulated waggle dance, tracing little figure-eights. Their dance is decorative and does not communicate flower locations.',
+    game: 'When you have enough nectar and pollen to make the hive happy, the R (Return Home) control appears as “Way home” in the UI. Press R for guidance, then follow the hive marker to the meadow edge. Your heavier harvest changes the flight home. One outing stands for a whole day; real trips do not follow this clock. In our ending at the hive, two returning bees perform a simplified, simulated waggle dance, tracing little figure-eights. Their dance is decorative and does not communicate flower locations.',
     sources: [{ label: 'Decoding waggle dances · University of Sussex', url: 'https://www.sussex.ac.uk/lasi/sussexplan/dances' }],
   },
 ];
@@ -83,6 +83,10 @@ const drawings: Record<string, string> = {
 };
 const htmlEscapes: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escapeHTML = (value: string) => value.replace(/[&<>"']/g, character => htmlEscapes[character]);
+function gameMarkup(value: string): string {
+  return escapeHTML(value).replace(/\b(W A S D|left mouse|Q|E|F|R)\b/g, control =>
+    `<kbd class="fact-key">${control}</kbd>`);
+}
 function sourceLink(source: FactSource): string {
   const url = new URL(source.url);
   if (url.protocol !== 'https:') throw new Error('Bee fact sources must use HTTPS.');
@@ -97,7 +101,7 @@ export function beeFactsMarkup(): string {
       <div class="facts-index" role="tablist" aria-label="Bee fact topics" aria-orientation="vertical">${beeFacts.map((fact, index) => `<button id="fact-tab-${fact.id}" role="tab" data-fact-index="${index}" aria-selected="${index === 0}" aria-controls="fact-panel-${fact.id}" tabindex="${index === 0 ? 0 : -1}"><span aria-hidden="true">${String(index + 1).padStart(2, '0')}</span>${escapeHTML(fact.label)}</button>`).join('')}</div>
       <div class="facts-reader">${beeFacts.map((fact, index) => `<article class="fact-page" id="fact-panel-${fact.id}" role="tabpanel" aria-labelledby="fact-tab-${fact.id}" tabindex="0" ${index === 0 ? '' : 'hidden'}>
         <div class="fact-opening"><div><span class="fact-scope">${escapeHTML(fact.scope)}</span><h3>${escapeHTML(fact.title)}</h3></div><svg class="fact-drawing" viewBox="0 0 170 124" fill="none" aria-hidden="true"><ellipse cx="86" cy="70" rx="64" ry="46" fill="#ede9d5" opacity=".65"/>${drawings[fact.id]}</svg></div>
-        <div class="fact-comparison"><section><h4>In nature</h4><p>${escapeHTML(fact.nature)}</p></section><section><h4>In this game</h4><p>${escapeHTML(fact.game)}</p></section></div>
+        <div class="fact-comparison"><section><h4>In nature</h4><p>${escapeHTML(fact.nature)}</p></section><section><h4>In this game</h4><p>${gameMarkup(fact.game)}</p></section></div>
         <div class="fact-sources"><h4>From the field</h4>${fact.sources.map(sourceLink).join('')}</div>
       </article>`).join('')}</div>
     </div>

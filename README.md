@@ -1,6 +1,8 @@
 # Bee Garden
 
-A first-person watercolor meadow game build by me (arnicas) as critique/direction/director and GPT Astra Extra High as developer. Fly among poppies, daisies and
+A first-person watercolor meadow game build by me (arnicas) as critique/direction/director and GPT Astra Extra High as developer. (The text hasn't been scrubbed of AI twee yet, and not mobile ready.) 
+
+Fly among poppies, daisies and
 cornflowers, land on their moving petals, collect nectar and pollen, shelter
 from weather, and carry a balanced harvest home before the light goes.
 

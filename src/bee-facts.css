@@ -33,6 +33,7 @@
 .fact-comparison h4 { color: #6c7c49; }
 .fact-comparison section + section h4 { color: #a45f42; }
 .fact-comparison p { font: 15px/1.65 var(--serif); color: #4f5b46; }
+.fact-comparison .fact-key { display: inline-block; margin: 0 2px; padding: 3px 6px; border: 1px solid #a46a44; border-bottom-width: 3px; border-radius: 5px; background: #fff0cc; color: #713d25; font: 700 12px/1.15 var(--sans, sans-serif); vertical-align: baseline; box-shadow: 0 1px 2px #78663d18; }
 .fact-sources { margin-top: 24px; padding-top: 14px; border-top: 1px dotted var(--line); }
 .fact-sources h4 { color: #8b8466; font-size: 8px; margin-bottom: 8px; }
 .fact-sources a { display: block; width: fit-content; max-width: 100%; color: #596c46; text-decoration-color: #8c9971; text-underline-offset: 3px; font-size: 10px; line-height: 1.6; margin-top: 6px; overflow-wrap: anywhere; }

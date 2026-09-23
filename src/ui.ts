@@ -44,8 +44,9 @@ const flowerTypes = [ ['poppy', 'Poppy'], ['daisy', 'Daisy'], ['cornflower', 'Co
 const controls = [
   [key('W A S D'), 'Fly & walk<small>W follows your view</small>'],
   [`<span class="guide-arrows" role="img" aria-label="Arrow keys: up, down, left and right">${key('↑')}${key('↓')}${key('←')}${key('→')}</span>`, 'Look around'],
-  [key('E'), 'Land / shelter / rest'],
   [key('Space'), 'Rise / take off'],
+  [key('Ctrl'), 'Descend'],
+  [key('E'), 'Land / shelter / rest'],
   [key('F / left mouse'), 'Hold to sip nectar'],
   [key('Q'), 'Bee vision'],
   [key('R'), 'Find the way home'],
@@ -62,7 +63,6 @@ export function createUI(actions: UIActions): GameUI {
     <div class="scenic-veil" aria-hidden="true"></div>
     <header class="game-heading play-only">
       <div class="little-brand">${icons.bee}<span>Bee Garden</span></div>
-      <div class="field-label"><span class="field-label-title">FIELD NOTES</span></div>
       <p class="objective" hidden><span class="shelter-guide" role="img" aria-label="A dry leaf nearby" hidden>${icons.energy}<span data-text="shelter-label">A dry leaf</span><span class="shelter-arrow" aria-hidden="true">↑</span><span data-text="shelter-distance"></span></span></p>
       <div class="pollination-summary" role="group" aria-label="Meadow happiness from pollination">
         <div class="meadow-overview">${happyMeadowArt}<div class="meadow-counter"><span class="meadow-label" data-text="meadow-label">HAPPY MEADOW</span><div class="meadow-tally"><b data-text="pollination-count">0</b> <span data-text="pollination-count-label">flowers pollinated</span></div></div></div>
@@ -151,7 +151,7 @@ export function createUI(actions: UIActions): GameUI {
     </section>
     <section class="modal-overlay" hidden aria-label="Game menu">
       <div class="journal-page pause-page" hidden>
-        <div class="pause-heading"><div><span class="eyebrow">A MOMENT IN THE MEADOW</span><h2>Rest your wings.</h2></div>
+        <div class="pause-heading"><div><h2>Rest your wings.</h2></div>
           <button class="primary-button" data-action="resume" aria-label="Back to the breeze"><span>Back to the breeze</span>${key('Esc')}</button>
         </div>
         <div class="guide-heading"><span>YOUR FIELD GUIDE</span><span>✳</span></div>
@@ -163,11 +163,11 @@ export function createUI(actions: UIActions): GameUI {
           <div>${icons.hive}<p><strong>Bring it home</strong>With enough supplies, follow the hive marker to the edge.</p></div>
         </div>
         <details class="guide-extras"><summary>Mouse & extra controls</summary>
-          <div><span>${key('Mouse / drag')} Look</span><span>${key('Ctrl')} Descend</span><span>${key('Shift')} Steady</span></div>
+          <div><span>${key('Mouse / drag')} Look</span><span>${key('Shift')} Steady</span></div>
           <p>Click the meadow to capture the mouse for looking and sipping. Esc releases it.</p>
         </details>
         <div class="pause-footer">
-          <button class="facts-invitation" data-action="facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts"><span><strong>Small wonders</strong><small>Bee facts, weather & life in the meadow</small></span><span aria-hidden="true">↗</span></button>
+          <button class="facts-invitation" data-action="facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts"><span><strong>Bee Facts</strong><small>Bee facts, weather & life in the meadow</small></span><span aria-hidden="true">↗</span></button>
           <button class="text-button" data-action="restart">Start the day again ${icons.arrow}</button>
         </div>
       </div>
@@ -444,7 +444,7 @@ export function createUI(actions: UIActions): GameUI {
     show(dayWeather, raining || clearing || state.sunHeat > .18);
     const windStrength = percent(state.wind, 6.3);
     const windLabel = state.edgeGust ? 'Meadow-edge gust' : state.wind > 4 ? 'Strong gust' : state.wind > 2.4 ? 'Wind rising' : state.wind > .8 ? 'Steady breeze' : 'Light air';
-    const windHelp = `${windLabel}. Arrow points where the air carries you, relative to your view. Fly low, perch, or ride the current to save energy.`;
+    const windHelp = `${windLabel}. Watch the swaying grass for wind. Fly low, perch, or ride the current to save energy.`;
     attribute(dayWind, 'transform', `translate(${sunX.toFixed(2)} ${(sunY + (raining ? 45 : 32)).toFixed(2)})`);
     attribute(windArrow, 'transform', `rotate(${(state.windBearing * 180 / Math.PI).toFixed(2)}) scale(${(.8 + windStrength * .4).toFixed(3)})`);
     attribute(windArrow, 'fill', `hsl(${(87 - windStrength * 59).toFixed(1)} ${(24 + windStrength * 38).toFixed(1)}% 55%)`);
