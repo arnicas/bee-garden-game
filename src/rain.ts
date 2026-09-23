@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { LeafShelter } from './shelters';
+import { LEAF_WIDTH_RATIO, type LeafShelter } from './shelters';
 import { createSeededRandom } from './utils/random';
 
 /** A small presentation pool, in world art units / seconds. The caller owns
@@ -81,6 +81,7 @@ export function createRain(scene: THREE.Scene) {
     localPoint.copy(point).sub(shelter.center).applyQuaternion(inverseShelter);
     localEnd.copy(end).sub(shelter.center).applyQuaternion(inverseShelter);
     if (Math.min(localPoint.y, localEnd.y) > -.13) return false;
+    localPoint.x /= LEAF_WIDTH_RATIO; localEnd.x /= LEAF_WIDTH_RATIO;
     const dx = localEnd.x - localPoint.x, dz = localEnd.z - localPoint.z;
     const length2 = dx * dx + dz * dz;
     const t = length2 > 1e-8 ? THREE.MathUtils.clamp(-(localPoint.x * dx + localPoint.z * dz) / length2, 0, 1) : 0;

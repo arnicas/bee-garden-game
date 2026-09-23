@@ -10,7 +10,7 @@ import { GardenAudio } from './audio';
 import { createPollenFX } from './pollen';
 import { createPollinationFX } from './pollination';
 import { createWindEffects } from './wind-effects';
-import { createShelters, leafSurfaceHeight, type LeafShelter } from './shelters';
+import { createShelters, leafSurfaceHeight, leafPlanarDistance, type LeafShelter } from './shelters';
 import { createRain } from './rain';
 import { createFlowerRain } from './flower-rain';
 import { createEnergyWash } from './energy-wash';
@@ -545,7 +545,7 @@ export class Garden {
     this.rainCover = this.underLeaf;
     if (!this.rainCover) for (const leaf of this.leafShelters.shelters) {
       this.temp.subVectors(this.position, leaf.center).applyQuaternion(this.inverseFlower.copy(leaf.rotation).invert());
-      if (Math.hypot(this.temp.x, this.temp.z) < leaf.radius * .8 && this.temp.y < leafSurfaceHeight(this.temp.x, this.temp.z) - .15 && this.temp.y > -1.82) {
+      if (leafPlanarDistance(this.temp.x, this.temp.z) < leaf.radius * .8 && this.temp.y < leafSurfaceHeight(this.temp.x, this.temp.z) - .15 && this.temp.y > -1.82) {
         this.rainCover = leaf; break;
       }
     }
@@ -645,7 +645,7 @@ export class Garden {
     for (const leaf of this.leafShelters.shelters) {
       this.inverseFlower.copy(leaf.rotation).invert();
       this.temp.subVectors(this.position, leaf.center).applyQuaternion(this.inverseFlower);
-      if (Math.hypot(this.temp.x, this.temp.z) >= leaf.radius + .32) continue;
+      if (leafPlanarDistance(this.temp.x, this.temp.z) >= leaf.radius + .32) continue;
       this.collisionPrevious.subVectors(this.previousPosition, leaf.center).applyQuaternion(this.inverseFlower);
       const surface = leafSurfaceHeight(this.temp.x, this.temp.z);
       if (this.collisionPrevious.y < surface && this.temp.y > surface - .32) {
@@ -1076,7 +1076,7 @@ export class Garden {
       if (distance > 12) continue;
       const dot = this.temp.normalize().dot(this.forward);
       this.landingLocal.subVectors(this.position, leaf.center).applyQuaternion(this.inverseFlower.copy(leaf.rotation).invert());
-      const tucked = Math.hypot(this.landingLocal.x, this.landingLocal.z) < leaf.radius * .8 && (!this.needsLeafShelter() ? this.landingLocal.y >= .2 && this.landingLocal.y < 3.2 : this.landingLocal.y < -.2 && this.landingLocal.y > -2);
+      const tucked = leafPlanarDistance(this.landingLocal.x, this.landingLocal.z) < leaf.radius * .8 && (!this.needsLeafShelter() ? this.landingLocal.y >= .2 && this.landingLocal.y < 3.2 : this.landingLocal.y < -.2 && this.landingLocal.y > -2);
       if (!tucked && dot < .62) continue;
       const close = distance < leaf.radius + 2.1;
       const score = tucked ? 26 - distance : dot > .94 && close ? 23 - distance * .5 : dot * 5 - distance * .22;

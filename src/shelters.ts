@@ -5,7 +5,7 @@ import { flowerSwayAt } from './wind';
 import { createSeededRandom } from './utils/random';
 
 /** A broad leaf's centre and safe underside perch, in world art units.
- * radius*.8 is wholly inside the leaf; radius+.7 clears even its pointed tip.
+ * radius*.8 in the elliptical footprint stays covered; radius+.7 clears the tip.
  * Rotation maps the leaf's XZ surface to world space, with its tip along -Z.
  */
 export interface LeafShelter {
@@ -22,10 +22,17 @@ export interface LeafShelter {
 }
 
 const COUNT = 16;
+const LEAF_SIZE = .85;
+export const LEAF_WIDTH_RATIO = .70;
+
+/** Distance in the leaf’s elliptical footprint, in length-axis units. */
+export function leafPlanarDistance(x: number, z: number): number {
+  return Math.hypot(x / LEAF_WIDTH_RATIO, z);
+}
 const TAU = Math.PI * 2;
 const UP = new THREE.Vector3(0, 1, 0);
-const PERCH = new THREE.Vector3(0, -.62, -.12);
-const TOP_PERCH = new THREE.Vector3(0, leafSurfaceHeight(0, -.12) + .29, -.12);
+const PERCH = new THREE.Vector3(0, -.62, -.12 * LEAF_SIZE);
+const TOP_PERCH = new THREE.Vector3(0, leafSurfaceHeight(0, -.12 * LEAF_SIZE) + .29, -.12 * LEAF_SIZE);
 
 function groundHeight(x: number, z: number): number {
   // The meadow's authored terrain, including the very low outer rise.
@@ -48,6 +55,10 @@ function leafRadius(angle: number): number {
 }
 
 export function leafSurfaceHeight(x: number, z: number): number {
+  return authoredLeafHeight(x / (LEAF_SIZE * LEAF_WIDTH_RATIO), z / LEAF_SIZE);
+}
+
+function authoredLeafHeight(x: number, z: number): number {
   const angle = Math.atan2(x, -z), rho = Math.min(1, Math.hypot(x, z) / leafRadius(angle));
   const ridgeX = .06 * Math.sin(z * 1.5);
   const bow = .12 * (1 - Math.pow((z + .2) / 2.6, 2));
@@ -74,12 +85,12 @@ function canopyGeometry(): THREE.BufferGeometry {
   const indices: number[] = [];
   const dark = new THREE.Color('#628443'), light = new THREE.Color('#9ab263'), edge = new THREE.Color('#647e3e');
   const color = new THREE.Color();
-  positions[1] = leafSurfaceHeight(0, 0); light.toArray(colors, 0); uvs.set([.5, .5]);
+  positions[1] = authoredLeafHeight(0, 0); light.toArray(colors, 0); uvs.set([.5, .5]);
   for (let ring = 1; ring <= rings; ring++) for (let sector = 0; sector < sectors; sector++) {
     const angle = sector / sectors * TAU, rho = ring / rings, radius = leafRadius(angle) * rho;
     const x = Math.sin(angle) * radius, z = -Math.cos(angle) * radius;
     const i = 1 + (ring - 1) * sectors + sector;
-    positions.set([x, leafSurfaceHeight(x, z), z], i * 3); uvs.set([x / 4.4 + .5, z / 4.4 + .5], i * 2);
+    positions.set([x, authoredLeafHeight(x, z), z], i * 3); uvs.set([x / 4.4 + .5, z / 4.4 + .5], i * 2);
     const pigment = .54 + .10 * Math.sin(x * 1.4 + z * .55) + .06 * Math.cos(z * 1.3 - x * .4);
     color.copy(dark).lerp(light, pigment).lerp(edge, Math.pow(rho, 8) * .38).toArray(colors, i * 3);
     const next = 1 + (ring - 1) * sectors + (sector + 1) % sectors;
@@ -97,7 +108,7 @@ function canopyGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [sheet];
   const vein = new THREE.Color('#526c38'), fineVein = new THREE.Color('#607c40');
   const topVein = new THREE.Color('#526e37');
-  const point = (x: number, z: number, inset = .025) => new THREE.Vector3(x, leafSurfaceHeight(x, z) - inset, z);
+  const point = (x: number, z: number, inset = .025) => new THREE.Vector3(x, authoredLeafHeight(x, z) - inset, z);
   parts.push(paintedTube(new THREE.CatmullRomCurve3([
     point(.035, 1.57), point(.07, .85), point(.003, .05), point(-.058, -.9), point(0, -2.15),
   ]), 28, .029, vein));
@@ -124,6 +135,7 @@ function canopyGeometry(): THREE.BufferGeometry {
   }
   parts.push(paintedTube(new THREE.CatmullRomCurve3(rim, true), 96, .009, edge, true));
   const geometry = mergeGeometries(parts)!;
+  geometry.scale(LEAF_SIZE * LEAF_WIDTH_RATIO, 1, LEAF_SIZE);
   parts.forEach(part => part.dispose());
   geometry.computeBoundingSphere();
   return geometry;
@@ -216,12 +228,12 @@ export function createShelters(scene: THREE.Scene, flowers: readonly Flower[]) {
     }
     const base = new THREE.Vector3(bestX, bestY, bestZ), yaw = random() * TAU;
     bases.push(base); restRotations.push(new THREE.Quaternion().setFromAxisAngle(UP, yaw));
-    const root = new THREE.Vector3(Math.sin(yaw) * 1.56, 0, Math.cos(yaw) * 1.56).add(base);
+    const root = new THREE.Vector3(Math.sin(yaw) * 1.56 * LEAF_SIZE, 0, Math.cos(yaw) * 1.56 * LEAF_SIZE).add(base);
     root.y = groundHeight(root.x, root.z) - .025; roots.push(root);
     shelters.push({
       id, center: base.clone(), perch: base.clone().add(PERCH), topPerch: base.clone().add(TOP_PERCH),
       rotation: new THREE.Quaternion(), velocity: new THREE.Vector3(), topVelocity: new THREE.Vector3(),
-      root: root.clone(), radius: 1.9,
+      root: root.clone(), radius: 1.9 * LEAF_SIZE,
     });
     leaves.setColorAt(id, new THREE.Color().setHSL(.215 + random() * .035, .16 + random() * .1, .87 + random() * .06));
   }
@@ -255,7 +267,7 @@ export function createShelters(scene: THREE.Scene, flowers: readonly Flower[]) {
       shelter.velocity.copy(shelter.perch).sub(previousPerch).multiplyScalar(time === 0 ? 0 : 60);
       shelter.topVelocity.copy(shelter.topPerch).sub(previousTopPerch).multiplyScalar(time === 0 ? 0 : 60);
       scale.set(1, 1, 1); matrix.compose(shelter.center, shelter.rotation, scale); leaves.setMatrixAt(id, matrix);
-      end.set(0, leafSurfaceHeight(0, 1.56) - .025, 1.56).applyQuaternion(shelter.rotation).add(shelter.center);
+      end.set(0, leafSurfaceHeight(0, 1.56 * LEAF_SIZE) - .025, 1.56 * LEAF_SIZE).applyQuaternion(shelter.rotation).add(shelter.center);
       direction.copy(end).sub(roots[id]); const length = direction.length(); direction.multiplyScalar(1 / length);
       stemRotation.setFromUnitVectors(UP, direction); scale.set(1, length, 1);
       matrix.compose(roots[id], stemRotation, scale); stems.setMatrixAt(id, matrix);
