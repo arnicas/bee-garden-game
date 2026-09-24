@@ -192,6 +192,8 @@ export class Garden {
   private pollenChime = 0;
   private notice = '';
   private noticeUntil = 0;
+  // 0 none, 1 low-energy notice shown, 2 very-low notice shown; re-armed at 50.
+  private lowEnergyWarned = 0;
   private resultScore = 0;
   private returnAge = 0;
   private returnFuel = 0;
@@ -301,7 +303,7 @@ export class Garden {
     this.flightMode = 'riding'; this.flightEffort = 0; this.loadSway = 0; this.heavyWobble = 0; this.heavyStrain = 0; this.heavyKick = 0; this.lookRoll = 0;
     this.windFX.reset(this.position, this.time);
     this.returnAge = 0; this.returnFuel = 0; this.windDrain = 0; this.takeoffCooldown = 0; this.accumulator = 0; this.keys.clear(); this.closingHeldKeys.clear(); this.mouseDown = false;
-    this.pausedCapture = false; this.resetSupply(); this.pollenFX.reset(); this.particleAmount = 0; this.notice = ''; this.noticeUntil = 0;
+    this.pausedCapture = false; this.resetSupply(); this.pollenFX.reset(); this.particleAmount = 0; this.notice = ''; this.noticeUntil = 0; this.lowEnergyWarned = 0;
     void this.audio.start().catch(() => this.notify('Sound is unavailable. You can still play.'));
     this.canvas.focus({ preventScroll: true });
     if (showWelcome) {
@@ -552,6 +554,21 @@ export class Garden {
       if (this.noticeUntil < this.time) this.notify('Using a little stored nectar for energy.');
     }
     if (this.energy >= 99.99 || this.nectar <= 0) this.autoFeeding = false;
+    // Low-energy notices arrive with the blue edges, once per dip, and re-arm
+    // after a real refuel. Cold and heat already have their own warnings.
+    if (this.energy >= 50) this.lowEnergyWarned = 0;
+    if ((this.phase === 'flying' || this.phase === 'landed') && !this.drinking && !this.resting) {
+      if (this.lowEnergyWarned < 1 && this.energy < 38 && this.chill < .18 && this.heat < .18) {
+        this.lowEnergyWarned = 1;
+        this.notify(this.nectar > 2
+          ? 'Energy is getting low · Stored nectar will help for a while. Sip from a daisy or cornflower to refuel.'
+          : 'Energy is getting low · Find a daisy or cornflower and hold F to sip nectar.', 7);
+      }
+      if (this.lowEnergyWarned < 2 && this.energy < 18) {
+        this.lowEnergyWarned = 2;
+        this.notify('Almost out of energy · Land on the nearest daisy or cornflower and sip nectar now.', 8);
+      }
+    }
     if (this.resting) {
       this.restAge += dt;
       if (this.restAge >= REST_DURATION) {
