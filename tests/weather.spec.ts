@@ -1,5 +1,6 @@
 import { startFlyingFixture, leaveWelcome } from './support/start';
 import { expect, test, type Page } from '@playwright/test';
+import { Quaternion, Vector3 } from 'three';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
@@ -26,7 +27,7 @@ test('one shower warns, rains, clears and keeps shelters reachable with bounded 
   await start(page); await freeze(page, true);
   await page.evaluate(() => window.__BEE_TEST__!.setPose([0, 5.6, 3.5], 0, -.14));
   const samples: Record<string, any> = {};
-  for (const [name, day, stage] of [['before', .22, 'clear'], ['clouds', .27, 'approaching'], ['shower', .35, 'rain'], ['clearing', .42, 'clearing'], ['sunshine', .48, 'clear']] as const) {
+  for (const [name, day, stage] of [['before', .22, 'clear'], ['clouds', .27, 'approaching'], ['shower', .35, 'rain'], ['clearing', .42, 'clearing'], ['sunshine', .455, 'clear']] as const) {
     await page.evaluate(day => window.__BEE_TEST__!.setDayProgress(day), day);
     await expect.poll(async () => (await state(page)).weather.stage).toBe(stage);
     await expect(page.locator('.weather-note')).toHaveAttribute('data-weather-stage', stage);
@@ -98,7 +99,10 @@ test('E tucks under a leaf, rain stays outside, rest passes the shower, and Spac
   const flying = await state(page);
   expect(flying.phase).toBe('flying'); expect(flying.underLeaf).toBeUndefined();
   const leaf = await page.evaluate(() => window.__BEE_TEST__!.shelters()[0]);
-  expect(Math.hypot(flying.position[0] - leaf.center[0], flying.position[2] - leaf.center[2])).toBeGreaterThan(leaf.radius + .32);
+  // Leaves are ellipses 0.70 as wide as long (LEAF_WIDTH_RATIO in src/shelters.ts), so measure
+  // the escape in the leaf's own footprint, as the game's leafPlanarDistance does.
+  const local = new Vector3(...flying.position).sub(new Vector3(...leaf.center)).applyQuaternion(new Quaternion(...leaf.rotation).invert());
+  expect(Math.hypot(local.x / .70, local.z)).toBeGreaterThan(leaf.radius + .32);
   await writeFile('artifacts/weather-1/shelter.json', JSON.stringify({ outside, dry, paused, cleared, flying }, null, 2));
 });
 
