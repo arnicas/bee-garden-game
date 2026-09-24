@@ -76,7 +76,7 @@ export function createUI(actions: UIActions): GameUI {
         <p class="flower-resources"><span>${icons.nectar}<b data-text="flower-nectar"></b> nectar</span><span>${icons.pollen}<b data-text="flower-pollen"></b> pollen</span></p>
         <p class="flower-guidance" data-text="flower-guidance" hidden></p>
         <p class="flower-forage" data-text="flower-forage" hidden></p>
-        <p class="flower-pollinated" hidden>${icons.flower}<span>Pollinated by you</span></p>
+        <p class="flower-pollinated" hidden>${flowerTypes.map(([species]) => `<span class="flower-pollinated-mark" data-flower-pollinated="${species}" hidden>${pollinationFlowers[species]}</span>`).join('')}<span>Pollinated by you</span></p>
         <button class="flower-rest" data-action="rest" aria-label="Rest a moment" aria-keyshortcuts="E" aria-pressed="false" title="Rest on this flower. Stored nectar restores energy while the day passes."><span class="rest-leaf" aria-hidden="true">${icons.energy}</span><span data-text="rest-label">Rest a moment</span>${key('E')}</button>
       </div>
     </header>
@@ -300,6 +300,8 @@ export function createUI(actions: UIActions): GameUI {
   const meadowCoverage = el('.meadow-coverage');
   const speciesPetals = flowerTypes.map(([species, name]) => ({ species, name, element: el(`.species-petal[data-species="${species}"]`) }));
   const flowerPollinated = el('.flower-pollinated');
+  // The pollinated line shows the same small colored bloom as the +1 notice, for this flower's species.
+  const flowerPollinatedMarks = flowerTypes.map(([species]) => ({ species, element: el(`[data-flower-pollinated="${species}"]`) }));
   const compass = el('.compass-arrow');
   const dayWind = el<SVGGElement>('[data-day-wind]');
   const windArrow = el<SVGGElement>('[data-wind-arrow]');
@@ -582,6 +584,7 @@ export function createUI(actions: UIActions): GameUI {
     text('pollination-announcement', pollinatedName ? `${pollinatedName} pollinated. ${state.pollinated} ${state.pollinated === 1 ? 'flower' : 'flowers'} pollinated in the meadow.` : '');
     show(pollinationToast, playing && !!state.pollinationSpecies);
     show(flowerPollinated, state.flowerPollinated && !leafPerch && !onGround);
+    for (const mark of flowerPollinatedMarks) show(mark.element, mark.species === state.flowerSpecies);
     const nectarTotal = state.nectarGoal + state.homeCost;
     attribute(fills.energy, 'd', energyWedge(percent(state.energy)));
     const honeyHeight = 52 * percent(state.nectar, state.nectarCapacity);

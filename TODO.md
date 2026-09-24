@@ -51,7 +51,7 @@
 - [ ] Vary the ending dialog text by how good the day was, based on the stats.
 - [ ] Make the lingering overhead meadow view read clearly as a rest, not flight: show a small curled-up sleeping bee with drifting "z z z" at the bottom of the screen while the camera orbits. Keep it still under reduced motion, and let it fade out when any key or click wakes the view.
 - [x] Start each day at 60% energy (`START_ENERGY` in `src/garden.ts`), so sipping on the opening daisy is the first thing to learn. Legacy test scenarios keep a full meter.
-- [ ] Flower info: when a flower shows "Pollinated by you", use a small colored flower or petal for that species (red poppy, white daisy, blue cornflower), like the pollination +1 notice, instead of the generic flower icon.
+- [x] Flower info: "Pollinated by you" shows the small colored bloom for that species (red poppy, white daisy, blue cornflower), the same art as the pollination +1 notice.
 - [ ] Add creatures or objects to the undergrowth, found when flying low or walking in the grass.
   - Fallen bees: a few still bees lying in the grass, placed by the meadow seed. Approaching or landing next to one shows a short, gentle note, with a matching Small wonders topic for more. Keep the tone quiet and respectful, not grim.
   - In-game causes, each tied to a danger the player can avoid: caught in the rain (cold and soaked), too long in the hot sun, out of energy far from the hive, or still out when night fell. The note can point back to the game's own cue: blue edges, orange edges, the energy meter, the daylight strip.

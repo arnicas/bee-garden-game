@@ -165,7 +165,9 @@ h1 em { font-weight: 400; font-size: .93em; }
 .flower-guidance { margin-top: 11px; font-family: var(--serif); font-style: italic; font-size: 12px; max-width: 205px; line-height: 1.5; }
 .flower-forage { margin-top: 8px; font-size: 10px; max-width: 205px; line-height: 1.5; }
 .flower-pollinated { display: flex; align-items: center; gap: 6px; margin-top: 12px; color: #506829; font-size: 11px; }
-.flower-pollinated svg { width: 23px; height: 23px; }
+.flower-pollinated svg { width: 26px; height: 26px; }
+.flower-pollinated-mark { display: inline-flex; }
+.flower-pollinated-mark[hidden] { display: none; }
 .flower-rest { display: inline-flex; align-items: center; gap: 7px; margin-top: 11px; padding: 6px 9px 6px 7px; min-height: 31px; border: 1px solid #87916c70; border-radius: 4px; background: #fbf5e5c9; color: #50613e; font-size: 10px; line-height: 1.2; }
 .flower-rest:hover { background: #fff8e6; border-color: #87916cb3; }
 .flower-rest[aria-pressed="true"] { color: #435537; background: #e8ecd5e8; border-color: #87916ca6; }

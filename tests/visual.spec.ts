@@ -88,7 +88,8 @@ test('real input flies, lands, gathers, takes off and delivers a balanced harves
   await expect.poll(async () => Math.abs((await snapshot(page)).localPosition[0] - landed.localPosition[0]), { intervals: [30] }).toBeLessThan(.02);
   await page.keyboard.up('d');
   await page.keyboard.down('f');
-  await expect.poll(async () => (await snapshot(page)).nectar, { timeout: 20_000 }).toBeGreaterThan(16);
+  // A daisy now gives 13 nectar per visit (see Flower_Facts.md), part of it eaten for energy.
+  await expect.poll(async () => (await snapshot(page)).nectar, { timeout: 20_000 }).toBeGreaterThan(8);
   await page.keyboard.up('f');
   await walkForPollen(page, s => s.pollen > 10);
   await page.screenshot({ path: 'artifacts/qa/foraging-daisy.png' });
@@ -102,9 +103,9 @@ test('real input flies, lands, gathers, takes off and delivers a balanced harves
   await page.keyboard.press('e');
   await expect.poll(async () => (await snapshot(page)).phase).toBe('landed');
   await page.keyboard.down('f');
-  await expect.poll(async () => (await snapshot(page)).nectar, { timeout: 20_000 }).toBeGreaterThan(34);
+  await expect.poll(async () => (await snapshot(page)).nectar, { timeout: 20_000 }).toBeGreaterThan(30); // daisy + cornflower (28 per visit), less what the bee eats
   await page.keyboard.up('f');
-  await walkForPollen(page, s => s.pollen >= 20);
+  await walkForPollen(page, s => s.pollen >= 16); // cornflowers now give 10 pollen per visit
   // Two flowers cannot fill the larger day harvest. The multi-flower/full-pouch
   // checks cover gathering; isolate delivery here after proving the new gate.
   expect((await snapshot(page)).harvestReady).toBe(false);
