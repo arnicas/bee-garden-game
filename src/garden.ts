@@ -35,6 +35,10 @@ const POLLEN_SUPPLY: Record<Species, number> = { poppy: 42, daisy: 22, cornflowe
 // Flower supplies track visible material; counters track usable harvest.
 // Keep contact/depletion lively while asking for more flower visits per day.
 const POLLEN_YIELD = .5, NECTAR_YIELD = .5;
+// How close the bee must be for the E landing cue on a flower: reach beyond the petal radius,
+// and height above the petal surface. (Previously 2.25 and 3.2.)
+const FLOWER_LANDING_REACH = 1.85;
+const FLOWER_LANDING_CLEARANCE = 2.8;
 interface FlowerSupply { nectar: number; pollen: number; visited: boolean; pollinated: boolean; }
 interface TestControl {
   snapshot(): Record<string, unknown>;
@@ -1095,10 +1099,10 @@ export class Garden {
     const radial = Math.hypot(this.landingLocal.x, this.landingLocal.z);
     const clearance = this.landingLocal.y - surfaceHeight(best.species, this.landingLocal.x, this.landingLocal.z, best.radius);
     const overPetals = radial < best.radius + .15;
-    const closeEnough = this.position.distanceTo(best.center) < best.radius + 2.25 && clearance <= 3.2;
+    const closeEnough = this.position.distanceTo(best.center) < best.radius + FLOWER_LANDING_REACH && clearance <= FLOWER_LANDING_CLEARANCE;
     if (this.takeoffCooldown > 0) this.landingHint = 'Give your wings a moment after takeoff.';
     else if (clearance < .05) this.landingHint = 'Rise above the petals · Space to climb';
-    else if (overPetals && clearance > 3.2) this.landingHint = 'Look down at the flower and press W to approach';
+    else if (overPetals && clearance > FLOWER_LANDING_CLEARANCE) this.landingHint = 'Look down at the flower and press W to approach';
     else if (!closeEnough) this.landingHint = 'Look toward the flower and press W to move closer';
     else { this.canLand = this.phase === 'flying'; this.landingHint = `E · Land on ${NAMES[best.species].toLowerCase()}`; }
   }

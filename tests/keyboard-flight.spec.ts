@@ -66,7 +66,7 @@ test('assisted landing pauses, can be cancelled with Space, and resets cleanly',
     await page.evaluate(() => {
       window.__THREE_GAME_TEST_HOOKS__!.setPausedForScreenshot(true);
       const f = window.__BEE_TEST__!.flowers()[1];
-      window.__BEE_TEST__!.setPose([f.center[0], f.center[1] + .8, f.center[2] + 2.8], 0, -.3);
+      window.__BEE_TEST__!.setPose([f.center[0], f.center[1] + .8, f.center[2] + 2.3], 0, -.3);
     });
     await expect.poll(async () => (await state(page)).canLand).toBe(true);
     await page.keyboard.press('e');

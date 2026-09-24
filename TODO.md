@@ -52,6 +52,11 @@
 - [ ] Add creatures or objects to the undergrowth.
 - [ ] Add a heavy-breeze indicator to the sun timeline, like the rain cloud: stacked wavy lines, with a text alert beneath (heavy wind, conserve energy), handled like the rain warning.
 - [ ] Randomize wind and rain events each day, so they don't always come at the same time or from the same direction.
+- [ ] Add a wobble in a few directions when the bee is full of nectar and pollen, so heavy flight feels harder (builds on the gentle weave of the loaded flight home).
+
+### Lower priority
+
+- [ ] Tune flower landing distance further. The E cue now needs reach 1.85 past the petals and 2.8 above them (was 2.25 / 3.2); the difference felt small in play. Adjust `FLOWER_LANDING_REACH` / `FLOWER_LANDING_CLEARANCE` in `src/garden.ts`.
 
 ## Decisions held steady
 
