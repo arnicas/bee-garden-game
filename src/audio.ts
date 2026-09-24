@@ -175,7 +175,7 @@ export class GardenAudio {
     await ctx.resume();
   }
 
-  update(flying: boolean, speed: number, wind: number, touchingNectar: boolean, paused: boolean, ending?: EndingAudioMix, weather?: WeatherAudioMix, lossProgress?: number): void {
+  update(flying: boolean, speed: number, wind: number, touchingNectar: boolean, paused: boolean, ending?: EndingAudioMix, weather?: WeatherAudioMix, lossProgress?: number, strain = 0): void {
     if (this.disposed) return;
     const wasEnding = this.endingActive;
     const wasLosing = this.lossFade !== undefined;
@@ -197,8 +197,11 @@ export class GardenAudio {
     const sipping = touchingNectar && !paused;
     const normalWings = flying ? 0.038 + speed * 0.006 : sipping ? 0.006 : 0.002;
     const cinematicWings = (0.028 + Math.max(0, speed) * .004) * (.14 + home * .86) * (1 - meadow * .72);
-    this.wings.gain.setTargetAtTime(paused ? 0 : ending ? cinematicWings : normalWings, t, 0.2);
-    this.wingOsc.frequency.setTargetAtTime(158 + speed * 9, t, 0.2);
+    // A heavy load strains the wings in short pulses: pitch dips and the hum swells,
+    // fast enough to hear each beat (a slower wind gust never sounds like this).
+    const effort = flying && !paused && !ending ? boundedMix(strain) : 0;
+    this.wings.gain.setTargetAtTime(paused ? 0 : ending ? cinematicWings : normalWings * (1 + effort * .35), t, effort > .02 ? 0.05 : 0.2);
+    this.wingOsc.frequency.setTargetAtTime(158 + speed * 9 - effort * 22, t, effort > .02 ? 0.05 : 0.2);
     this.breeze.gain.setTargetAtTime(paused ? 0 : (0.022 + wind * 0.022) * (ending ? 1 - home * .38 : 1), t, 0.4);
     this.swarm!.gain.setTargetAtTime(this.endingTargets.swarm, t, .32);
     this.hive!.gain.setTargetAtTime(this.endingTargets.hive, t, .40);
