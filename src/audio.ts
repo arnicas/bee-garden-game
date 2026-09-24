@@ -61,6 +61,8 @@ export interface EndingAudioMix {
 export interface WeatherAudioMix {
   rain: number;
   underLeaf: boolean;
+  /** 0–1: perched on or hovering just above a broad leaf top. */
+  leafTop?: number;
 }
 const boundedMix = (value: number): number => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 
@@ -76,7 +78,9 @@ export class GardenAudio {
   private leafPatter?: GainNode;
   private rainFilter?: BiquadFilterNode;
   private weatherGain?: GainNode;
-  private weatherMix = { intensity: 0, sheltered: false };
+  private weatherMix = { intensity: 0, sheltered: false, leafTop: 0 };
+  private lastDropCheck = 0;
+  drops = 0;
   private lossFade: number | undefined;
   private weatherTargets = { air: 0, leaf: 0 };
   private swarmOscillators: OscillatorNode[] = [];
@@ -189,9 +193,10 @@ export class GardenAudio {
     this.endingTargets.hive = paused || !ending ? 0 : home * .020;
     this.weatherMix.intensity = boundedMix(weather?.rain ?? 0);
     this.weatherMix.sheltered = weather?.underLeaf === true;
+    this.weatherMix.leafTop = boundedMix(weather?.leafTop ?? 0);
     const rainLevel = paused || ending ? 0 : this.weatherMix.intensity;
     this.weatherTargets.air = rainLevel * (this.weatherMix.sheltered ? .012 : .028);
-    this.weatherTargets.leaf = rainLevel * (this.weatherMix.sheltered ? .068 : .010);
+    this.weatherTargets.leaf = rainLevel * (this.weatherMix.sheltered ? .068 : .010 + .045 * this.weatherMix.leafTop);
     if (!this.context || !this.wings || !this.wingOsc || !this.breeze) return;
     const t = this.context.currentTime;
     const sipping = touchingNectar && !paused;
@@ -208,6 +213,11 @@ export class GardenAudio {
     this.rainAir!.gain.setTargetAtTime(this.weatherTargets.air, t, paused ? .04 : .35);
     this.leafPatter!.gain.setTargetAtTime(this.weatherTargets.leaf, t, paused ? .04 : .35);
     this.rainFilter!.frequency.setTargetAtTime(this.weatherMix.sheltered ? 1350 : 6200, t, .3);
+    // Individual drops landing on a nearby leaf: bright pings from above,
+    // softer and lower from underneath.
+    const dropDt = Math.min(.25, Math.max(0, t - this.lastDropCheck)); this.lastDropCheck = t;
+    const dropRate = rainLevel * (this.weatherMix.sheltered ? 3.5 : 7 * this.weatherMix.leafTop);
+    if (dropRate > 0 && Math.random() < 1 - Math.exp(-dropRate * dropDt)) this.drop(this.weatherMix.sheltered);
     // Small pitch differences breathe without adding LFO sources. A pause mutes
     // every loop; resumption only retargets these same retained nodes.
     this.swarmOscillators[0].frequency.setTargetAtTime(174 + Math.sin(t * .43) * 1.1, t, .4);
@@ -226,6 +236,23 @@ export class GardenAudio {
       source.onended = () => { source.disconnect(); gain.disconnect(); if (this.entrySource === source) this.entrySource = undefined; };
     }
     this.sipping = sipping;
+  }
+
+  private drop(under: boolean): void {
+    const ctx = this.context; if (this.disposed || !ctx || !this.weatherGain) return;
+    this.drops++;
+    const at = ctx.currentTime + Math.random() * .03;
+    const base = (under ? 900 : 1500) + Math.random() * (under ? 500 : 1300);
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sine';
+    // A water drop "plink" rises quickly in pitch as it rings.
+    osc.frequency.setValueAtTime(base, at);
+    osc.frequency.exponentialRampToValueAtTime(base * 1.55, at + .045);
+    const level = (under ? .010 : .018) * (.55 + Math.random() * .45);
+    gain.gain.setValueAtTime(0, at); gain.gain.linearRampToValueAtTime(level, at + .004);
+    gain.gain.exponentialRampToValueAtTime(.0001, at + (under ? .07 : .11));
+    osc.connect(gain).connect(this.weatherGain); osc.start(at); osc.stop(at + .13);
+    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
   }
 
   chime(kind: 'land' | 'pollen' | 'nectar' | 'pollinate' | 'win' | 'fail'): void {

@@ -11,7 +11,7 @@ import { GardenAudio } from './audio';
 import { createPollenFX } from './pollen';
 import { createPollinationFX } from './pollination';
 import { createWindEffects } from './wind-effects';
-import { createShelters, leafSurfaceHeight, leafPlanarDistance, type LeafShelter } from './shelters';
+import { createShelters, leafSurfaceHeight, leafPlanarDistance, leafUniforms, type LeafShelter } from './shelters';
 import { createRain } from './rain';
 import { createFlowerRain } from './flower-rain';
 import { createEnergyWash } from './energy-wash';
@@ -1071,6 +1071,10 @@ export class Garden {
     const nightClose = closing && this.lossFromNight ? Math.max(.0001, this.lossProgress()) : 0;
     this.energyWash.update(!cinematic && (active || closing || this.phase === 'paused') ? Math.max(this.coldVignette(), THREE.MathUtils.smoothstep(this.heat, .08, .9) * .9) : 0, this.camera.aspect, THREE.MathUtils.smoothstep(this.heat - this.chill, 0, .08), nightClose);
     this.rainFX.update(this.reducedMotion ? 0 : this.time, this.camera, this.weather.rain, this.wind, this.rainCover, this.reducedMotion, !cinematic && (active || this.phase === 'failing' || this.phase === 'paused'), this.grassCover);
+    // Leaves wet quickly with the rain and dry over about half a minute.
+    { const wetTarget = this.weather.rain, rate = wetTarget > this.leafWet ? 1.2 : .08;
+      this.leafWet += (wetTarget - this.leafWet) * (1 - Math.exp(-rate * Math.max(0, dt)));
+      leafUniforms.uLeafWet.value = this.leafWet; }
     this.flowerRain.update(this.time, this.camera.position, this.weather.rain, this.reducedMotion, !cinematic && (active || this.phase === 'failing' || this.phase === 'paused'));
     this.windFX.update((active || this.phase === 'title') && !this.pausedCapture ? dt : 0, this.time, this.position, this.camera, this.reducedMotion, !cinematic && !closing && !this.restView.active && (active || this.phase === 'paused' || this.phase === 'title'));
     this.pollenFX.update(active && !this.pausedCapture ? dt : 0, this.position);
@@ -1085,7 +1089,7 @@ export class Garden {
     const touchingNectar = this.nectarDrop.update(active && !this.pausedCapture ? dt : 0, this.tongueTip, this.tongueApproach, this.drinking, this.reducedMotion);
     this.audio.update(this.phase === 'flying', this.flightEffort, Math.min(1.5, this.wind.length() / 2), touchingNectar, !(active || this.phase === 'returning' || this.phase === 'failing') || this.pausedCapture,
       cinematic ? { meadow: this.homecoming.firstPerson ? .1 : 1, home: this.homecoming.firstPerson ? 1 : 0, fade: this.homecoming.stage === 'fade' ? this.homecoming.fade : 0 } : this.restView.active && this.weather.cloudiness < .2 && this.weather.rain < .01 ? { meadow: this.restView.amount * .65, home: 0, fade: 0 } : undefined,
-      { rain: this.weather.rain, underLeaf: !!this.rainCover || this.grassCover > .99 }, closing ? this.lossProgress() : undefined, this.phase === 'flying' ? this.heavyStrain : 0);
+      { rain: this.weather.rain, underLeaf: !!this.rainCover || this.grassCover > .99, leafTop: this.leafTopNearness() }, closing ? this.lossProgress() : undefined, this.phase === 'flying' ? this.heavyStrain : 0);
     let targetVisible = false, x = .5, y = .5;
     if (target || this.shelterTarget) {
       this.projected.copy(this.shelterTarget ? this.shelterTarget.center : this.landed ? this.nectarTarget : target!.center).project(this.camera);
@@ -1251,6 +1255,23 @@ export class Garden {
       flowers: () => this.meadow.flowers.map(f => ({ id: f.id, species: f.species, center: f.center.toArray(), base: f.base.toArray(), rotation: f.rotation.toArray(), velocity: f.velocity.toArray(), height: f.height, radius: f.radius, pollenFraction: f.pollenFraction, visiblePollen: f.pollen.count, pollenMatch: f.pollenMatch })),
     };
   }
+  private leafWet = 0;
+
+  // 0–1: how close the bee is to the top of a broad leaf (perched on it, or just
+  // above it), so rain on that leaf can be heard as close drops.
+  private leafTopNearness(): number {
+    if (this.onLeaf) return 1;
+    let best = 0;
+    for (const leaf of this.leafShelters.shelters) {
+      const dy = this.position.y - leaf.center.y;
+      if (dy < -.1) continue;
+      const planar = Math.hypot(this.position.x - leaf.center.x, this.position.z - leaf.center.z) / leaf.radius;
+      const near = (1 - THREE.MathUtils.smoothstep(planar, .8, 1.7)) * (1 - THREE.MathUtils.smoothstep(dy, 1.2, 4.5));
+      if (near > best) best = near;
+    }
+    return best;
+  }
+
   dispose(): void {
     cancelAnimationFrame(this.raf); this.abort.abort(); this.ui.dispose(); this.audio.dispose(); this.bee.dispose(); this.pollenFX.dispose(); this.pollinationFX.dispose(); this.windFX.dispose(); this.atmosphere.dispose(); this.meadow.dispose();
     this.nectarDrop.dispose(); this.energyWash.dispose(); this.renderer.dispose();

@@ -141,14 +141,21 @@ function canopyGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
+// Shared by every leaf: 0 dry, 1 freshly rained on. Garden eases it up with the
+// rain and lets it dry slowly afterwards.
+export const leafUniforms = { uLeafWet: { value: 0 } };
+
 function leafMaterial(): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: .98, side: THREE.DoubleSide,
+    vertexColors: true, roughness: .9, side: THREE.DoubleSide,
     emissive: '#6b8453', emissiveIntensity: .075,
   });
   material.onBeforeCompile = shader => {
+    shader.uniforms.uLeafWet = leafUniforms.uLeafWet;
     shader.vertexShader = 'varying vec3 vLeafPoint;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvLeafPoint = position;');
     shader.fragmentShader = `varying vec3 vLeafPoint;
+      uniform float uLeafWet;
+      #define LEAF_TOP_ROUGHNESS 0.46
       float leafHash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       float leafNoise(vec2 p) { vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
         return mix(mix(leafHash(i),leafHash(i+vec2(1,0)),f.x),mix(leafHash(i+vec2(0,1)),leafHash(i+1.),f.x),f.y); }
@@ -173,9 +180,38 @@ function leafMaterial(): THREE.MeshStandardMaterial {
       diffuseColor.rgb *= 1.0 + (brush-.5)*.055*closeDetail;
       // Thin leaves retain their painted green beneath the canopy.
       if (!gl_FrontFacing) diffuseColor.rgb *= vec3(1.035,1.065,1.025);
-      `);
+      // Rain darkens and deepens the green a little.
+      diffuseColor.rgb *= 1. - .11*uLeafWet;
+      `).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+      // Waxy upper cuticle: a soft sun glint that drifts with the painted washes.
+      // Undersides stay matte. The glint follows sun intensity, so it fades in cloud.
+      float leafGloss = clamp(LEAF_TOP_ROUGHNESS + (wash-.5)*.16 + (brush-.5)*.05*closeDetail, .3, .7);
+      roughnessFactor = gl_FrontFacing ? leafGloss : .9;
+      roughnessFactor = mix(roughnessFactor, .2, uLeafWet * (gl_FrontFacing ? .85 : .3));
+      `).replace('#include <opaque_fragment>', `
+      #if NUM_DIR_LIGHTS > 0
+      {
+        // Painterly gloss on top of the physical light: a soft sun glint broken
+        // up by the brush washes, plus a pale sky sheen at grazing angles. Both
+        // scale with the sun, so they are strongest in bright sun and fade in
+        // cloud. Wet leaves get a tighter, brighter glint and more sheen.
+        vec3 glintV = normalize(vViewPosition);
+        vec3 glintL = directionalLights[0].direction;
+        vec3 glintH = normalize(glintL + glintV);
+        float glintTop = gl_FrontFacing ? 1. : .2;
+        float glintPower = mix(34., 120., uLeafWet);
+        float glint = pow(max(dot(normal, glintH), 0.), glintPower) * max(dot(normal, glintL), 0.);
+        float glintBreak = .7 + .6*brush*closeDetail + .3*(1.-closeDetail);
+        float sheen = pow(1. - clamp(dot(normal, glintV), 0., 1.), 3.);
+        vec3 sunLight = directionalLights[0].color;
+        float sunLevel = clamp(dot(sunLight, vec3(.3333)) / 3., 0., 1.2);
+        outgoingLight += glintTop * (sunLight * glint * glintBreak * mix(.11, .34, uLeafWet)
+          + vec3(.82,.88,.80) * sheen * sunLevel * mix(.04, .10, uLeafWet));
+      }
+      #endif
+      #include <opaque_fragment>`);
   };
-  material.customProgramCacheKey = () => 'bee-leaf-shelter-pigment-v4';
+  material.customProgramCacheKey = () => 'bee-leaf-shelter-pigment-v6';
   return material;
 }
 

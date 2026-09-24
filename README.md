@@ -288,7 +288,9 @@ Flower and shelter-leaf watercolor is applied inside the existing
 `MeshStandardMaterial` shaders using `onBeforeCompile`. Poppies have coral washes
 and soft pigment pooling; cornflowers fade from indigo bases to pale blue-lilac
 tips. Broad leaves use long, feathered green washes and dark modeled veins,
-avoiding small spot-like patches. These patterns follow local surface coordinates
+avoiding small spot-like patches. Leaf tops are slightly glossy: a painterly sun glint and grazing sky sheen
+are added in the shader, scaled by sun strength, and `leafUniforms.uLeafWet`
+makes them darker and shinier after rain. These patterns follow local surface coordinates
 as the plants sway. They add fragment-shader work, but no textures, geometry or
 extra rendering passes. Fine brush detail fades with pixel footprint to reduce
 distant shimmer; the performance cost has not been separately benchmarked.
