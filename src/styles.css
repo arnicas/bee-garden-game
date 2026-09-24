@@ -217,9 +217,13 @@ h1 em { font-weight: 400; font-size: .93em; }
 .aim i { width: 3px; height: 3px; border-radius: 50%; background: #fff9df; }
 .aim.can-land { width: 28px; height: 28px; border-color: #fffade; }
 .aim.is-sipping { border-style: dashed; animation: sip-rotation 5s linear infinite; }
-.center-note { position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%); text-align: center; width: min(380px, 40vw); color: #fff9df; text-shadow: 0 1px 5px #273623, 0 0 18px #34452b; }
-.interaction-label { font-size: 8px; letter-spacing: 1.6px; font-weight: 500; }
-.center-note p { margin-top: 8px; font-family: var(--serif); font-size: 14px; font-style: italic; line-height: 1.4; }
+.center-note { position: absolute; left: 0; right: 0; bottom: 22px; margin: 0 auto; text-align: center; width: min(640px, 62vw); color: #fffbea; }
+.interaction-label { display: block; font-size: 10px; line-height: 1.2; letter-spacing: 1.4px; font-weight: 600; text-shadow: 0 1px 2px rgba(20, 32, 18, .85); }
+.center-note p { width: fit-content; max-width: 100%; margin: 5px auto 0; padding: 3px 10px; border-radius: 6px; background: rgba(28, 40, 26, .5); font-size: 15px; font-weight: 500; font-style: normal; line-height: 1.4; text-shadow: 0 1px 1px rgba(10, 18, 10, .5); -webkit-font-smoothing: antialiased; }
+.center-note p:empty { display: none; }
+.center-note kbd { display: inline-block; margin: 0 2px; padding: 0 5px 1px; min-width: 1.5em; text-align: center; font-size: .86em; font-weight: 700; letter-spacing: 0; line-height: 1.15; color: #ffe08a; background: rgba(255, 245, 205, .12); border: 1px solid rgba(255, 224, 138, .8); border-bottom-width: 2px; border-radius: 4px; text-shadow: none; vertical-align: 1px; }
+.interaction-label kbd { font-size: 1.1em; padding: 0 4px; line-height: 1.1; }
+.center-note .key-slash { margin: 0 1px; opacity: .75; }
 .target-marker { position: absolute; transform: translate(-50%, calc(-100% - 12px)); color: #fff9df; text-shadow: 0 1px 4px #273623; }
 .target-marker kbd { display: block; padding: 4px 6px; font-size: 11px; border-color: #fff9df99; background: #34452b73; }
 .message-toast { position: absolute; top: 102px; left: 50%; transform: translateX(-50%); max-width: min(420px, calc(100vw - 550px)); display: flex; align-items: center; gap: 10px; color: var(--ink); font-family: var(--serif); font-size: 14px; font-style: italic; text-align: center; background: rgba(251,245,229,.8); padding: 10px 17px; border-radius: 3px; animation: note-in .4s ease-out; }
@@ -348,6 +352,7 @@ h1 em { font-weight: 400; font-size: .93em; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes note-in { from { opacity: 0; margin-top: -5px; } to { opacity: 1; margin-top: 0; } }
 @media (max-width: 1150px) {
+  .center-note { width: min(460px, 44vw); }
   .status-sidebar { right: 24px; width: 208px; }
   .lower-right { bottom: 15px; }
   .message-toast { max-width: 330px; }

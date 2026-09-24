@@ -47,6 +47,11 @@
 - [ ] Reduce persistent on-screen text judiciously; favor existing graphics and show instructions when they are useful. Queen mood text, title-screen taglines, the misleading title-screen Esc prompt, decorative flower descriptions and the Way home button arrow have been removed. Keep the short collection instructions and weather warnings.
 - [ ] Tune a day toward 8–12 minutes through routes, flower supplies and balanced objectives; preserve satisfying collection speed. No forced minimum duration.
 - [ ] Tune rain/heat timing, exposure grace periods, recovery and dusk guidance through player feedback; verify fuel availability and shelter routes over longer outings.
+- [ ] Add a total flower counter (flowers visited) to the day's stats.
+- [ ] Vary the ending dialog text by how good the day was, based on the stats.
+- [ ] Add creatures or objects to the undergrowth.
+- [ ] Add a heavy-breeze indicator to the sun timeline, like the rain cloud: stacked wavy lines, with a text alert beneath (heavy wind, conserve energy), handled like the rain warning.
+- [ ] Randomize wind and rain events each day, so they don't always come at the same time or from the same direction.
 
 ## Decisions held steady
 

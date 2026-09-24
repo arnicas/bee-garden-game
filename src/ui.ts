@@ -205,6 +205,36 @@ export function createUI(actions: UIActions): GameUI {
     const label = labels.get(name)!;
     if (label.textContent !== value) label.textContent = value;
   };
+  // Hints and interaction labels render key names as <kbd> chips; WASD becomes W/A/S/D.
+  const keyPattern = /\b(Arrow keys|WASD|Space|Shift|Ctrl|Esc|Enter|[WEFQR])\b/g;
+  const keyChip = (label: string, spoken?: string) => {
+    const chip = document.createElement('kbd');
+    chip.textContent = label;
+    if (spoken) chip.setAttribute('aria-label', spoken);
+    return chip;
+  };
+  const keyText = (name: string, value: string) => {
+    const label = labels.get(name)!;
+    if (label.dataset.source === value) return;
+    label.dataset.source = value;
+    const nodes: Node[] = [];
+    let last = 0;
+    for (const match of value.matchAll(keyPattern)) {
+      const start = match.index ?? 0;
+      if (start > last) nodes.push(document.createTextNode(value.slice(last, start)));
+      const key = match[0];
+      if (key === 'WASD') {
+        ['W', 'A', 'S', 'D'].forEach((letter, index) => {
+          if (index) { const slash = document.createElement('span'); slash.className = 'key-slash'; slash.textContent = '/'; nodes.push(slash); }
+          nodes.push(keyChip(letter));
+        });
+      } else if (key === 'Arrow keys') nodes.push(keyChip('↑ ↓ ← →', 'Arrow keys'));
+      else nodes.push(keyChip(key));
+      last = start + key.length;
+    }
+    if (last < value.length) nodes.push(document.createTextNode(value.slice(last)));
+    label.replaceChildren(...nodes);
+  };
   const show = (element: HTMLElement, visible: boolean) => { if (element.hidden === visible) element.hidden = !visible; };
   const percent = (value: number, total = 100) => Math.min(1, Math.max(0, value / Math.max(1, total)));
   const attribute = (element: Element, name: string, value: string) => {
@@ -582,8 +612,8 @@ export function createUI(actions: UIActions): GameUI {
     const guidance = cooling ? 'Cooling in the shade. Nectar restores energy.' : overheated ? (shelterBeneath ? 'Hot sun falls here. E tucks into shade.' : 'Open to the hot sun. Leaves or dense grass offer shade.') : onGround ? (grassSheltered ? (state.chilled ? 'Your wings are warming. Nectar restores energy.' : 'Sheltered by the grass. Nectar restores energy.') : exposedToRain ? 'Rain reaches this patch. Denser grass offers shelter.' : 'A quiet place to rest. Stored nectar restores energy.') : underLeaf ? (state.chilled ? 'Shelter beneath a leaf. Your wings are warming.' : 'Shelter beneath a leaf') : onLeaf ? (shelterBeneath ? (state.rain > .05 ? 'Rain falls here. Tuck beneath to get dry.' : 'Hot sun falls here. E tucks into shade.') : 'A quiet perch. Stored nectar restores energy.') : exposedFlower ? 'Open to cold rain. Leaves or dense grass offer shelter.' : '';
     text('flower-guidance', guidance);
     show(flowerGuidance, !!guidance);
-    text('hint', state.hint);
-    text('interaction', shelterBeneath ? 'E  ·  SHELTER BENEATH' : resting ? (state.restProgress >= .85 ? 'A LITTLE REST, NEARLY DONE' : 'RESTING · THE DAY DRIFTS BY') : state.landing ? (state.leafTopTarget ? 'SETTLING ON A LEAF' : state.shelterTarget ? 'SETTLING UNDER A LEAF' : 'LANDING GENTLY') : onGround ? 'E  ·  REST IN THE GRASS' : underLeaf ? 'E  ·  REST UNDER THE LEAF' : onLeaf ? 'E  ·  REST ON THE LEAF' : state.drinking ? (state.energy < 99.5 ? 'SIPPING · RESTORING ENERGY' : 'SIPPING NECTAR') : state.phase === 'landed' ? (state.satiated ? 'ALL TOPPED UP' : state.canDrink ? 'HOLD F TO SIP' : 'W A S D  ·  EXPLORE THE FLOWER') : highlightLanding ? (state.leafTopTarget ? 'E  ·  LAND ON LEAF' : state.shelterTarget ? 'E  ·  SHELTER UNDER LEAF' : 'E  ·  LAND GENTLY') : '');
+    keyText('hint', state.hint);
+    keyText('interaction', shelterBeneath ? 'E  ·  SHELTER BENEATH' : resting ? (state.restProgress >= .85 ? 'A LITTLE REST, NEARLY DONE' : 'RESTING · THE DAY DRIFTS BY') : state.landing ? (state.leafTopTarget ? 'SETTLING ON A LEAF' : state.shelterTarget ? 'SETTLING UNDER A LEAF' : 'LANDING GENTLY') : onGround ? 'E  ·  REST IN THE GRASS' : underLeaf ? 'E  ·  REST UNDER THE LEAF' : onLeaf ? 'E  ·  REST ON THE LEAF' : state.drinking ? (state.energy < 99.5 ? 'SIPPING · RESTORING ENERGY' : 'SIPPING NECTAR') : state.phase === 'landed' ? (state.satiated ? 'ALL TOPPED UP' : state.canDrink ? 'HOLD F TO SIP' : 'WASD  ·  EXPLORE THE FLOWER') : highlightLanding ? (state.leafTopTarget ? 'E  ·  LAND ON LEAF' : state.shelterTarget ? 'E  ·  SHELTER UNDER LEAF' : 'E  ·  LAND GENTLY') : '');
     aim.classList.toggle('can-land', highlightLanding);
     aim.classList.toggle('is-sipping', state.drinking);
     text('message', state.message);
