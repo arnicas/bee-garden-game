@@ -26,7 +26,7 @@
 - [x] Start perched on a daisy with a centered, readable keyboard guide: spatial WASD/arrows, E, Space and F, and two lines about nectar and pollination. Reading costs no energy or daytime; dismiss onto the petal, then Space takes off. Simplify opening-screen copy.
 
 - [x] More weather reaction time: retain early blue/orange warnings but delay steep energy drain until half exposure, leaving roughly 7–9 seconds after the first warning in full weather; keep ordinary flight costs and dangerous full exposure.
-- [x] Heat and shade: a gradual hot spell after the shower; exposed flight, flower heads and leaf tops build heat and spend extra energy. E chooses the underside in hot weather, dense grass also cools, and shade removes the exposure drain immediately. Reuse the watercolor wash in orange, with current hot-sun art on the strip and a heat-specific exhaustion result; no extra meter. Pause, reduced motion, quiet-view wake and restart share the existing lifecycle.
+- [x] Heat and shade: a gradual hot spell (now placed randomly each day, most often midday); exposed flight, flower heads and leaf tops build heat and spend extra energy. E chooses the underside in hot weather, dense grass also cools, and shade removes the exposure drain immediately. Reuse the watercolor wash in orange, with current hot-sun art on the strip and a heat-specific exhaustion result; no extra meter. Pause, reduced motion, quiet-view wake and restart share the existing lifecycle.
 
 - [x] Move the breeze cue beneath the sun as a directional arrow; vary calm spells, gusts and headings across the shared wind field, with extra flight effort in strong air and useful low-flight/drifting/perching tactics.
 - [x] Raise pollen target and pouch capacity to 140, normalize cargo weight, retain walking collection speed and pollination with full storage.
@@ -47,7 +47,7 @@
 - [ ] Reduce persistent on-screen text judiciously; favor existing graphics and show instructions when they are useful. Queen mood text, title-screen taglines, the misleading title-screen Esc prompt, decorative flower descriptions and the Way home button arrow have been removed. Keep the short collection instructions and weather warnings.
 - [ ] Tune a day toward 8–12 minutes through routes, flower supplies and balanced objectives; preserve satisfying collection speed. No forced minimum duration.
 - [ ] Tune rain/heat timing, exposure grace periods, recovery and dusk guidance through player feedback; verify fuel availability and shelter routes over longer outings.
-- [ ] Add a total flower counter (flowers visited) to the day's stats.
+- [x] Add a total flower counter: the meadow heading shows "x/72 flowers visited" under the mood label (Quiet, Waking, Happy, All three happy).
 - [ ] Vary the ending dialog text by how good the day was, based on the stats.
 - [x] The lingering overhead meadow view reads as a rest: a curled sleeping bee with drifting z's and a small "Resting" caption in the lower left fades in and out with the camera, and also appears during the E rest (without moving the camera). Still under reduced motion.
 - [x] The sleeping bee visibly breathes: its striped body swells gently while the folded wings lift a little, on a slow 3.6-second cycle (still under reduced motion).
@@ -66,7 +66,7 @@
   - Poppy notes: corn poppies (*Papaver rhoeas*) give essentially no nectar (about 0.6 µg sugar a day) but lead meadow flowers for pollen, more than twice the next species per flower in the Edinburgh meadow study (PLOS One, 2016). Bees collect it eagerly; the loads are dark grey to black. Red looks dark to bees, but the petals reflect ultraviolet, so they stand out in Bee Vision. Each flower lasts briefly and most pollen goes in the morning.
   - Game ideas: a bigger pollen payoff per poppy visit, and pollen richest in the morning, so time of day matters.
 - [x] Rebalance flower nectar and pollen to match nature (see `Flower_Facts.md`): per visit, daisy 13 nectar / 14 pollen, cornflower 28 / 10, poppy 0 / 21. Meadow totals barely change, so goals stay the same.
-- [ ] Add flower facts from `Flower_Facts.md` to the Small wonders bee facts page, and maybe to the on-screen flower details.
+- [x] Add flower facts from `Flower_Facts.md` to Small wonders: an eighth topic, **Three meadow flowers**, with a drawing, the daisy florets note and the game's simplifications. On-screen flower details could still borrow from it.
 
 ### Lower priority
 

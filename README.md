@@ -1,6 +1,6 @@
 # Bee Garden
 
-A first-person watercolor meadow game build by me (arnicas) as critique/direction/director and GPT Astra Extra High as developer. (The text hasn't been scrubbed of AI twee yet, and not mobile ready.) 
+A first-person watercolor meadow game built by me (arnicas) as critique/direction/director and GPT Astra Extra High as developer. Claude Opus 5.5 is now helping with UX fixes. (The text hasn't been scrubbed of AI twee yet, and not mobile ready.) 
 
 Fly among poppies, daisies and
 cornflowers, land on their moving petals, collect nectar and pollen, shelter
@@ -54,7 +54,8 @@ different port. No `.env` file or additional service is needed.
 Choose **Take flight** to start perched on a daisy with the keyboard guide open.
 Reading and trying the guide's keys costs no energy or daylight. Choose
 **Explore the meadow**, Enter or Esc to begin on the flower; Space takes off.
-The opening daisy is visited but its supplies are untouched.
+The opening daisy is visited but its supplies are untouched. Each day starts
+at 60% energy, so sipping its nectar is a good first step.
 
 ### Controls
 
@@ -90,8 +91,12 @@ as the finite supply is used, and remain depleted on revisits.
 | Flower | Usable pollen in a full flower | Usable nectar in a full flower |
 | --- | ---: | ---: |
 | Corn poppy | 21 | 0 |
-| Oxeye daisy | 11 | 19 |
-| Cornflower | 14 | 22.5 |
+| Oxeye daisy | 14 | 13 |
+| Cornflower | 10 | 28 |
+
+Poppies are the pollen flower, cornflowers the nectar flower, and daisies sit in
+between. The balance loosely follows real meadow measurements; see
+[Flower_Facts.md](Flower_Facts.md) for the research and sources.
 
 Nectar is shared between personal energy and storage. F/left-click sips directly
 from the flower: it restores energy first, then puts the remainder in the jar.
@@ -100,8 +105,10 @@ full, the tongue curls away and sipping stops. Poppies offer pollen only.
 
 The HUD shows energy on a plate, nectar in a jar (capacity 100), and pollen in
 a pouch (capacity 140). The left flower panel shows remaining supplies and a
-short collection reminder. More cargo gradually slows flight and adds a gentle
-weave on the journey home.
+short collection reminder. More cargo gradually slows flight. From about 60%
+full the bee wobbles, sags and strains: quick beats dip the view and deepen the
+wing hum, and a hint says to follow the hive marker home. Shift halves the
+wobble.
 
 Loose pollen on the legs is separate from stored cargo. Carry it to another
 flower of the same species to pollinate that flower once. A small flower **+1**
@@ -113,23 +120,30 @@ The newest loose pollen appears on the foreleg knuckles in red, cream or blue,
 with smaller flecks for other carried types. These colors are a visual game aid.
 Q highlights unvisited flowers; matching flowers pulse when you carry their
 pollen. Visited flowers lose their flight guide, but E still allows revisits.
-The happy-meadow tally counts unique pollinated flowers and tracks all three
-species. Helping all three is optional, not a requirement for returning home.
+The meadow tally counts unique pollinated flowers and tracks all three species.
+Its heading shows the meadow's mood (Quiet, Waking, Happy, All three happy) and
+how many of the 72 flowers you have visited. A flower you pollinated shows a
+small bloom of its species in the flower panel. Helping all three is optional,
+not a requirement for returning home.
 
 ### Energy, weather and rest
 
 Flying spends energy. Releasing movement lets the breeze carry you at lower
-cost; steering into strong wind costs more. Low air near grass is calmer. Watch
-the view-relative wind arrow and small windsock beneath the moving sun.
+cost; steering into strong wind costs more. Low air near grass is calmer. The
+swaying grass and flowers show the wind; stacked wavy lines beside the sun mark
+a heavy-wind spell.
 
 Stored nectar automatically feeds a bee with low energy. A full nectar jar also
 starts a meal if energy needs topping up. **Rest does not create food**: a
 six-second E rest uses stored nectar to restore up to 36 energy while advancing
 daylight about 108 seconds. With no nectar, it only saves energy. The left-side
-label reads “Resting a while” during this state. E cancels it; looking around
+label reads “Resting a while” and a small sleeping bee appears in the lower
+left during this state. E cancels it; looking around
 with arrow keys does not. No flower supplies are collected during rest.
 
-One shower and a later hot spell make shelter useful:
+Each day rolls its own weather: one or two showers, a hot spell most often
+from midday into mid-afternoon, and one or two heavy-wind spells. Shelter helps
+with all three:
 
 - **Blue watercolor edges** mean low energy or accumulating cold. Flower heads
   and leaf tops are exposed to rain; leaf undersides and dense grass shelter you.
@@ -139,6 +153,10 @@ One shower and a later hot spell make shelter useful:
 - The daylight strip shows current conditions. Its rain cloud appears only
   after rain starts; the sun moves out as it clears. Drops stop and “Dry again”
   appears when the shower is over. A warm sun and heat waves mark hot weather.
+- **Heavy wind** holds the gusts up and makes them about a third stronger for a
+  minute or two. Fly low, perch or shelter in the grass to save energy. Wavy
+  lines and a “Heavy wind” caption appear on the strip, and short messages mark
+  its rise and easing.
 
 Warnings precede the steep weather drain, but ordinary flight keeps using
 energy. E chooses a leaf's underside during rain, hot sun or lingering heat.
@@ -146,7 +164,8 @@ In mild weather it offers the top. Descending to the soil lands automatically;
 E also settles the bee when already deep in grass. Space leaves either refuge.
 
 After eight safe, quiet seconds on a perch, the HUD fades. After twenty-two,
-the camera rises into a slow meadow view, with worker bees in sunshine. Any key
+the camera rises into a slow meadow view, with worker bees in sunshine and a
+small breathing sleeping bee in the lower left. Any key
 or click returns to the bee. The day strip remains visible while sheltered.
 Danger and sunset restore the UI. This scenic rest does not repeat the feeding
 or accelerated daylight of the six-second E rest.
@@ -172,13 +191,16 @@ paying normal energy costs and meeting the same arrival requirements. Zero energ
 at any time instead triggers the exhaustion ending.
 
 Both results screens retain gathered totals and offer **About bees** and a new
-day. Restart resets supplies, weather, cargo and pollination; there is no
-multi-day progression or persistent save.
+day. A new day resets supplies, cargo and pollination, rolls new weather and
+lays out a new meadow. There is no persistent save. Carrying one day's
+pollination into the next day's flower mix is planned; the hook is
+`speciesMixAfter()` in [src/meadow-plan.ts](src/meadow-plan.ts).
 
 ### Bee facts and accessibility
 
-**Small wonders** has seven illustrated topics comparing “In nature” with “In
-this game”, including rain/rest, heat/shade and the hive dance. The text,
+**Small wonders** has eight illustrated topics comparing “In nature” with “In
+this game”, including rain/rest, heat/shade, the three meadow flowers and the
+hive dance. The text,
 species qualifications and external research links live in
 [src/bee-facts.ts](src/bee-facts.ts). Sources open in a new tab. Topic buttons
 and arrow keys navigate; Esc returns to the field guide or the original results.
@@ -203,9 +225,9 @@ not a WebGPU/TSL pipeline. The HUD and journals use HTML/CSS and inline SVG.
 | Files | Responsibility |
 | --- | --- |
 | [main.ts](src/main.ts), [garden.ts](src/garden.ts), [types.ts](src/types.ts) | Startup, simulation/state transitions, input, foraging, exposure, return rules and UI state |
-| [world.ts](src/world.ts), [shelters.ts](src/shelters.ts) | Seeded meadow, flowers, instanced vegetation, moving leaf perches, collision/cover geometry and LOD |
+| [world.ts](src/world.ts), [meadow-plan.ts](src/meadow-plan.ts), [shelters.ts](src/shelters.ts) | Seeded meadow and next-day species mix, flowers, instanced vegetation, moving leaf perches, collision/cover geometry and LOD |
 | [wind.ts](src/wind.ts), [wind-effects.ts](src/wind-effects.ts) | Shared wind field, inward edge gusts, current trails and drifting fragments |
-| [weather.ts](src/weather.ts), [atmosphere.ts](src/atmosphere.ts) | Daylight-driven weather, lighting, sky and haze |
+| [weather.ts](src/weather.ts), [atmosphere.ts](src/atmosphere.ts) | Daily weather plans (showers, heat, gales), lighting, sky and haze |
 | [rain.ts](src/rain.ts), [flower-rain.ts](src/flower-rain.ts) | Rain and water beads on moving petals/leaves |
 | [ground-paint.ts](src/ground-paint.ts), [energy-wash.ts](src/energy-wash.ts) | Moss/earth paint and blue/orange/charcoal watercolor overlays |
 | [bee.ts](src/bee.ts), [nectar.ts](src/nectar.ts), [pollen.ts](src/pollen.ts), [pollination.ts](src/pollination.ts) | Forelegs, tongue/liquid contact, carried pollen and collection/transfer effects |
@@ -225,8 +247,10 @@ and metabolic costs remain on ordinary simulation time. Background tabs pause.
 Flower-local coordinates attach a landed bee to the moving head. CPU flower
 frames and GPU stem bending share the wind field; leaf perches and cover follow
 their moving surfaces. Landing uses a short assisted approach and simple
-collision proxies, not a general rigid-body physics engine. The default meadow
-seed is 481, so a new day restores the same layout.
+collision proxies, not a general rigid-body physics engine. The first day uses
+meadow seed 481; each later day draws a new layout. `?meadow=N` pins a layout
+and `?weather=N` pins a weather plan. `?test` pages use seed 481 and the fixed
+weather plan.
 
 Current balance values are gameplay choices, not biological measurements:
 
@@ -237,14 +261,18 @@ Current balance values are gameplay choices, not biological measurements:
 | Energy conversion | `garden.ts`: 3.5 energy per stored nectar; sipping/rest recovery capped at 6 energy/second |
 | Rest | `garden.ts`: 6 seconds at 18× daylight; perching costs 0.065 energy/second, rest 0.025, before weather costs |
 | Day boundary | `garden.ts`: sunset 540, nightfall 600 daylight seconds |
-| Rain schedule | `weather.ts`: clouds build 150–180; rain ramps in 180–192 and out 234–258; sky clears by 270 |
-| Heat schedule | `weather.ts`: rises 270–315, peaks through 390, eases to zero by 465 |
+| Start energy | `garden.ts`: `START_ENERGY` 60 (legacy test scenarios start full) |
+| Flower supplies | `garden.ts`: `NECTAR_SUPPLY` / `POLLEN_SUPPLY` raw units per species, halved by the yield; see [Flower_Facts.md](Flower_Facts.md) |
+| Landing cue | `garden.ts`: `FLOWER_LANDING_REACH` 1.85 past the petals, `FLOWER_LANDING_CLEARANCE` 2.8 above |
+| Weather plan | `weather.ts`: `planWeather()` rolls 1–2 showers, a hot spell weighted toward 320 s (`HEAT_PEAK`) and 1–2 gales of 70–110 s; `FIXED_WEATHER_PLAN` (shower from 150, heat 270–465, no gales) on test pages |
+| Meadow edge | `wind.ts`: inward current of 11–16 units/s beyond radius 30, about a third stronger in a gale |
 | Quiet/scenic view | `rest-view.ts`: begins at 8 / 22 quiet seconds; safety checks in `garden.ts` |
 | Return region | `garden.ts`: z ≥ 30, x between −8 and 8, y ≥ 2 art units; ready harvest, flying, no landing assist |
 | Hive position | `garden.ts`: (0, 4, 46); HUD distance scales art units by 0.1 |
 
 The meadow's grass-only apron has an inward gust beyond radius 30, rather than
-a hard horizontal position clamp. Flower supplies and loose leg pollen are
+a hard horizontal position clamp. Walking outward through the grass slows to a
+stop there and drifts back inward. Flower supplies and loose leg pollen are
 separate: a full pouch must not prevent continued pollination. Preserve this
 distinction when adjusting yield, depletion or UI counts.
 
@@ -362,7 +390,7 @@ installed Chrome and a running preview on 4188.
 Development and production URLs with `?test` expose:
 
 - `window.__BEE_TEST__`: detailed snapshots and flower/shelter, cargo, weather
-  clock and position setup helpers.
+  clock (`setDayProgress`, `setQuietTime`) and position setup helpers.
 - `window.__THREE_GAME_TEST_HOOKS__`: seeded scenes, frozen captures and reduced
   motion. Named states are `title`, `flight-start`, `active-play`, `windy`,
   `landed`, `uv`, `pollinated`, `complete` and `failed`.
@@ -417,7 +445,8 @@ and [Vite's Pages deployment guide](https://vite.dev/guide/static-deploy.html#gi
 ### Files to commit
 
 For a source commit, include `.github/`, source, tests, scripts, configuration,
-`package.json`, `package-lock.json`, this README and [TODO.md](TODO.md).
+`package.json`, `package-lock.json`, this README, [TODO.md](TODO.md) and
+[Flower_Facts.md](Flower_Facts.md).
 [.gitignore](.gitignore) excludes dependencies, builds, local evidence, test
 results, logs and OS metadata. The design/facts drafts and skill reference
 repositories in the parent workspace are authoring material outside this Git
@@ -427,7 +456,8 @@ documented here, and the in-game facts and citations are kept in source.
 Current limits and follow-up work:
 
 - Desktop keyboard/trackpad play; iPhone/iPad controls and validation are deferred.
-- One outing, no saved progress, multiple delivery trips or queen/hive metric.
+- One outing per day, no saved progress, multiple delivery trips or queen/hive
+  metric. Multi-day play is next (see [TODO.md](TODO.md)).
 - Pacing, weather costs, fuel availability and remaining HUD text need continued
   playtesting; open work is tracked in [TODO.md](TODO.md).
 - Gameplay shapes, pollen colors, energy costs, weather and time are stylized.
