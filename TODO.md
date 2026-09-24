@@ -53,10 +53,19 @@
 - [ ] Add a heavy-breeze indicator to the sun timeline, like the rain cloud: stacked wavy lines, with a text alert beneath (heavy wind, conserve energy), handled like the rain warning.
 - [ ] Randomize wind and rain events each day, so they don't always come at the same time or from the same direction.
 - [ ] Add a wobble in a few directions when the bee is full of nectar and pollen, so heavy flight feels harder (builds on the gentle weave of the loaded flight home).
+- [ ] Allow playing multiple days in a row, with each day's flower distribution shaped by what was pollinated the day before. Open question: are poppies valuable enough to seek out?
+  - Poppy notes: corn poppies (*Papaver rhoeas*) give essentially no nectar (about 0.6 µg sugar a day) but lead meadow flowers for pollen, more than twice the next species per flower in the Edinburgh meadow study (PLOS One, 2016). Bees collect it eagerly; the loads are dark grey to black. Red looks dark to bees, but the petals reflect ultraviolet, so they stand out in Bee Vision. Each flower lasts briefly and most pollen goes in the morning.
+  - Game ideas: a bigger pollen payoff per poppy visit, and pollen richest in the morning, so time of day matters.
+- [ ] Rebalance flower nectar and pollen to match nature (see `Flower_Facts.md`): cornflowers for nectar, poppies for pollen, daisies a balanced middle stop. Proposed per visit: daisy 13 nectar / 14 pollen, cornflower 28 / 10, poppy unchanged at 0 / 21. Recheck the nectar goal, home fuel and day length, and update tests that rely on the old amounts.
+- [ ] Add flower facts from `Flower_Facts.md` to the Small wonders bee facts page, and maybe to the on-screen flower details.
 
 ### Lower priority
 
 - [ ] Tune flower landing distance further. The E cue now needs reach 1.85 past the petals and 2.8 above them (was 2.25 / 3.2); the difference felt small in play. Adjust `FLOWER_LANDING_REACH` / `FLOWER_LANDING_CLEARANCE` in `src/garden.ts`.
+
+### Nice to have
+
+- [ ] Poppies lose pollen as the day passes, so they're richest in the morning (real poppy pollen is mostly taken early in the day).
 
 ## Decisions held steady
 

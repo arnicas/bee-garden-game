@@ -9,13 +9,21 @@ export function edgeExposureAt(x: number, z: number): number {
 
 // One art unit is approximately ten centimetres. Both flight and rooted plants
 // sample this field at simulation time. Positive Y is up; camera forward is -Z.
+/** Per-day wind variation. The phase shifts when fronts and gusts arrive; the
+ * heading turns where they blow from. Flight and the meadow shaders share these. */
+export const windUniforms = { uWindPhase: { value: 0 }, uWindHeading: { value: 0 } };
+export function setWindVariation(phase: number, heading: number): void {
+  windUniforms.uWindPhase.value = phase; windUniforms.uWindHeading.value = heading;
+}
+
 export function windAt(x: number, z: number, time: number, out = new Vector3()): Vector3 {
+  const t = time + windUniforms.uWindPhase.value;
   // Long calm spells give way to fronts with a gradual approach and smaller
   // travelling gusts inside them. Keep this field in sync with meadowWind.
-  const front = MathUtils.smoothstep(Math.sin(time * .075 - .8), -.45, .75);
-  const gust = .10 + front * (1.40 + .32 * (.5 + .5 * Math.sin(time * .53 + x * .09 + z * .07)));
-  const heading = .4 + 1.65 * Math.sin(time * .026) + .22 * Math.sin(time * .13 + x * .035 + z * .04);
-  return out.set(gust * Math.cos(heading), .045 * front * Math.sin(time * .7 + x * .2), gust * Math.sin(heading));
+  const front = MathUtils.smoothstep(Math.sin(t * .075 - .8), -.45, .75);
+  const gust = .10 + front * (1.40 + .32 * (.5 + .5 * Math.sin(t * .53 + x * .09 + z * .07)));
+  const heading = windUniforms.uWindHeading.value + .4 + 1.65 * Math.sin(t * .026) + .22 * Math.sin(t * .13 + x * .035 + z * .04);
+  return out.set(gust * Math.cos(heading), .045 * front * Math.sin(t * .7 + x * .2), gust * Math.sin(heading));
 }
 
 /** Air velocity in world art-units/second (+Y up, 0.1 m/unit). The normalized
@@ -38,10 +46,12 @@ export function flightWindAt(x: number, y: number, z: number, time: number, out 
 }
 
 export const windGLSL = `
+uniform float uWindPhase; uniform float uWindHeading;
 vec2 meadowWind(vec2 p, float t) {
+  t += uWindPhase;
  float front = smoothstep(-0.45, 0.75, sin(t * 0.075 - 0.8));
  float g = 0.10 + front * (1.40 + 0.32 * (0.5 + 0.5 * sin(t * 0.53 + p.x * 0.09 + p.y * 0.07)));
- float heading = 0.4 + 1.65 * sin(t * 0.026) + 0.22 * sin(t * 0.13 + p.x * 0.035 + p.y * 0.04);
+ float heading = uWindHeading + 0.4 + 1.65 * sin(t * 0.026) + 0.22 * sin(t * 0.13 + p.x * 0.035 + p.y * 0.04);
  return g * vec2(cos(heading), sin(heading));
 }`;
 

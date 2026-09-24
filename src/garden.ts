@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createMeadow, grassRainCover, meadowGroundHeight } from './world';
+import { createMeadow, grassRainCover, meadowGroundHeight, rng } from './world';
 import { createUI } from './ui';
 import { createBeeRig } from './bee';
 import { createNectarDrop } from './nectar';
@@ -14,8 +14,8 @@ import { createShelters, leafSurfaceHeight, leafPlanarDistance, type LeafShelter
 import { createRain } from './rain';
 import { createFlowerRain } from './flower-rain';
 import { createEnergyWash } from './energy-wash';
-import { weatherAt, type MeadowWeather } from './weather';
-import { edgeExposureAt, flightWindAt, surfaceHeight } from './wind';
+import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type WeatherPlan } from './weather';
+import { edgeExposureAt, flightWindAt, setWindVariation, surfaceHeight } from './wind';
 import type { Flower, GameUI, Meadow, Phase, Species, ViewState } from './types';
 
 const NAMES: Record<Species, string> = { daisy: 'Oxeye daisy', poppy: 'Corn poppy', cornflower: 'Cornflower' };
@@ -74,6 +74,12 @@ export class Garden {
   private flowerRain: ReturnType<typeof createFlowerRain>;
   private energyWash: ReturnType<typeof createEnergyWash>;
   private weather: MeadowWeather = { stage: 'clear', rain: 0, cloudiness: 0, sunHeat: 0 };
+  private weatherPlan: WeatherPlan = FIXED_WEATHER_PLAN;
+  // Test pages keep the original fixed day (seed 0); ?weather=N replays one day's weather.
+  private pinnedWeatherSeed: number | null = (() => {
+    const params = new URLSearchParams(location.search);
+    return params.has('test') ? 0 : params.has('weather') ? Number(params.get('weather')) >>> 0 : null;
+  })();
   private underLeaf: LeafShelter | null = null;
   private onLeaf: LeafShelter | null = null;
   private shelterTarget: LeafShelter | null = null;
@@ -228,7 +234,17 @@ export class Garden {
     }
   }
   private notify(message: string, duration = 4): void { this.notice = message; this.noticeUntil = this.time + duration; }
+  /** Each day gets its own showers, hot spell and wind timing and direction. */
+  private rollDayWeather(): void {
+    const seed = this.pinnedWeatherSeed ?? (Math.random() * 2 ** 32) >>> 0;
+    if (seed === 0) { this.weatherPlan = FIXED_WEATHER_PLAN; setWindVariation(0, 0); return; }
+    const random = rng(seed);
+    this.weatherPlan = planWeather(random);
+    setWindVariation(random() * 240, (random() - .5) * Math.PI * 2);
+  }
+
   private begin(showWelcome = true): void {
+    this.rollDayWeather();
     this.phase = 'flying'; this.position.copy(START); this.previousPosition.copy(START); this.velocity.set(0, 0, 0);
     this.yaw = 0; this.pitch = -.13; this.energy = 100; this.nectar = 0; this.pollen = 0;
     this.pollinated = 0; this.visited = 0; this.loose = {}; this.pollenOrder = []; this.previousFlowerBySpecies = {};
@@ -545,7 +561,7 @@ export class Garden {
   private needsLeafShelter(): boolean { return this.weather.rain > .05 || this.needsShade(); }
   private sampleWeather(): void {
     const cinematic = this.phase === 'returning' || this.phase === 'won' || this.phase === 'title' || this.phase === 'paused' && this.resumePhase === 'returning';
-    weatherAt(cinematic ? 0 : this.dayElapsed, this.weather);
+    weatherAt(cinematic ? 0 : this.dayElapsed, this.weather, this.weatherPlan);
     this.rainCover = this.underLeaf;
     if (!this.rainCover) for (const leaf of this.leafShelters.shelters) {
       this.temp.subVectors(this.position, leaf.center).applyQuaternion(this.inverseFlower.copy(leaf.rotation).invert());

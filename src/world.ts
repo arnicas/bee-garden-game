@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CarriedPollen, Flower, Meadow, Species } from './types';
-import { flowerFlex, flowerSwayAt, flowerSwayGLSL, windGLSL } from './wind';
+import { flowerFlex, flowerSwayAt, flowerSwayGLSL, windGLSL, windUniforms } from './wind';
 import { createGroundPaint } from './ground-paint';
 
 /** Authored botanical geometry, in art units (one unit is about 10 cm).
@@ -12,7 +12,7 @@ const TAU = Math.PI * 2;
 const UP = new THREE.Vector3(0, 1, 0);
 const SPECIES: Species[] = ['daisy', 'poppy', 'cornflower'];
 const C = (hex: number) => new THREE.Color(hex);
-function rng(seed: number) {
+export function rng(seed: number) {
   return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let n = Math.imul(seed ^ seed >>> 15, 1 | seed); n ^= n + Math.imul(n ^ n >>> 7, 61 | n); return ((n ^ n >>> 14) >>> 0) / 4294967296; };
 }
 function heightAt(x: number, z: number): number {
@@ -199,7 +199,7 @@ function bendFlowerStems(material: THREE.Material, clock: { value: number }): vo
   const compile = material.onBeforeCompile.bind(material), cacheKey = material.customProgramCacheKey();
   material.onBeforeCompile = (shader, renderer) => {
     compile(shader, renderer);
-    shader.uniforms.uFlowerTime = clock;
+    shader.uniforms.uFlowerTime = clock; Object.assign(shader.uniforms, windUniforms);
     shader.vertexShader = 'uniform float uFlowerTime; attribute vec2 stemShape;\n' + windGLSL + '\n' + flowerSwayGLSL + '\n' + shader.vertexShader.replace(windGLSL, '');
     shader.vertexShader = shader.vertexShader.replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
       vec3 stemNormalOffset = flowerSway(modelMatrix[3].xz, stemShape.x, stemShape.y, uFlowerTime);
@@ -218,7 +218,7 @@ function bendFlowerStems(material: THREE.Material, clock: { value: number }): vo
 function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, petals: boolean, bend: boolean, pollenPulse = { value: 0 }): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.18 });
   material.onBeforeCompile = shader => {
-    shader.uniforms.uMeadowTime = clock; shader.uniforms.uMeadowUV = uvMode;
+    shader.uniforms.uMeadowTime = clock; shader.uniforms.uMeadowUV = uvMode; Object.assign(shader.uniforms, windUniforms);
     shader.uniforms.uPollenPulse = pollenPulse;
     shader.vertexShader = 'uniform float uMeadowTime; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition; varying float vPoppyWash; varying float vCornflowerWash;\n' + windGLSL + '\n' + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBotanicalUv = uv; vCornflowerWash = step(4.0, uv.y); vPoppyWash = step(2.0, uv.y) - vCornflowerWash; vBotanicalUv.y -= vPoppyWash * 2.0 + vCornflowerWash * 4.0; vBotanicalPosition = position;');
@@ -329,7 +329,7 @@ function grassBlade(segments: number): THREE.BufferGeometry {
 function wavingGrassMaterial(clock: { value: number }): THREE.MeshLambertMaterial {
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, emissive: 0x17200b, emissiveIntensity: 0.14 });
   material.onBeforeCompile = shader => {
-    shader.uniforms.uMeadowTime = clock;
+    shader.uniforms.uMeadowTime = clock; Object.assign(shader.uniforms, windUniforms);
     shader.vertexShader = 'uniform float uMeadowTime;\n' + windGLSL + '\n' + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `
       vec4 mvPosition = instanceMatrix * vec4(transformed, 1.0);
