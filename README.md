@@ -71,6 +71,7 @@ at 60% energy, so sipping its nectar is a good first step.
 | Rest / wake | E while settled, or the left-side rest button; walking, F or Space also ends a rest |
 | Sip nectar | Aim at the golden nectar and **hold F or the left mouse button** |
 | Bee Vision | Q |
+| Pull free of a spider web | Tap Space or W (holding also works, more slowly) |
 | Way home | R or the Way home button gives guidance; fly to the hive-facing meadow edge to finish |
 | Pause / release mouse | Esc during play; losing focus or switching tabs also pauses |
 | Bee facts | Esc → Small wonders, or About bees on either results screen |
@@ -133,6 +134,12 @@ cost; steering into strong wind costs more. Low air near grass is calmer. The
 swaying grass and flowers show the wind; stacked wavy lines beside the sun mark
 a heavy-wind spell.
 
+When energy drops below 38 (as the blue edges begin), a message at the top says
+to find a daisy or cornflower and sip nectar; below 18 a stronger “Almost out of
+energy” message follows. Each shows once per dip and returns after refueling to
+50. Rain and heat have their own warnings, so the first one waits while those
+apply.
+
 Stored nectar automatically feeds a bee with low energy. A full nectar jar also
 starts a meal if energy needs topping up. **Rest does not create food**: a
 six-second E rest uses stored nectar to restore up to 36 energy while advancing
@@ -157,6 +164,28 @@ with all three:
   minute or two. Fly low, perch or shelter in the grass to save energy. Wavy
   lines and a “Heavy wind” caption appear on the strip, and short messages mark
   its rise and easing.
+
+Rain also changes the broad leaves: they darken and turn shinier, then dry over
+about half a minute. Perched on or just above a leaf top in rain, the patter is
+louder, with occasional drop “plinks” (softer and lower from underneath).
+
+### Spider webs in the grass
+
+The grass is a refuge from rain, heat and wind, but not a free one: about 28
+orb webs hang low between the stems each day, some fresh and fairly neat, most
+old, sagging and gappy. They keep clear of the opening flower and the broad
+leaves, which stay the reliably safe shelter. No spiders are shown.
+
+Dry webs are faint silver threads. Morning dew leaves a few clear drops on them,
+and after rain they carry many, which makes them easier to spot. Bee Vision (Q)
+tints the silk pale violet and brightens it a little (real orb-web silk reflects
+ultraviolet), though webs still hide behind grass and petals.
+
+Flying or walking into a web catches the bee. Tap Space or W to pull free
+(holding either also works, more slowly). Each tug costs a little energy: about
+six taps for a light bee, nearly twice that with a full load, fewer when nearly
+exhausted. A web never ends the day by itself; below 6 energy the bee slips out.
+Breaking free leaves that web torn for the rest of the day.
 
 Warnings precede the steep weather drain, but ordinary flight keeps using
 energy. E chooses a leaf's underside during rain, hot sun or lingering heat.
@@ -227,13 +256,14 @@ not a WebGPU/TSL pipeline. The HUD and journals use HTML/CSS and inline SVG.
 | [main.ts](src/main.ts), [garden.ts](src/garden.ts), [types.ts](src/types.ts) | Startup, simulation/state transitions, input, foraging, exposure, return rules and UI state |
 | [world.ts](src/world.ts), [meadow-plan.ts](src/meadow-plan.ts), [shelters.ts](src/shelters.ts) | Seeded meadow and next-day species mix, flowers, instanced vegetation, moving leaf perches, collision/cover geometry and LOD |
 | [wind.ts](src/wind.ts), [wind-effects.ts](src/wind-effects.ts) | Shared wind field, inward edge gusts, current trails and drifting fragments |
+| [webs.ts](src/webs.ts) | Spider webs in the grass: seeded placement, loose/torn thread lines, dew and rain drops; catching and escape live in `garden.ts` |
 | [weather.ts](src/weather.ts), [atmosphere.ts](src/atmosphere.ts) | Daily weather plans (showers, heat, gales), lighting, sky and haze |
 | [rain.ts](src/rain.ts), [flower-rain.ts](src/flower-rain.ts) | Rain and water beads on moving petals/leaves |
 | [ground-paint.ts](src/ground-paint.ts), [energy-wash.ts](src/energy-wash.ts) | Moss/earth paint and blue/orange/charcoal watercolor overlays |
 | [bee.ts](src/bee.ts), [nectar.ts](src/nectar.ts), [pollen.ts](src/pollen.ts), [pollination.ts](src/pollination.ts) | Forelegs, tongue/liquid contact, carried pollen and collection/transfer effects |
 | [homecoming.ts](src/homecoming.ts), [rest-view.ts](src/rest-view.ts) | Ending and quiet-perch camera sequences; reused worker bees |
 | [audio.ts](src/audio.ts) | Procedural Web Audio, weather, sipping, feedback and ending sound |
-| [ui.ts](src/ui.ts), [styles.css](src/styles.css), `*-art.ts` | HUD, menus, controls, timeline and illustrated counters |
+| [ui.ts](src/ui.ts), [styles.css](src/styles.css), `*-art.ts` | HUD, menus, controls, timeline and illustrated counters; `redundantCue()` hides the small cue label when the hint line below already says the same thing |
 | [bee-facts.ts](src/bee-facts.ts), [bee-facts.css](src/bee-facts.css) | Interpretive notes, citations and journal layout |
 | [tests/](tests/), [scripts/](scripts/) | Browser regression checks, render inspection and recording helpers |
 
@@ -266,6 +296,8 @@ Current balance values are gameplay choices, not biological measurements:
 | Landing cue | `garden.ts`: `FLOWER_LANDING_REACH` 1.85 past the petals, `FLOWER_LANDING_CLEARANCE` 2.8 above |
 | Weather plan | `weather.ts`: `planWeather()` rolls 1–2 showers, a hot spell weighted toward 320 s (`HEAT_PEAK`) and 1–2 gales of 70–110 s; `FIXED_WEATHER_PLAN` (shower from 150, heat 270–465, no gales) on test pages |
 | Meadow edge | `wind.ts`: inward current of 11–16 units/s beyond radius 30, about a third stronger in a gale |
+| Spider webs | `webs.ts`: `WEB_COUNT` 28, about 70% old/loose; `garden.ts`: each tap adds 0.16 × (1 − 0.45 × load) toward breaking free (×1.6 below 20 energy) and costs 0.8 energy; morning dew shows about a fifth of the drops |
+| Low-energy notices | `garden.ts`: below 38 and below 18 energy, re-armed at 50 |
 | Quiet/scenic view | `rest-view.ts`: begins at 8 / 22 quiet seconds; safety checks in `garden.ts` |
 | Return region | `garden.ts`: z ≥ 30, x between −8 and 8, y ≥ 2 art units; ready harvest, flying, no landing assist |
 | Hive position | `garden.ts`: (0, 4, 46); HUD distance scales art units by 0.1 |
@@ -392,7 +424,9 @@ installed Chrome and a running preview on 4188.
 Development and production URLs with `?test` expose:
 
 - `window.__BEE_TEST__`: detailed snapshots and flower/shelter, cargo, weather
-  clock (`setDayProgress`, `setQuietTime`) and position setup helpers.
+  clock (`setDayProgress`, `setQuietTime`), position setup helpers, and
+  `webs()` / `setWebs(enabled)`. Spider webs are off on `?test` pages so older
+  flight checks never fly into one; add `?webs` to turn them on.
 - `window.__THREE_GAME_TEST_HOOKS__`: seeded scenes, frozen captures and reduced
   motion. Named states are `title`, `flight-start`, `active-play`, `windy`,
   `landed`, `uv`, `pollinated`, `complete` and `failed`.

@@ -31,7 +31,9 @@ test('a dry leaf top carries the resting bee with the wind and releases it with 
   page.on('console', e => { if (e.type() === 'error') errors.push(e.text()); });
   await mkdir('artifacts/leaf-rest-1', { recursive: true });
   await start(page, true);
-  await expect(page.locator('[data-text="interaction"]')).toHaveText('E  ·  LAND ON LEAF');
+  // The hint says it; the small cue label above it is left out as a repeat.
+  await expect(page.locator('[data-text="hint"]')).toContainText('Land on the broad leaf');
+  await expect(page.locator('[data-text="interaction"]')).toHaveText('');
   await page.keyboard.press('e'); await freeze(page, false);
   await expect.poll(async () => (await state(page)).onLeaf).toBe(0);
   await expect(page.locator('.flower-note h2')).toHaveText('On a leaf');

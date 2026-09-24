@@ -14,6 +14,7 @@ import { createWindEffects } from './wind-effects';
 import { createShelters, leafSurfaceHeight, leafPlanarDistance, leafUniforms, type LeafShelter } from './shelters';
 import { createRain } from './rain';
 import { createFlowerRain } from './flower-rain';
+import { createWebs, type SpiderWeb } from './webs';
 import { createEnergyWash } from './energy-wash';
 import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type WeatherPlan } from './weather';
 import { edgeExposureAt, flightWindAt, MEADOW_EDGE_FULL, setWindGale, setWindVariation, surfaceHeight } from './wind';
@@ -66,6 +67,8 @@ interface TestControl {
   setWindTime(value: number): void;
   shelters(): { id: number; center: number[]; perch: number[]; topPerch: number[]; rotation: number[]; root: number[]; radius: number }[];
   approachShelter(id: number): void;
+  webs(): { id: number; center: number[]; normal: number[]; radius: number; torn: boolean }[];
+  setWebs(enabled: boolean): void;
 }
 declare global { interface Window { __BEE_TEST__?: TestControl; } }
 
@@ -84,6 +87,17 @@ export class Garden {
   private leafShelters: ReturnType<typeof createShelters>;
   private rainFX: ReturnType<typeof createRain>;
   private flowerRain: ReturnType<typeof createFlowerRain>;
+  private webs: ReturnType<typeof createWebs>;
+  // Spider webs are on in play; test pages leave them out unless ?webs is given,
+  // so older flight checks never fly into one by chance.
+  private websEnabled = (() => { const p = new URLSearchParams(location.search); return !p.has('test') || p.has('webs'); })();
+  private caughtWeb: SpiderWeb | null = null;
+  /** 0–1 progress toward tearing free. */
+  private webStruggle = 0;
+  private webShake = 0;
+  /** Brief immunity after breaking free, so the torn web can't catch again. */
+  private webGrace = 0;
+  private webExit = new THREE.Vector3();
   private energyWash: ReturnType<typeof createEnergyWash>;
   private weather: MeadowWeather = { stage: 'clear', rain: 0, cloudiness: 0, sunHeat: 0, gale: 0 };
   private weatherPlan: WeatherPlan = FIXED_WEATHER_PLAN;
@@ -234,6 +248,7 @@ export class Garden {
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
     this.rainFX = createRain(this.scene);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
+    this.webs = createWebs(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
     this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
     this.bee = createBeeRig(this.camera);
     this.energyWash = createEnergyWash(this.scene);
@@ -261,11 +276,12 @@ export class Garden {
   private notify(message: string, duration = 4): void { this.notice = message; this.noticeUntil = this.time + duration; }
   /** Replaces the meadow and everything built on its flowers. */
   private rebuildMeadow(seed: number, mix: SpeciesMix): void {
-    this.stopRest(); this.clearShelter(); this.leafShelters.dispose(); this.flowerRain.dispose(); this.seed = seed;
+    this.stopRest(); this.clearShelter(); this.leafShelters.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.caughtWeb = null; this.seed = seed;
     this.pollinationFX.reset(); this.homecoming.dispose(); this.meadow.dispose();
     this.meadow = createMeadow(this.scene, seed, mix);
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
+    this.webs = createWebs(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
     this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
     this.resetSupply(); this.landed = null; this.landingAssist = null;
   }
@@ -304,6 +320,7 @@ export class Garden {
     this.windFX.reset(this.position, this.time);
     this.returnAge = 0; this.returnFuel = 0; this.windDrain = 0; this.takeoffCooldown = 0; this.accumulator = 0; this.keys.clear(); this.closingHeldKeys.clear(); this.mouseDown = false;
     this.pausedCapture = false; this.resetSupply(); this.pollenFX.reset(); this.particleAmount = 0; this.notice = ''; this.noticeUntil = 0; this.lowEnergyWarned = 0;
+    this.webs.reset(); this.caughtWeb = null; this.webStruggle = 0; this.webShake = 0; this.webGrace = 0;
     void this.audio.start().catch(() => this.notify('Sound is unavailable. You can still play.'));
     this.canvas.focus({ preventScroll: true });
     if (showWelcome) {
@@ -400,6 +417,7 @@ export class Garden {
       if (e.code === 'Enter' && (this.phase === 'title' || this.phase === 'won' || this.phase === 'lost')) this.begin();
       if (this.phase !== 'flying' && this.phase !== 'landed') return;
       if (e.code === 'KeyQ') this.uv = !this.uv;
+      if (this.caughtWeb) { if (e.code === 'Space' || e.code === 'KeyW') this.tugWeb(); return; }
       if (e.code === 'KeyE') {
         if (this.phase === 'flying') this.tryLand();
         else this.toggleRest();
@@ -533,7 +551,12 @@ export class Garden {
     this.loadSway = 0; this.heavyWobble = 0; this.heavyStrain = 0; this.heavyKick = 0;
     this.windDrain = 0;
     this.updateAppetite();
-    if (this.phase === 'flying') this.fly(dt); else if (!this.resting) this.crawl(dt);
+    this.webGrace = Math.max(0, this.webGrace - dt); this.webShake = Math.max(0, this.webShake - dt * 2.5);
+    if (this.caughtWeb) this.struggle(dt);
+    else {
+      if (this.phase === 'flying') this.fly(dt); else if (!this.resting) this.crawl(dt);
+      this.checkWebs();
+    }
     this.drinking = false;
     if (this.phase === 'landed' && this.landed && !this.resting) this.forage(dt);
     // Wing work is relative to the air: riding a current saves energy, while
@@ -1061,6 +1084,12 @@ export class Garden {
       this.camera.lookAt(0, 3.35, -5.5);
     } else if (!cinematic) {
       this.camera.position.copy(this.position);
+      if (!this.reducedMotion && (this.caughtWeb || this.webShake > 0)) {
+        // Tangled: a small constant tremble, jolting with each tug.
+        const shake = (this.caughtWeb ? .004 : 0) + this.webShake * .014;
+        this.camera.position.x += Math.sin(this.time * 47) * shake;
+        this.camera.position.y += Math.sin(this.time * 39 + 1) * shake;
+      }
       if (!this.reducedMotion && this.phase === 'flying') this.camera.position.y += Math.sin(this.time * 7.2) * .008 - this.heavyStrain * .035;
       const sideSpeed = this.velocity.x * Math.cos(this.yaw) - this.velocity.z * Math.sin(this.yaw);
       this.lookRoll = THREE.MathUtils.damp(this.lookRoll, this.reducedMotion || this.phase !== 'flying' ? 0 : THREE.MathUtils.clamp(-sideSpeed * .015 + (this.loadSway + this.heavyWobble) * .06 + this.heavyKick * .03, -.075, .075), 5, this.pausedCapture || this.phase === 'paused' ? 0 : dt);
@@ -1093,6 +1122,9 @@ export class Garden {
       this.leafWet += (wetTarget - this.leafWet) * (1 - Math.exp(-rate * Math.max(0, dt)));
       leafUniforms.uLeafWet.value = this.leafWet; }
     this.flowerRain.update(this.time, this.camera.position, this.weather.rain, this.reducedMotion, !cinematic && (active || this.phase === 'failing' || this.phase === 'paused'));
+    // Webs sparkle with morning dew and after rain; dry, they are faint threads.
+    { const morningDew = 1 - THREE.MathUtils.smoothstep(this.dayProgress(), .05, .22);
+      this.webs.update(Math.max(morningDew * .35, this.leafWet), 1 - this.weather.cloudiness, this.uv); }
     this.windFX.update((active || this.phase === 'title') && !this.pausedCapture ? dt : 0, this.time, this.position, this.camera, this.reducedMotion, !cinematic && !closing && !this.restView.active && (active || this.phase === 'paused' || this.phase === 'title'));
     this.pollenFX.update(active && !this.pausedCapture ? dt : 0, this.position);
     this.pollinationFX.update(active && !this.pausedCapture ? dt : 0, !cinematic && !closing && (active || this.phase === 'paused'), this.reducedMotion);
@@ -1135,6 +1167,7 @@ export class Garden {
     if (this.resting && this.underLeaf && this.weather.rain > .05) hint = 'Safe and dry while the shower passes · E to wake';
     if (this.onGround) hint = this.resting ? 'Resting in sheltered grass · Nectar restores energy · E to wake' : 'Sheltered among the grass · E to rest · Space to fly · WASD to walk';
     else if (this.phase === 'flying' && this.grassCover > .99 && !this.canLand) hint = 'Low grass offers shelter and shade · Settle down to rest · Space to rise';
+    if (this.caughtWeb) hint = 'Caught in a web · Tap Space or W to pull free';
     if (this.heat > .18 && this.shade > .99) hint = 'Cooling in the shade · E to rest · Space to fly when ready';
     const view: ViewState = {
       reducedMotion: this.reducedMotion, dayProgress: this.dayProgress(), resting: this.resting, restProgress: this.restAge / REST_DURATION, endingStage: this.homecoming.stage, endingFade: this.homecoming.fade,
@@ -1257,7 +1290,7 @@ export class Garden {
       hideDebugUi: (_value: boolean) => { /* No debug panels in the player interface. */ },
     };
     window.__BEE_TEST__ = {
-      snapshot: () => ({ pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), restView: this.restView.diagnostics(), onGround: this.onGround, grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), nectarSurface: this.nectarDrop.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
+      snapshot: () => ({ pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), nectarSurface: this.nectarDrop.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
       setPose: (p, yaw = 0, pitch = -.35, velocity = [0, 0, 0]) => { this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.fromArray(p); this.previousPosition.copy(this.position); this.yaw = yaw; this.pitch = pitch; this.velocity.fromArray(velocity); },
       approachFlower: (id: number) => { const f = this.meadow.flowers.find(f => f.id === id); if (!f) throw new Error('Unknown flower'); this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.copy(f.center).add(new THREE.Vector3(0, .55, f.radius + .5)); this.previousPosition.copy(this.position); this.yaw = 0; this.pitch = -.32; this.velocity.set(0,0,0); this.takeoffCooldown = 0; },
       shelters: () => this.leafShelters.shelters.map(leaf => ({ id: leaf.id, center: leaf.center.toArray(), perch: leaf.perch.toArray(), topPerch: leaf.topPerch.toArray(), rotation: leaf.rotation.toArray(), root: leaf.root.toArray(), radius: leaf.radius })),
@@ -1269,10 +1302,61 @@ export class Garden {
       setWindTime: value => { this.time = Math.max(0, value); this.windFX.reset(this.position, this.time); this.updateWorld(this.reducedMotion ? 0 : this.time); this.updateView(0); },
       setQuietTime: value => { this.quietAge = Math.max(0, value); },
       setEndingTime: value => { if (this.phase === 'returning') this.returnAge = THREE.MathUtils.clamp(value, 0, this.reducedMotion ? QUIET_ENDING_DURATION : ENDING_DURATION); },
+      webs: () => this.webs.webs.map(w => ({ id: w.id, center: w.center.toArray(), normal: w.normal.toArray(), radius: w.radius, torn: w.torn })),
+      setWebs: enabled => { this.websEnabled = enabled; this.webs.setVisible(enabled); if (!enabled) this.caughtWeb = null; },
       flowers: () => this.meadow.flowers.map(f => ({ id: f.id, species: f.species, center: f.center.toArray(), base: f.base.toArray(), rotation: f.rotation.toArray(), velocity: f.velocity.toArray(), height: f.height, radius: f.radius, pollenFraction: f.pollenFraction, visiblePollen: f.pollen.count, pollenMatch: f.pollenMatch })),
     };
   }
   private leafWet = 0;
+
+  // ---- Spider webs: flying or walking through one catches the bee. Tapping
+  // Space or W (or holding either) pulls it free at an energy cost; a heavy load
+  // makes that harder, very low energy easier. A web never ends the day itself.
+  private checkWebs(): void {
+    if (!this.websEnabled || this.webGrace > 0 || this.landingAssist || this.shelterAssist || this.landed || this.underLeaf || this.onLeaf) return;
+    if (this.phase !== 'flying' && !(this.phase === 'landed' && this.onGround)) return;
+    for (const web of this.webs.webs) {
+      if (web.torn) continue;
+      const d0 = this.temp.subVectors(this.previousPosition, web.center).dot(web.normal);
+      const d1 = this.temp.subVectors(this.position, web.center).dot(web.normal);
+      if (d0 === d1 || d0 * d1 > 0) continue;
+      this.temp.lerpVectors(this.previousPosition, this.position, d0 / (d0 - d1));
+      if (this.temp.distanceTo(web.center) > web.radius * .92) continue;
+      this.catchInWeb(web, Math.sign(d0) || 1);
+      return;
+    }
+  }
+  private catchInWeb(web: SpiderWeb, side: number): void {
+    this.caughtWeb = web; this.webStruggle = 0; this.webShake = 1;
+    this.webExit.copy(web.normal).multiplyScalar(-side);
+    // Hang just in front of the silk, so its threads cross the view.
+    this.position.copy(this.temp).addScaledVector(web.normal, side * .06); this.previousPosition.copy(this.position);
+    this.stopRest(); this.onGround = false; this.phase = 'flying'; this.velocity.set(0, 0, 0);
+    this.drinking = false; this.canDrink = false;
+    this.audio.pluck(196, .05);
+    this.notify('Caught in a spider’s web! Struggling free costs energy.', 5);
+  }
+  private webPull(): number { return (1 - .45 * this.load()) * (this.energy < 20 ? 1.6 : 1); }
+  private struggle(dt: number): void {
+    this.velocity.set(0, 0, 0); this.flightEffort = .7; this.flightMode = 'flying';
+    if (this.keys.has('Space') || this.keys.has('KeyW')) { this.webStruggle += dt * .1 * this.webPull(); this.energy -= dt * .45; }
+    else this.webStruggle = Math.max(0, this.webStruggle - dt * .04);
+    // A bee this tired slips out as the silk gives way.
+    if (this.webStruggle >= 1 || this.energy < 6) this.freeFromWeb();
+  }
+  private tugWeb(): void {
+    this.webStruggle += .16 * this.webPull(); this.energy = Math.max(0, this.energy - .8); this.webShake = 1;
+    this.audio.pluck(180 + this.webStruggle * 140, .035);
+    if (this.webStruggle >= 1) this.freeFromWeb();
+  }
+  private freeFromWeb(): void {
+    const web = this.caughtWeb; if (!web) return;
+    this.webs.tear(web.id); this.caughtWeb = null; this.webStruggle = 0; this.webGrace = 1.2; this.webShake = .6;
+    this.position.addScaledVector(this.webExit, .16); this.previousPosition.copy(this.position);
+    this.velocity.copy(this.webExit).multiplyScalar(1.6); this.velocity.y += .7;
+    this.audio.pluck(520, .03);
+    this.notify('Free! The web tears as you pull through.', 3);
+  }
 
   // 0–1: how close the bee is to the top of a broad leaf (perched on it, or just
   // above it), so rain on that leaf can be heard as close drops.
@@ -1293,7 +1377,7 @@ export class Garden {
     cancelAnimationFrame(this.raf); this.abort.abort(); this.ui.dispose(); this.audio.dispose(); this.bee.dispose(); this.pollenFX.dispose(); this.pollinationFX.dispose(); this.windFX.dispose(); this.atmosphere.dispose(); this.meadow.dispose();
     this.nectarDrop.dispose(); this.energyWash.dispose(); this.renderer.dispose();
     this.homecoming.dispose();
-    this.leafShelters.dispose(); this.rainFX.dispose(); this.flowerRain.dispose();
+    this.leafShelters.dispose(); this.rainFX.dispose(); this.flowerRain.dispose(); this.webs.dispose();
     delete window.__BEE_TEST__; delete window.__THREE_GAME_TEST_HOOKS__; delete window.__THREE_GAME_DIAGNOSTICS__;
   }
 }

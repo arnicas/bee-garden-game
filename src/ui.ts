@@ -53,6 +53,25 @@ const controls = [
   [key('M'), 'Sound on / off'],
 ];
 
+/** Words that don't change what a cue says, for comparing it with the hint. */
+const CUE_FILLER = new Set(['a', 'an', 'the', 'on', 'in', 'into', 'under', 'beneath', 'underneath', 'to', 'of', 'by', 'gently']);
+/** Different words for the same action. */
+const CUE_SYNONYMS: Record<string, string> = { tuck: 'shelter', tucking: 'shelter', sheltered: 'shelter' };
+/**
+ * True when the small cue label only repeats the hint line below it (e.g.
+ * "E · LAND ON LEAF" over "E · Land on the broad leaf"): every meaningful word
+ * and key in the cue already appears in the hint, so the cue is left out.
+ */
+export function redundantCue(cue: string, hint: string): boolean {
+  if (!cue.trim() || !hint.trim()) return false;
+  const words = (s: string) => s.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean).map(w => CUE_SYNONYMS[w] ?? w);
+  const hintWords = words(hint);
+  return words(cue).filter(w => !CUE_FILLER.has(w)).every(w => {
+    const stem = w.length > 4 ? w.slice(0, 4) : w;
+    return hintWords.some(h => h === w || stem.length >= 4 && h.startsWith(stem));
+  });
+}
+
 export function createUI(actions: UIActions): GameUI {
   const root = document.querySelector<HTMLDivElement>('#ui')!;
   if (!root) throw new Error('Bee Garden requires a #ui element.');
@@ -636,7 +655,8 @@ export function createUI(actions: UIActions): GameUI {
     text('flower-guidance', guidance);
     show(flowerGuidance, !!guidance);
     keyText('hint', state.hint);
-    keyText('interaction', shelterBeneath ? 'E  ·  SHELTER BENEATH' : resting ? (state.restProgress >= .85 ? 'A LITTLE REST, NEARLY DONE' : 'RESTING · THE DAY DRIFTS BY') : state.landing ? (state.leafTopTarget ? 'SETTLING ON A LEAF' : state.shelterTarget ? 'SETTLING UNDER A LEAF' : 'LANDING GENTLY') : onGround ? 'E  ·  REST IN THE GRASS' : underLeaf ? 'E  ·  REST UNDER THE LEAF' : onLeaf ? 'E  ·  REST ON THE LEAF' : state.drinking ? (state.energy < 99.5 ? 'SIPPING · RESTORING ENERGY' : 'SIPPING NECTAR') : state.phase === 'landed' ? (state.satiated ? 'ALL TOPPED UP' : state.canDrink ? 'HOLD F TO SIP' : 'WASD  ·  EXPLORE THE FLOWER') : highlightLanding ? (state.leafTopTarget ? 'E  ·  LAND ON LEAF' : state.shelterTarget ? 'E  ·  SHELTER UNDER LEAF' : 'E  ·  LAND GENTLY') : '');
+    const interaction = shelterBeneath ? 'E  ·  SHELTER BENEATH' : resting ? (state.restProgress >= .85 ? 'A LITTLE REST, NEARLY DONE' : 'RESTING · THE DAY DRIFTS BY') : state.landing ? (state.leafTopTarget ? 'SETTLING ON A LEAF' : state.shelterTarget ? 'SETTLING UNDER A LEAF' : 'LANDING GENTLY') : onGround ? 'E  ·  REST IN THE GRASS' : underLeaf ? 'E  ·  REST UNDER THE LEAF' : onLeaf ? 'E  ·  REST ON THE LEAF' : state.drinking ? (state.energy < 99.5 ? 'SIPPING · RESTORING ENERGY' : 'SIPPING NECTAR') : state.phase === 'landed' ? (state.satiated ? 'ALL TOPPED UP' : state.canDrink ? 'HOLD F TO SIP' : 'WASD  ·  EXPLORE THE FLOWER') : highlightLanding ? (state.leafTopTarget ? 'E  ·  LAND ON LEAF' : state.shelterTarget ? 'E  ·  SHELTER UNDER LEAF' : 'E  ·  LAND GENTLY') : '';
+    keyText('interaction', redundantCue(interaction, state.hint) ? '' : interaction);
     aim.classList.toggle('can-land', highlightLanding);
     aim.classList.toggle('is-sipping', state.drinking);
     text('message', state.message);

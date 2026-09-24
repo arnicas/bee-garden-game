@@ -108,7 +108,8 @@ test('hot weather interrupts a leaf-top rest and E routes underneath, while mild
   const exposed = await state(page);
   expect(exposed.onLeaf).toBe(0); expect(exposed.needsShade).toBe(true);
   expect(exposed.weather.rain).toBe(0); expect(exposed.shade).toBe(0);
-  await expect(page.locator('[data-text="interaction"]')).toHaveText('E  ·  SHELTER BENEATH');
+  await expect(page.locator('[data-text="hint"]')).toContainText('tuck into shade');
+  await expect(page.locator('[data-text="interaction"]')).toHaveText('');
   await page.screenshot({ path: 'artifacts/heat-shade-1/sun-on-leaf-top.png' });
   await page.keyboard.press('e');
   expect((await state(page)).leafTopTarget).toBe(false);

@@ -238,6 +238,18 @@ export class GardenAudio {
     this.sipping = sipping;
   }
 
+  /** A soft plucked-silk thrum, for tugs against a spider web. */
+  pluck(frequency: number, level = .03): void {
+    const ctx = this.context; if (this.disposed || !ctx || !this.master) return;
+    const at = ctx.currentTime, osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(frequency * 1.04, at); osc.frequency.exponentialRampToValueAtTime(frequency, at + .12);
+    gain.gain.setValueAtTime(0, at); gain.gain.linearRampToValueAtTime(level, at + .006);
+    gain.gain.exponentialRampToValueAtTime(.0001, at + .32);
+    osc.connect(gain).connect(this.master); osc.start(at); osc.stop(at + .34);
+    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+  }
+
   private drop(under: boolean): void {
     const ctx = this.context; if (this.disposed || !ctx || !this.weatherGain) return;
     this.drops++;
