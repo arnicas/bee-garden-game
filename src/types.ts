@@ -100,6 +100,7 @@ export interface ViewState {
   pollinationSpecies: Species | null;
   carriedPollen: CarriedPollen;
   visited: number;
+  flowerTotal: number;
   elapsed: number;
   message: string;
   hint: string;

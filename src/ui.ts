@@ -65,7 +65,8 @@ export function createUI(actions: UIActions): GameUI {
       <div class="little-brand">${icons.bee}<span>Bee Garden</span></div>
       <p class="objective" hidden><span class="shelter-guide" role="img" aria-label="A dry leaf nearby" hidden>${icons.energy}<span data-text="shelter-label">A dry leaf</span><span class="shelter-arrow" aria-hidden="true">↑</span><span data-text="shelter-distance"></span></span></p>
       <div class="pollination-summary" role="group" aria-label="Meadow happiness from pollination">
-        <div class="meadow-overview">${happyMeadowArt}<div class="meadow-counter"><span class="meadow-label" data-text="meadow-label">HAPPY MEADOW</span><div class="meadow-tally"><b data-text="pollination-count">0</b> <span data-text="pollination-count-label">flowers pollinated</span></div></div></div>
+        <div class="meadow-heading"><span class="meadow-label" data-text="meadow-label">HAPPY MEADOW</span><span class="meadow-visits"><b data-text="visited-count">0</b>/<span data-text="flower-total">0</span> flowers visited</span></div>
+        <div class="meadow-overview">${happyMeadowArt}<div class="meadow-counter"><div class="meadow-tally"><b data-text="pollination-count">0</b> <span data-text="pollination-count-label">flowers pollinated</span></div></div></div>
         <div class="meadow-coverage" role="group" aria-label="Flower types pollinated: 0 of 3">
           ${flowerTypes.map(([species, name]) => `<div class="species-petal" data-species="${species}" role="img" aria-label="${name}: 0 flowers pollinated"><span class="petal-tally">${coveragePetals[species]}<b data-text="coverage-${species}">0</b></span><span class="petal-name">${name}</span></div>`).join('')}
         </div>
@@ -554,6 +555,8 @@ export function createUI(actions: UIActions): GameUI {
     text('pollen-note', state.pollen >= state.pollenGoal ? 'A lovely harvest for the hive' : 'Gather as you crawl');
     text('pollination-count', String(state.pollinated));
     text('pollination-count-label', state.pollinated === 1 ? 'flower pollinated' : 'flowers pollinated');
+    text('visited-count', String(state.visited));
+    text('flower-total', String(state.flowerTotal));
     pollinationSummary.classList.toggle('has-pollinated', state.pollinated > 0);
     let coveredTypes = 0;
     for (const { species, name, element } of speciesPetals) {
@@ -565,7 +568,8 @@ export function createUI(actions: UIActions): GameUI {
     }
     attribute(meadowCoverage, 'aria-label', `Flower types pollinated: ${coveredTypes} of 3`);
     pollinationSummary.classList.toggle('all-types-pollinated', coveredTypes === 3);
-    text('meadow-label', coveredTypes === 3 ? 'ALL THREE HAPPY' : 'HAPPY MEADOW');
+    // The meadow's mood grows with pollination; all three flower types is the top tier.
+    text('meadow-label', coveredTypes === 3 ? 'ALL THREE HAPPY' : state.pollinated >= 5 ? 'HAPPY MEADOW' : state.pollinated > 0 ? 'WAKING MEADOW' : 'QUIET MEADOW');
     for (const bloom of pollinationBlooms) show(bloom.element, bloom.species === state.pollinationSpecies);
     const pollinatedName = pollinationBlooms.find(bloom => bloom.species === state.pollinationSpecies)?.name;
     text('pollination-announcement', pollinatedName ? `${pollinatedName} pollinated. ${state.pollinated} ${state.pollinated === 1 ? 'flower' : 'flowers'} pollinated in the meadow.` : '');

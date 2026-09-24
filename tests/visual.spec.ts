@@ -200,10 +200,9 @@ test('pollination cues require matching pollen, count each flower once, and rese
       const layout = await page.evaluate(() => {
         const summary = document.querySelector('.pollination-summary')!.getBoundingClientRect();
         const flower = document.querySelector('.flower-note')!.getBoundingClientRect();
-        const wind = document.querySelector('.wind-readout')!.getBoundingClientRect();
         return {
-          clear: summary.right < innerWidth * .3 && (!flower.height || (flower.top > summary.bottom && flower.bottom < wind.top)),
-          fits: [...document.querySelectorAll<HTMLElement>('.meadow-label, .petal-tally, .petal-name')].every(el => el.scrollWidth <= el.clientWidth + 1),
+          clear: summary.right < innerWidth * .3 && (!flower.height || (flower.top > summary.bottom && flower.bottom < innerHeight)),
+          fits: [...document.querySelectorAll<HTMLElement>('.meadow-label, .meadow-visits, .petal-tally, .petal-name')].every(el => el.scrollWidth <= el.clientWidth + 1),
           overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight,
         };
       });
@@ -281,7 +280,7 @@ test('pollination cues require matching pollen, count each flower once, and rese
   await expect(coverage).toHaveAttribute('aria-label', 'Flower types pollinated: 0 of 3');
   await expect(page.locator('.species-petal.is-pollinated')).toHaveCount(0);
   for (const species of ['poppy', 'daisy', 'cornflower']) await expect(page.locator(`[data-text="coverage-${species}"]`)).toHaveText('0');
-  await expect(page.locator('[data-text="meadow-label"]')).toHaveText('HAPPY MEADOW');
+  await expect(page.locator('[data-text="meadow-label"]')).toHaveText('QUIET MEADOW');
   await expect(page.locator('.pollination-summary .meadow-thanks')).toHaveCSS('opacity', '0');
   await expect(page.locator('.pollination-toast')).toBeHidden();
   expect(errors).toEqual([]);
@@ -302,7 +301,8 @@ test('wind carries idle bees, Shift controls drift at an energy cost, and low ai
   expect(rideDistance).toBeGreaterThan(3);
   expect(new Vector3().fromArray(riding.velocity).dot(new Vector3().fromArray(riding.wind))).toBeGreaterThan(2);
   expect(riding.flightMode).toBe('riding');
-  await expect(page.locator('[data-wind-arrow]')).toBeVisible();
+  // The wind arrow and windsock are hidden for now; swaying vegetation is the wind cue.
+  await expect(page.locator('[data-wind-arrow]')).toBeHidden();
   // Releasing thrust does not delete the bee's world momentum.
   await hold(page, 'w', 400);
   const released = await snapshot(page);

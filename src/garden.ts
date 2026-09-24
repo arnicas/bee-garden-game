@@ -1039,7 +1039,7 @@ export class Garden {
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
       flowerName: target ? NAMES[target.species] : '', flowerSpecies: target?.species ?? null, flowerNectar: (supply?.nectar ?? 0) * NECTAR_YIELD, flowerPollen: (supply?.pollen ?? 0) * POLLEN_YIELD,
       targetX: x, targetY: y, targetVisible, canLand: this.canLand, landing: !!(this.landingAssist || this.shelterAssist), canDrink: this.canDrink, drinking: this.drinking, satiated: this.satiated,
-      dust: Math.min(1, Object.values(this.loose).reduce((a, b) => a + (b || 0), 0) * .55), pollinated: this.pollinated, visited: this.visited,
+      dust: Math.min(1, Object.values(this.loose).reduce((a, b) => a + (b || 0), 0) * .55), pollinated: this.pollinated, visited: this.visited, flowerTotal: this.supplies.size,
       pollinatedBySpecies: this.pollinatedBySpecies,
       carriedPollen: this.loose,
       flowerPollinated: supply?.pollinated ?? false, flowerVisited: supply?.visited ?? false, pollinationSpecies: this.time < this.pollinationUntil ? this.pollinationSpecies : null,

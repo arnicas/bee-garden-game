@@ -157,7 +157,8 @@ for (const species of ['daisy', 'poppy', 'cornflower'] as const) {
       const actions = await page.locator('.top-actions').boundingBox();
       expect(bounds!.width).toBeLessThanOrEqual(100);
       expect(bounds!.height).toBeLessThanOrEqual(56);
-      expect(bounds!.y + bounds!.height).toBeLessThan(165);
+      // The notice sits at top: 132px and is 54px tall, just below the day timeline.
+      expect(bounds!.y + bounds!.height).toBeLessThan(190);
       const clock = await page.locator('.day-timeline').boundingBox();
       expect(bounds!.y).toBeGreaterThan(clock!.y + clock!.height);
       expect(bounds!.x).toBeGreaterThan(heading!.x + heading!.width);

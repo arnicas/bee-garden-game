@@ -134,7 +134,10 @@ h1 em { font-weight: 400; font-size: .93em; }
 .pollination-summary .meadow-art { width: 82px; height: auto; filter: saturate(.7) drop-shadow(0 2px 1px #5b6b3615); }
 .pollination-summary.has-pollinated .meadow-art { filter: drop-shadow(0 2px 1px #5b6b3615); }
 .meadow-counter { flex: 1; min-width: 0; }
+.meadow-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
 .meadow-label { display: block; font-size: 8px; font-weight: 600; letter-spacing: 1.35px; white-space: nowrap; }
+.meadow-visits { font-size: 9px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.meadow-visits b { font-weight: 600; color: var(--ink); }
 .meadow-tally { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
 .meadow-tally b { min-width: 1.15em; font: 32px/1.1 var(--serif); font-variant-numeric: tabular-nums; color: var(--ink); }
 .meadow-tally > span { max-width: 66px; font-size: 10px; line-height: 1.45; }
@@ -405,6 +408,7 @@ h1 em { font-weight: 400; font-size: .93em; }
   .meadow-overview { gap: 5px; }
   .pollination-summary .meadow-art { width: 63px; }
   .meadow-label { font-size: 7px; letter-spacing: .8px; }
+  .meadow-visits { font-size: 8px; }
   .meadow-tally { gap: 5px; }
   .meadow-tally b { font-size: 27px; }
   .meadow-tally > span { font-size: 9px; }
