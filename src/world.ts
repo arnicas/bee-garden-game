@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CarriedPollen, Flower, Meadow, Species } from './types';
 import { flowerFlex, flowerSwayAt, flowerSwayGLSL, windGLSL, windUniforms } from './wind';
 import { createGroundPaint } from './ground-paint';
+import { EVEN_MIX, type SpeciesMix } from './meadow-plan';
 
 /** Authored botanical geometry, in art units (one unit is about 10 cm).
  * Plant placement is immutable; head poses and a shared shader clock own wind.
@@ -397,7 +398,16 @@ function oatGrass(): THREE.BufferGeometry {
   return combine(parts);
 }
 
-export function createMeadow(scene: THREE.Scene, seed = 7919): Meadow {
+/** Maps a uniform random number to a species by the mix's proportions. An even
+ * mix gives the same result as SPECIES[Math.floor(u * 3)], so seeds keep their layouts. */
+function pickSpecies(u: number, mix: SpeciesMix): Species {
+  const total = SPECIES.reduce((sum, species) => sum + Math.max(0, mix[species]), 0) || 1;
+  let edge = 0;
+  for (const species of SPECIES) { edge += Math.max(0, mix[species]) / total; if (u < edge) return species; }
+  return SPECIES[SPECIES.length - 1];
+}
+
+export function createMeadow(scene: THREE.Scene, seed = 7919, mix: SpeciesMix = EVEN_MIX): Meadow {
   const root = new THREE.Group(); root.name = 'the living meadow'; scene.add(root);
   const random = rng(seed), clock = { value: 0 }, uvMode = { value: 0 };
   const petalMaterial = botanicalMaterial(clock, uvMode, true, false), plantMaterial = botanicalMaterial(clock, uvMode, false, false), grassMaterial = botanicalMaterial(clock, uvMode, false, true);
@@ -477,7 +487,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919): Meadow {
   for (let attempt = 0; flowers.length < 72 && attempt < 6000; attempt++) {
     const angle = random() * TAU, radius = 5.8 + Math.sqrt(random()) * 17.5, x = Math.cos(angle) * radius, z = Math.sin(angle) * radius - 3;
     if (flowers.some(f => Math.hypot(f.base.x - x, f.base.z - z) < 2.05)) continue;
-    const species = SPECIES[Math.floor(random() * 3)];
+    const species = pickSpecies(random(), mix);
     plant(species, x, z, 2.8 + random() * 2.1, 0.68 + random() * 0.36);
   }
   const terrain = keep(new THREE.PlaneGeometry(180, 180, 96, 96)); terrain.rotateX(-Math.PI / 2);

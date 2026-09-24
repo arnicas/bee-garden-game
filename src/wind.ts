@@ -2,7 +2,7 @@ import { MathUtils, Vector3 } from 'three';
 
 // Flowers end before this grass-only apron. The edge is a current, not a wall.
 export const MEADOW_EDGE_START = 30;
-const MEADOW_EDGE_FULL = 37;
+export const MEADOW_EDGE_FULL = 37;
 export function edgeExposureAt(x: number, z: number): number {
   return MathUtils.smoothstep(Math.hypot(x, z), MEADOW_EDGE_START, MEADOW_EDGE_FULL);
 }
@@ -38,7 +38,7 @@ export function flightWindAt(x: number, y: number, z: number, time: number, out 
   if (edge > 0) {
     const radius = Math.hypot(x, z);
     const pulse = .5 + .5 * Math.sin(time * 1.65 + x * .035 + z * .045);
-    const strength = edge * (9 + 5 * pulse);
+    const strength = edge * (11 + 5 * pulse); // keeps the edge inward push above ~4 at every moment
     out.x -= x / radius * strength;
     out.z -= z / radius * strength;
   }

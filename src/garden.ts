@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createMeadow, grassRainCover, meadowGroundHeight, rng } from './world';
+import { EVEN_MIX, speciesMixAfter, type DayOutcome, type SpeciesMix } from './meadow-plan';
 import { createUI } from './ui';
 import { createBeeRig } from './bee';
 import { createNectarDrop } from './nectar';
@@ -15,7 +16,7 @@ import { createRain } from './rain';
 import { createFlowerRain } from './flower-rain';
 import { createEnergyWash } from './energy-wash';
 import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type WeatherPlan } from './weather';
-import { edgeExposureAt, flightWindAt, setWindVariation, surfaceHeight } from './wind';
+import { edgeExposureAt, flightWindAt, MEADOW_EDGE_FULL, setWindVariation, surfaceHeight } from './wind';
 import type { Flower, GameUI, Meadow, Phase, Species, ViewState } from './types';
 
 const NAMES: Record<Species, string> = { daisy: 'Oxeye daisy', poppy: 'Corn poppy', cornflower: 'Cornflower' };
@@ -30,6 +31,9 @@ const NECTAR_CAPACITY = 100;
 const ENERGY_PER_NECTAR = 3.5, SIP_ENERGY_RATE = 6;
 const REST_DURATION = 6, REST_DAY_RATE = 18;
 const LOSS_DURATION = 3.6, QUIET_LOSS_DURATION = 1.5;
+/** A fresh 32-bit seed for a new day's meadow or weather. */
+const randomSeed = (): number => (Math.random() * 2 ** 32) >>> 0 || 1;
+
 const DAY_DURATION = 600, DUSK_START = 540, NIGHT_LOSS_DURATION = 6;
 const POLLEN_SUPPLY: Record<Species, number> = { poppy: 42, daisy: 22, cornflower: 28 };
 // Flower supplies track visible material; counters track usable harvest.
@@ -180,7 +184,15 @@ export class Garden {
   private resultScore = 0;
   private returnAge = 0;
   private returnFuel = 0;
-  private seed = 481;
+  // Test pages keep the original meadow (seed 481); ?meadow=N replays one layout.
+  private pinnedMeadowSeed: number | null = (() => {
+    const params = new URLSearchParams(location.search);
+    return params.has('test') ? 481 : params.has('meadow') ? Number(params.get('meadow')) >>> 0 : null;
+  })();
+  private seed = this.pinnedMeadowSeed ?? randomSeed();
+  private dayPlayed = false;
+  /** The last finished day, which shapes the next meadow's species mix. */
+  private previousDay: DayOutcome | null = null;
   private temp = new THREE.Vector3();
   private collisionPrevious = new THREE.Vector3();
   private inverseFlower = new THREE.Quaternion();
@@ -205,7 +217,7 @@ export class Garden {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.scene.add(this.camera);
     this.atmosphere = createAtmosphere(this.scene);
-    this.meadow = createMeadow(this.scene, this.seed);
+    this.meadow = createMeadow(this.scene, this.seed, speciesMixAfter(this.previousDay));
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
     this.rainFX = createRain(this.scene);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
@@ -234,9 +246,28 @@ export class Garden {
     }
   }
   private notify(message: string, duration = 4): void { this.notice = message; this.noticeUntil = this.time + duration; }
+  /** Replaces the meadow and everything built on its flowers. */
+  private rebuildMeadow(seed: number, mix: SpeciesMix): void {
+    this.stopRest(); this.clearShelter(); this.leafShelters.dispose(); this.flowerRain.dispose(); this.seed = seed;
+    this.pollinationFX.reset(); this.homecoming.dispose(); this.meadow.dispose();
+    this.meadow = createMeadow(this.scene, seed, mix);
+    this.leafShelters = createShelters(this.scene, this.meadow.flowers);
+    this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
+    this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
+    this.resetSupply(); this.landed = null; this.landingAssist = null;
+  }
+
+  /** Every day after the first grows a new meadow, its species mix shaped by the
+   * day before (see speciesMixAfter). The first day keeps the title-screen meadow. */
+  private nextMeadow(): void {
+    if (!this.dayPlayed) { this.dayPlayed = true; return; }
+    this.previousDay = { pollinatedBySpecies: { ...this.pollinatedBySpecies }, completed: this.phase === 'won' };
+    if (this.pinnedMeadowSeed === null) this.rebuildMeadow(randomSeed(), speciesMixAfter(this.previousDay));
+  }
+
   /** Each day gets its own showers, hot spell and wind timing and direction. */
   private rollDayWeather(): void {
-    const seed = this.pinnedWeatherSeed ?? (Math.random() * 2 ** 32) >>> 0;
+    const seed = this.pinnedWeatherSeed ?? randomSeed();
     if (seed === 0) { this.weatherPlan = FIXED_WEATHER_PLAN; setWindVariation(0, 0); return; }
     const random = rng(seed);
     this.weatherPlan = planWeather(random);
@@ -244,6 +275,7 @@ export class Garden {
   }
 
   private begin(showWelcome = true): void {
+    this.nextMeadow();
     this.rollDayWeather();
     this.phase = 'flying'; this.position.copy(START); this.previousPosition.copy(START); this.velocity.set(0, 0, 0);
     this.yaw = 0; this.pitch = -.13; this.energy = 100; this.nectar = 0; this.pollen = 0;
@@ -686,9 +718,18 @@ export class Garden {
       const side = Number(this.keys.has('KeyD')) - Number(this.keys.has('KeyA'));
       this.temp.set(-Math.sin(this.yaw) * forward + Math.cos(this.yaw) * side, 0, -Math.cos(this.yaw) * forward - Math.sin(this.yaw) * side);
       if (this.temp.lengthSq() > 1) this.temp.normalize();
+      // The edge current reaches into the grass too: outward steps fade across the
+      // grassy apron and a gentle inward drift carries the bee back toward the flowers.
+      const edge = edgeExposureAt(this.position.x, this.position.z);
+      if (edge > 0) {
+        const r = Math.max(.001, Math.hypot(this.position.x, this.position.z)), ox = this.position.x / r, oz = this.position.z / r;
+        const outward = this.temp.x * ox + this.temp.z * oz;
+        if (outward > 0) { this.temp.x -= ox * outward * edge; this.temp.z -= oz * outward * edge; }
+        this.temp.x -= ox * edge * .6; this.temp.z -= oz * edge * .6;
+      }
       this.position.addScaledVector(this.temp, .8 * dt);
       const distance = Math.hypot(this.position.x, this.position.z);
-      if (distance > 40) { this.position.x *= 40 / distance; this.position.z *= 40 / distance; }
+      if (distance > MEADOW_EDGE_FULL) { this.position.x *= MEADOW_EDGE_FULL / distance; this.position.z *= MEADOW_EDGE_FULL / distance; }
       this.position.y = this.groundAltitude(); this.velocity.set(0, 0, 0); this.flightEffort = 0;
       return;
     }
@@ -1136,7 +1177,7 @@ export class Garden {
     // ordinary player flow. Real-input tests use snapshots only during play.
     if (!import.meta.env.DEV && !new URLSearchParams(location.search).has('test')) return;
     window.__THREE_GAME_TEST_HOOKS__ = {
-      seed: (value: number) => { this.stopRest(); this.clearShelter(); this.leafShelters.dispose(); this.flowerRain.dispose(); this.seed = value; this.pollinationFX.reset(); this.homecoming.dispose(); this.meadow.dispose(); this.meadow = createMeadow(this.scene, value); this.leafShelters = createShelters(this.scene, this.meadow.flowers); this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface); this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME); this.resetSupply(); this.landed = null; this.landingAssist = null; },
+      seed: (value: number) => this.rebuildMeadow(value, EVEN_MIX),
       setState: (name: string) => {
         const states = ['title', 'flight-start', 'active-play', 'windy', 'landed', 'uv', 'pollinated', 'complete', 'failed'];
         if (!states.includes(name)) throw new Error(`Unknown state: ${name}`);

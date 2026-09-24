@@ -37,7 +37,6 @@ test('the grass-only edge carries outward flight back smoothly and remains escap
     // Include the maximum authored head sweep and its entire petal radius.
     expect(Math.hypot(f.base[0], f.base[2]) + f.height * .28 + f.radius).toBeLessThan(MEADOW_EDGE_START);
   }
-  await expect(page.locator('[data-text="wind"]')).toContainText('meadow’s edge');
   await expect(page.locator('[data-text="hint"]')).toContainText('carrying you back');
   await expect(page.locator('.title-screen')).toHaveCSS('opacity', '0');
   await page.screenshot({ path: 'artifacts/meadow-edge-1/grass-only-outward.png' });

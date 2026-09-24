@@ -75,12 +75,12 @@ test('illustrated notes have accessible topics, readable sources and a bounded l
   const layouts: unknown[] = [];
   for (const size of [{ width: 1280, height: 720 }, { width: 1024, height: 600 }]) {
     await page.setViewportSize(size);
-    for (const topic of ['A different light', 'A little shelter', 'Sun & shade', 'One flower to another']) {
+    for (const topic of ['A different light', 'Shelter from Rain', 'Sun & shade', 'One flower to another']) {
       await dialog.getByRole('tab', { name: topic, exact: true }).click();
       const panel = dialog.getByRole('tabpanel');
       await expect(panel.getByRole('heading', { name: 'In nature', exact: true })).toBeVisible();
       await expect(panel.getByRole('heading', { name: 'In this game', exact: true })).toBeVisible();
-      if (topic === 'A little shelter') {
+      if (topic === 'Shelter from Rain') {
         await expect(panel).toContainText('spends stored nectar');
         await expect(panel).toContainText('speeds daylight');
         await expect(panel).toContainText('stillness alone is not food');
