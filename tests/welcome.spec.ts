@@ -72,7 +72,7 @@ test('flower-first guide is readable, safe to try keys in, and leaves the bee on
   await page.locator('.pause-page [data-action="restart"]').click();
   await expect(guide(page)).toBeVisible();
   const reset = await state(page);
-  expect(reset.landed).toBe(0); expect(reset.energy).toBe(100);
+  expect(reset.landed).toBe(0); expect(reset.energy).toBe(60);
   expect(reset.nectar).toBe(0); expect(reset.pollen).toBe(0); expect(reset.elapsed).toBe(0);
   expect(errors).toEqual([]);
   await writeFile('artifacts/welcome-1/checks.json', JSON.stringify({ initial, reading, reset, layouts, errors }, null, 2));

@@ -82,7 +82,7 @@ test('each nectar drop gives half the harvest while sipping still restores energ
   await perch(page, 0, 0, 60);
   await expect.poll(async () => (await state(page)).canDrink).toBe(true);
   await freeze(page, true);
-  await expect(page.locator('[data-text="flower-nectar"]')).toHaveText('19');
+  await expect(page.locator('[data-text="flower-nectar"]')).toHaveText('13');
   const before = await state(page);
   await page.keyboard.down('f');
   await freeze(page, false);
@@ -104,8 +104,8 @@ test('each nectar drop gives half the harvest while sipping still restores energ
   await freeze(page, true);
   await page.keyboard.up('f');
   const empty = await state(page);
-  expect(accounted(empty)).toBeCloseTo(19, 4);
-  expect(empty.nectar).toBeLessThan(19); // Some of the smaller harvest fed the bee.
+  expect(accounted(empty)).toBeCloseTo(13, 4);
+  expect(empty.nectar).toBeLessThan(13); // Some of the smaller harvest fed the bee.
   await expect(page.locator('[data-text="flower-nectar"]')).toHaveText('0');
   await mkdir('artifacts/harvest-yield-1', { recursive: true });
   await page.screenshot({ path: 'artifacts/harvest-yield-1/daisy-after-sipping.png' });

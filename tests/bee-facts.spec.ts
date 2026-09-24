@@ -53,7 +53,7 @@ test('illustrated notes have accessible topics, readable sources and a bounded l
   await openFacts(page);
   const dialog = page.getByRole('dialog', { name: 'Small wonders.' });
   const tabs = dialog.getByRole('tab');
-  await expect(tabs).toHaveCount(7);
+  await expect(tabs).toHaveCount(8);
   await tabs.first().focus();
   await page.keyboard.press('ArrowDown');
   await expect(dialog.getByRole('tab', { name: 'Two kinds of food', exact: true })).toBeFocused();

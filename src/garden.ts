@@ -34,8 +34,16 @@ const LOSS_DURATION = 3.6, QUIET_LOSS_DURATION = 1.5;
 /** A fresh 32-bit seed for a new day's meadow or weather. */
 const randomSeed = (): number => (Math.random() * 2 ** 32) >>> 0 || 1;
 
+// A forager leaves the hive with a little fuel, not a full tank: sipping on the
+// opening daisy is the first thing to learn. Above the 40% warning so the day
+// doesn't open with blue edges, and early rain isn't immediately dangerous.
+const START_ENERGY = 60;
+
 const DAY_DURATION = 600, DUSK_START = 540, NIGHT_LOSS_DURATION = 6;
-const POLLEN_SUPPLY: Record<Species, number> = { poppy: 42, daisy: 22, cornflower: 28 };
+// Per-flower supplies before the 0.5 harvest yield, matched to real flowers (see
+// Flower_Facts.md): cornflowers for nectar, poppies for pollen, daisies in between.
+const NECTAR_SUPPLY: Record<Species, number> = { poppy: 0, daisy: 26, cornflower: 56 };
+const POLLEN_SUPPLY: Record<Species, number> = { poppy: 42, daisy: 28, cornflower: 20 };
 // Flower supplies track visible material; counters track usable harvest.
 // Keep contact/depletion lively while asking for more flower visits per day.
 const POLLEN_YIELD = .5, NECTAR_YIELD = .5;
@@ -242,7 +250,7 @@ export class Garden {
     for (const f of this.meadow.flowers) {
       f.pollenFraction = 1;
       f.visited = false;
-      this.supplies.set(f.id, { nectar: f.species === 'poppy' ? 0 : f.species === 'daisy' ? 38 : 45, pollen: POLLEN_SUPPLY[f.species], visited: false, pollinated: false });
+      this.supplies.set(f.id, { nectar: NECTAR_SUPPLY[f.species], pollen: POLLEN_SUPPLY[f.species], visited: false, pollinated: false });
     }
   }
   private notify(message: string, duration = 4): void { this.notice = message; this.noticeUntil = this.time + duration; }
@@ -278,7 +286,7 @@ export class Garden {
     this.nextMeadow();
     this.rollDayWeather();
     this.phase = 'flying'; this.position.copy(START); this.previousPosition.copy(START); this.velocity.set(0, 0, 0);
-    this.yaw = 0; this.pitch = -.13; this.energy = 100; this.nectar = 0; this.pollen = 0;
+    this.yaw = 0; this.pitch = -.13; this.energy = START_ENERGY; this.nectar = 0; this.pollen = 0;
     this.pollinated = 0; this.visited = 0; this.loose = {}; this.pollenOrder = []; this.previousFlowerBySpecies = {};
     this.pollinationSpecies = null; this.pollinationUntil = 0; this.pollinationFX.reset();
     this.elapsed = 0; this.time = 0; this.landed = null; this.landingAssist = null; this.drinking = false; this.autoFeeding = false; this.satiated = false; this.crawlDistance = 0; this.uv = false; this.resultScore = 0;
@@ -1184,7 +1192,8 @@ export class Garden {
       setState: (name: string) => {
         const states = ['title', 'flight-start', 'active-play', 'windy', 'landed', 'uv', 'pollinated', 'complete', 'failed'];
         if (!states.includes(name)) throw new Error(`Unknown state: ${name}`);
-        this.begin(false); this.time = name === 'flight-start' ? 0 : 12;
+        // Legacy scenarios were written for a full meter; the real opening starts at START_ENERGY.
+        this.begin(false); this.energy = 100; this.time = name === 'flight-start' ? 0 : 12;
         if (name === 'windy') { this.time = 26; this.position.set(0, 6.2, 3.5); this.previousPosition.copy(this.position); this.pitch = -.18; }
         if (name === 'title') this.phase = 'title';
         if (name === 'landed' || name === 'uv') { const f = this.meadow.flowers[0]; this.meadow.update(12, this.position, false); this.position.copy(f.center).add(new THREE.Vector3(0, .55, 1)); this.land(f); this.uv = name === 'uv'; }

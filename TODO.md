@@ -50,6 +50,8 @@
 - [ ] Add a total flower counter (flowers visited) to the day's stats.
 - [ ] Vary the ending dialog text by how good the day was, based on the stats.
 - [ ] Make the lingering overhead meadow view read clearly as a rest, not flight: show a small curled-up sleeping bee with drifting "z z z" at the bottom of the screen while the camera orbits. Keep it still under reduced motion, and let it fade out when any key or click wakes the view.
+- [x] Start each day at 60% energy (`START_ENERGY` in `src/garden.ts`), so sipping on the opening daisy is the first thing to learn. Legacy test scenarios keep a full meter.
+- [ ] Flower info: when a flower shows "Pollinated by you", use a small colored flower or petal for that species (red poppy, white daisy, blue cornflower), like the pollination +1 notice, instead of the generic flower icon.
 - [ ] Add creatures or objects to the undergrowth, found when flying low or walking in the grass.
   - Fallen bees: a few still bees lying in the grass, placed by the meadow seed. Approaching or landing next to one shows a short, gentle note, with a matching Small wonders topic for more. Keep the tone quiet and respectful, not grim.
   - In-game causes, each tied to a danger the player can avoid: caught in the rain (cold and soaked), too long in the hot sun, out of energy far from the hive, or still out when night fell. The note can point back to the game's own cue: blue edges, orange edges, the energy meter, the daylight strip.
@@ -62,7 +64,7 @@
 - [ ] Allow playing multiple days in a row, with each day's flower distribution shaped by what was pollinated the day before. The hook is in place: `speciesMixAfter()` in `src/meadow-plan.ts` receives the previous day's pollination and currently returns an even mix. Open question: are poppies valuable enough to seek out?
   - Poppy notes: corn poppies (*Papaver rhoeas*) give essentially no nectar (about 0.6 µg sugar a day) but lead meadow flowers for pollen, more than twice the next species per flower in the Edinburgh meadow study (PLOS One, 2016). Bees collect it eagerly; the loads are dark grey to black. Red looks dark to bees, but the petals reflect ultraviolet, so they stand out in Bee Vision. Each flower lasts briefly and most pollen goes in the morning.
   - Game ideas: a bigger pollen payoff per poppy visit, and pollen richest in the morning, so time of day matters.
-- [ ] Rebalance flower nectar and pollen to match nature (see `Flower_Facts.md`): cornflowers for nectar, poppies for pollen, daisies a balanced middle stop. Proposed per visit: daisy 13 nectar / 14 pollen, cornflower 28 / 10, poppy unchanged at 0 / 21. Recheck the nectar goal, home fuel and day length, and update tests that rely on the old amounts.
+- [x] Rebalance flower nectar and pollen to match nature (see `Flower_Facts.md`): per visit, daisy 13 nectar / 14 pollen, cornflower 28 / 10, poppy 0 / 21. Meadow totals barely change, so goals stay the same.
 - [ ] Add flower facts from `Flower_Facts.md` to the Small wonders bee facts page, and maybe to the on-screen flower details.
 
 ### Lower priority

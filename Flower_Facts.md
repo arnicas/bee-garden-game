@@ -7,8 +7,8 @@ Reference notes on the meadow's three flowers, for the **Small wonders** bee fac
 | Flower | Nectar in nature | Pollen in nature | Game nectar per visit | Game pollen per visit |
 | --- | --- | --- | --- | --- |
 | Corn poppy | Almost none | The highest of the three | 0 | 21 |
-| Oxeye daisy | Modest | Strong, but spread over a long flowering | 19 | 11 |
-| Cornflower | High | Moderate | 22.5 | 14 |
+| Oxeye daisy | Modest | Strong, but spread over a long flowering | 13 | 14 |
+| Cornflower | High | Moderate | 28 | 10 |
 
 Game values are the flower's supply in `src/garden.ts` multiplied by the 0.5 harvest yield.
 
@@ -31,16 +31,16 @@ Game values are the flower's supply in `src/garden.ts` multiplied by the 0.5 har
 ## Oxeye daisy (*Leucanthemum vulgare*)
 
 **In nature**
-- Each "flower" is a flower head made of many tiny florets: the white rays around the edge and the yellow disc in the middle.
+- What looks like one daisy is a flower head of hundreds of tiny flowers (florets). Each white "petal" is a ray floret, a whole flower with a single strap-shaped petal. The yellow centre is packed with tube-shaped disc florets, each with its own stamens and a small drop of nectar; that is where bees feed.
 - Its nectar is modest, but it's easy to reach, so many short-tongued insects visit.
 - A strong pollen source overall: about 16 µl per flower head. That was the largest pollen contribution among the perennials in the Edinburgh meadows [1].
 - Each head flowers for about two weeks (14.8 days in the study), so its pollen is spread thin, about 1.1 µl a day, against the poppy's 6 [1].
 
 **In the game**
-- A little too much nectar (19) and a little too little pollen (11) compared with nature.
+- One daisy is one stop, with its whole share available at once (no slow release). 13 nectar and 14 pollen per visit, a balanced middle stop (rebalanced from 19 / 11).
 
 **Suggested copy**
-- *In nature:* "A daisy is a crowd of tiny flowers. Its pollen comes a little at a time over two weeks."
+- *In nature:* "What looks like one daisy is really hundreds of tiny flowers. Its pollen comes a little at a time over two weeks."
 - *In this game:* "Daisies are a steady middle stop, with some nectar and some pollen."
 
 ## Cornflower (*Centaurea cyanus*)
@@ -52,15 +52,15 @@ Game values are the flower's supply in `src/garden.ts` multiplied by the 0.5 har
 - Moderate pollen. I didn't find an exact figure.
 
 **In the game**
-- Nectar (22.5) is only slightly more than the daisy's (19), so its nectar advantage barely shows. Its pollen (14) is higher than the daisy's, which is probably backwards.
+- 28 nectar and 10 pollen per visit, the meadow's best nectar (rebalanced from 22.5 / 14).
 
 **Suggested copy**
 - *In nature:* "Cornflowers are rich in nectar, and bees see their blue well."
 - *In this game:* "Head for cornflowers when you need nectar."
 
-## Suggested rebalance
+## Rebalance (done)
 
-Proposed per-visit values, so each flower has a clear role (tracked in `TODO.md`):
+Per-visit values now in the game, so each flower has a clear role:
 
 | Flower | Nectar | Pollen | Role |
 | --- | --- | --- | --- |

@@ -170,6 +170,6 @@ test('reduced-motion rest caps recovery, stops for homecoming and resets with a 
   expect(reset.resting).toBe(false);
   expect(reset.restAge).toBe(0);
   expect(reset.dayProgress).toBeLessThan(.01);
-  expect(reset.energy).toBeGreaterThan(99);
+  expect(reset.energy).toBeGreaterThan(59); expect(reset.energy).toBeLessThanOrEqual(60);
   expect(reset.nectar).toBe(0);
 });
