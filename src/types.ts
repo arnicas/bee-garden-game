@@ -47,6 +47,7 @@ export interface ViewState {
   chilled: boolean;
   heat: number;
   sunHeat: number;
+  gale: number;
   heatExposure: number;
   shaded: boolean;
   needsShade: boolean;

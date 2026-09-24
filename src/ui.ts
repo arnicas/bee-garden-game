@@ -257,6 +257,7 @@ export function createUI(actions: UIActions): GameUI {
   const dayTrail = el<SVGPathElement>('[data-day-trail]');
   const dayCloud = el<SVGGElement>('[data-day-cloud]');
   const dayRain = el<SVGGElement>('[data-day-rain]');
+  const dayGale = el<SVGGElement>('[data-day-gale]');
   const dayWeather = el('.day-weather');
   const weatherNote = el('.weather-note');
   const objective = el('.objective');
@@ -467,12 +468,18 @@ export function createUI(actions: UIActions): GameUI {
     attribute(dayCloud, 'transform', `translate(${cloudX.toFixed(2)} ${sunY.toFixed(2)}) scale(.88)`);
     attribute(dayCloud, 'opacity', cloudOpacity.toFixed(3));
     attribute(dayRain, 'stroke-dashoffset', state.reducedMotion ? '0' : (-state.elapsed * 7 % 8).toFixed(2));
-    const weatherLabel = raining ? (clearing ? 'Rain easing' : 'Raining') : clearing ? 'Dry again' : state.sunHeat > .18 ? 'Hot sun' : 'Fair skies';
+    // A windy spell shows as stacked wavy lines just ahead of the sun, like the rain cloud.
+    const windy = state.gale > .2, hot = state.sunHeat > .18;
+    const galeDrift = state.reducedMotion ? 0 : Math.sin(state.elapsed * 2.2) * 2.5 * state.gale;
+    attribute(dayGale, 'transform', `translate(${(sunX + 38 + galeDrift).toFixed(2)} ${(sunY + 3).toFixed(2)})`);
+    attribute(dayGale, 'opacity', Math.min(1, state.gale * 1.25).toFixed(3));
+    attribute(weatherNote, 'data-gale', String(windy));
+    const weatherLabel = raining ? (clearing ? 'Rain easing' : 'Raining') : clearing ? 'Dry again' : windy ? (hot ? 'Hot and windy' : 'Heavy wind') : hot ? 'Hot sun' : 'Fair skies';
     attribute(dayHeat, 'opacity', state.sunHeat.toFixed(3));
     attribute(dayPigment, 'stop-color', `hsl(${(43 - state.sunHeat * 20).toFixed(1)} 82% 65%)`);
     attribute(weatherNote, 'data-hot-sun', String(state.sunHeat > .18));
     text('weather', weatherLabel);
-    show(dayWeather, raining || clearing || state.sunHeat > .18);
+    show(dayWeather, raining || clearing || hot || windy);
     const windStrength = percent(state.wind, 6.3);
     const windLabel = state.edgeGust ? 'Meadow-edge gust' : state.wind > 4 ? 'Strong gust' : state.wind > 2.4 ? 'Wind rising' : state.wind > .8 ? 'Steady breeze' : 'Light air';
     const windHelp = `${windLabel}. Watch the swaying grass for wind. Fly low, perch, or ride the current to save energy.`;

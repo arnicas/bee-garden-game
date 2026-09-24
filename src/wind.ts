@@ -11,17 +11,22 @@ export function edgeExposureAt(x: number, z: number): number {
 // sample this field at simulation time. Positive Y is up; camera forward is -Z.
 /** Per-day wind variation. The phase shifts when fronts and gusts arrive; the
  * heading turns where they blow from. Flight and the meadow shaders share these. */
-export const windUniforms = { uWindPhase: { value: 0 }, uWindHeading: { value: 0 } };
+export const windUniforms = { uWindPhase: { value: 0 }, uWindHeading: { value: 0 }, uWindGale: { value: 0 } };
 export function setWindVariation(phase: number, heading: number): void {
   windUniforms.uWindPhase.value = phase; windUniforms.uWindHeading.value = heading;
 }
+
+/** 0–1 windy-spell strength for this moment of the day (from the weather plan). */
+export function setWindGale(gale: number): void { windUniforms.uWindGale.value = gale; }
 
 export function windAt(x: number, z: number, time: number, out = new Vector3()): Vector3 {
   const t = time + windUniforms.uWindPhase.value;
   // Long calm spells give way to fronts with a gradual approach and smaller
   // travelling gusts inside them. Keep this field in sync with meadowWind.
-  const front = MathUtils.smoothstep(Math.sin(t * .075 - .8), -.45, .75);
-  const gust = .10 + front * (1.40 + .32 * (.5 + .5 * Math.sin(t * .53 + x * .09 + z * .07)));
+  // A windy spell holds the front up and makes every gust about a third stronger.
+  const gale = windUniforms.uWindGale.value;
+  const front = Math.max(MathUtils.smoothstep(Math.sin(t * .075 - .8), -.45, .75), gale * .85);
+  const gust = (.10 + front * (1.40 + .32 * (.5 + .5 * Math.sin(t * .53 + x * .09 + z * .07)))) * (1 + .35 * gale);
   const heading = windUniforms.uWindHeading.value + .4 + 1.65 * Math.sin(t * .026) + .22 * Math.sin(t * .13 + x * .035 + z * .04);
   return out.set(gust * Math.cos(heading), .045 * front * Math.sin(t * .7 + x * .2), gust * Math.sin(heading));
 }
@@ -38,7 +43,7 @@ export function flightWindAt(x: number, y: number, z: number, time: number, out 
   if (edge > 0) {
     const radius = Math.hypot(x, z);
     const pulse = .5 + .5 * Math.sin(time * 1.65 + x * .035 + z * .045);
-    const strength = edge * (11 + 5 * pulse); // keeps the edge inward push above ~4 at every moment
+    const strength = edge * (11 + 5 * pulse) * (1 + .35 * windUniforms.uWindGale.value); // keeps the edge inward push above ~4 at every moment
     out.x -= x / radius * strength;
     out.z -= z / radius * strength;
   }
@@ -46,11 +51,11 @@ export function flightWindAt(x: number, y: number, z: number, time: number, out 
 }
 
 export const windGLSL = `
-uniform float uWindPhase; uniform float uWindHeading;
+uniform float uWindPhase; uniform float uWindHeading; uniform float uWindGale;
 vec2 meadowWind(vec2 p, float t) {
   t += uWindPhase;
- float front = smoothstep(-0.45, 0.75, sin(t * 0.075 - 0.8));
- float g = 0.10 + front * (1.40 + 0.32 * (0.5 + 0.5 * sin(t * 0.53 + p.x * 0.09 + p.y * 0.07)));
+ float front = max(smoothstep(-0.45, 0.75, sin(t * 0.075 - 0.8)), uWindGale * 0.85);
+ float g = (0.10 + front * (1.40 + 0.32 * (0.5 + 0.5 * sin(t * 0.53 + p.x * 0.09 + p.y * 0.07)))) * (1.0 + 0.35 * uWindGale);
  float heading = uWindHeading + 0.4 + 1.65 * sin(t * 0.026) + 0.22 * sin(t * 0.13 + p.x * 0.035 + p.y * 0.04);
  return g * vec2(cos(heading), sin(heading));
 }`;

@@ -5,15 +5,17 @@ export interface MeadowWeather {
   rain: number;
   cloudiness: number;
   sunHeat: number;
+  /** 0–1 strength of a windy spell; the wind field and the daylight strip both read it. */
+  gale: number;
 }
 
 /** A shower window in day seconds: clouds gather, rain falls, then the sky clears. */
 export interface Shower { start: number; length: number; }
 /** One day's weather: one or two showers and a hot spell, never overlapping. */
-export interface WeatherPlan { showers: Shower[]; heatStart: number; heatEnd: number; }
+export interface WeatherPlan { showers: Shower[]; heatStart: number; heatEnd: number; gales: Shower[]; }
 
 /** The original fixed day: one late-morning shower, then a hot spell. Test pages pin this plan. */
-export const FIXED_WEATHER_PLAN: WeatherPlan = { showers: [{ start: 150, length: 120 }], heatStart: 270, heatEnd: 465 };
+export const FIXED_WEATHER_PLAN: WeatherPlan = { showers: [{ start: 150, length: 120 }], heatStart: 270, heatEnd: 465, gales: [] };
 
 const SHOWER_RAMP = 30; // seconds for clouds to gather at the start and clear at the end
 const PLAN_START = 60, PLAN_END = 525; // a clear first minute; weather settles before dusk (540)
@@ -31,6 +33,13 @@ export function heatLikelihood(centre: number): number {
  * spell. Candidate days are drawn until one's hot spell passes the time-of-day
  * likelihood, so the plan stays reproducible for a given seed. */
 export function planWeather(random: () => number): WeatherPlan {
+  const plan = placeHeat(random);
+  plan.gales = planGales(random);
+  return plan;
+}
+
+/** Draws candidate days until one's hot spell passes the time-of-day likelihood. */
+function placeHeat(random: () => number): WeatherPlan {
   let plan = arrangeWeather(random);
   for (let attempt = 0; attempt < 24; attempt++) {
     if (random() < heatLikelihood((plan.heatStart + plan.heatEnd) / 2)) return plan;
@@ -51,7 +60,7 @@ function arrangeWeather(random: () => number): WeatherPlan {
   const free = Math.max(0, PLAN_END - PLAN_START - total * scale);
   const gaps = items.map(() => random()).concat(random()); // before each event, plus after the last
   const gapTotal = gaps.reduce((sum, gap) => sum + gap, 0) || 1;
-  const plan: WeatherPlan = { showers: [], heatStart: 0, heatEnd: 0 };
+  const plan: WeatherPlan = { showers: [], heatStart: 0, heatEnd: 0, gales: [] };
   let t = PLAN_START;
   items.forEach((item, i) => {
     t += free * gaps[i] / gapTotal;
@@ -63,11 +72,24 @@ function arrangeWeather(random: () => number): WeatherPlan {
   return plan;
 }
 
+const GALE_START = 75, GALE_END = 510;
+
+/** One windy spell a day, sometimes two, each in its own part of the day. Gales
+ * may overlap a shower or the hot spell; wind and weather are independent. */
+function planGales(random: () => number): Shower[] {
+  const count = random() < .35 ? 2 : 1, slot = (GALE_END - GALE_START) / count;
+  return Array.from({ length: count }, (_, i) => {
+    const length = 70 + random() * 40;
+    return { start: GALE_START + i * slot + random() * Math.max(0, slot - length), length };
+  });
+}
+
 /** The daylight clock owns the weather, so pausing freezes it and a
  * deliberate rest can pass a shower. */
 export function weatherAt(daySeconds: number, out: MeadowWeather, plan: WeatherPlan = FIXED_WEATHER_PLAN): MeadowWeather {
   const t = Math.max(0, daySeconds);
-  out.stage = 'clear'; out.cloudiness = 0; out.rain = 0;
+  out.stage = 'clear'; out.cloudiness = 0; out.rain = 0; out.gale = 0;
+  for (const { start, length } of plan.gales) out.gale = Math.max(out.gale, MathUtils.smoothstep(t, start, start + 15) * (1 - MathUtils.smoothstep(t, start + length - 20, start + length)));
   for (const { start, length } of plan.showers) {
     const end = start + length;
     if (t >= start && t < end) out.stage = t < start + SHOWER_RAMP ? 'approaching' : t < end - SHOWER_RAMP ? 'rain' : 'clearing';

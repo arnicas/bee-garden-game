@@ -49,13 +49,14 @@
 - [ ] Tune rain/heat timing, exposure grace periods, recovery and dusk guidance through player feedback; verify fuel availability and shelter routes over longer outings.
 - [ ] Add a total flower counter (flowers visited) to the day's stats.
 - [ ] Vary the ending dialog text by how good the day was, based on the stats.
+- [ ] Make the lingering overhead meadow view read clearly as a rest, not flight: show a small curled-up sleeping bee with drifting "z z z" at the bottom of the screen while the camera orbits. Keep it still under reduced motion, and let it fade out when any key or click wakes the view.
 - [ ] Add creatures or objects to the undergrowth, found when flying low or walking in the grass.
   - Fallen bees: a few still bees lying in the grass, placed by the meadow seed. Approaching or landing next to one shows a short, gentle note, with a matching Small wonders topic for more. Keep the tone quiet and respectful, not grim.
   - In-game causes, each tied to a danger the player can avoid: caught in the rain (cold and soaked), too long in the hot sun, out of energy far from the hive, or still out when night fell. The note can point back to the game's own cue: blue edges, orange edges, the energy meter, the daylight strip.
   - Real-world causes, for the "In nature" side: pesticides, Varroa mites and the viruses they spread, disease, too few flowers (habitat loss), bad weather, predators, and simply old age. A summer forager lives only a few weeks, and many die out in the field with worn wings. Source these before they go in the game, as with `Flower_Facts.md`.
   - Could place a fallen bee near where the player's own day went wrong on the next day (ties into multi-day play).
   - Other life for variety: a beetle, a ladybird, a snail, an ant trail. Reuse the procedural art approach and keep draw calls low.
-- [ ] Add a heavy-breeze indicator to the sun timeline, like the rain cloud: stacked wavy lines, with a text alert beneath (heavy wind, conserve energy), handled like the rain warning.
+- [x] Heavy wind: one or two windy spells a day (`gales` in `src/weather.ts`) hold the gusts up and make them about a third stronger; stacked wavy lines beside the sun, a "Heavy wind" caption, and rising/easing messages. The meadow-edge current strengthens with them.
 - [x] Randomize each day: 1–2 showers at random times, a hot spell most likely midday to mid-afternoon (`src/weather.ts`), wind fronts and direction offset per day, and a new flower layout after the first day. Test pages keep the fixed day and meadow; `?weather=N` and `?meadow=N` replay one.
 - [ ] Add a wobble in a few directions when the bee is full of nectar and pollen, so heavy flight feels harder (builds on the gentle weave of the loaded flight home).
 - [ ] Allow playing multiple days in a row, with each day's flower distribution shaped by what was pollinated the day before. The hook is in place: `speciesMixAfter()` in `src/meadow-plan.ts` receives the previous day's pollination and currently returns an even mix. Open question: are poppies valuable enough to seek out?

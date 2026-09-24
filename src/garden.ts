@@ -16,7 +16,7 @@ import { createRain } from './rain';
 import { createFlowerRain } from './flower-rain';
 import { createEnergyWash } from './energy-wash';
 import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type WeatherPlan } from './weather';
-import { edgeExposureAt, flightWindAt, MEADOW_EDGE_FULL, setWindVariation, surfaceHeight } from './wind';
+import { edgeExposureAt, flightWindAt, MEADOW_EDGE_FULL, setWindGale, setWindVariation, surfaceHeight } from './wind';
 import type { Flower, GameUI, Meadow, Phase, Species, ViewState } from './types';
 
 const NAMES: Record<Species, string> = { daisy: 'Oxeye daisy', poppy: 'Corn poppy', cornflower: 'Cornflower' };
@@ -77,7 +77,7 @@ export class Garden {
   private rainFX: ReturnType<typeof createRain>;
   private flowerRain: ReturnType<typeof createFlowerRain>;
   private energyWash: ReturnType<typeof createEnergyWash>;
-  private weather: MeadowWeather = { stage: 'clear', rain: 0, cloudiness: 0, sunHeat: 0 };
+  private weather: MeadowWeather = { stage: 'clear', rain: 0, cloudiness: 0, sunHeat: 0, gale: 0 };
   private weatherPlan: WeatherPlan = FIXED_WEATHER_PLAN;
   // Test pages keep the original fixed day (seed 0); ?weather=N replays one day's weather.
   private pinnedWeatherSeed: number | null = (() => {
@@ -478,7 +478,7 @@ export class Garden {
       this.dayElapsed = DUSK_START; this.stopRest(); this.quietAge = 0; this.restView.reset();
       this.notify(this.harvestReady() ? 'Sunset · Follow the hive marker home.' : 'Sunset · One minute of daylight to finish gathering.', 9);
     }
-    const previousWeather = this.weather.stage, neededShelter = this.needsLeafShelter();
+    const previousWeather = this.weather.stage, previousGale = this.weather.gale, neededShelter = this.needsLeafShelter();
     this.sampleWeather();
     if (this.onLeaf && (this.resting || !neededShelter) && this.needsLeafShelter()) {
       this.stopRest(); this.notify(this.weather.rain > .05 ? 'Rain on the leaf · E to tuck underneath' : 'Hot sun on the leaf · E to rest in its shade', 5);
@@ -509,6 +509,8 @@ export class Garden {
       else if (this.weather.stage === 'rain') this.notify('A passing shower. Follow the leaf and press E to tuck underneath.', 7);
       else if (this.weather.stage === 'clearing') this.notify('The shower is passing. The meadow is brightening.', 5);
     }
+    if (previousGale < .2 && this.weather.gale >= .2) this.notify('Heavy wind is rising · Fly low, perch or shelter in the grass to save energy.', 7);
+    else if (previousGale >= .2 && this.weather.gale < .2) this.notify('The wind is easing.', 4);
     if (this.keys.has('ArrowLeft')) this.yaw += dt * 1.35;
     if (this.keys.has('ArrowRight')) this.yaw -= dt * 1.35;
     if (this.keys.has('ArrowUp')) this.pitch = Math.min(1.25, this.pitch + dt);
@@ -594,6 +596,7 @@ export class Garden {
   private sampleWeather(): void {
     const cinematic = this.phase === 'returning' || this.phase === 'won' || this.phase === 'title' || this.phase === 'paused' && this.resumePhase === 'returning';
     weatherAt(cinematic ? 0 : this.dayElapsed, this.weather, this.weatherPlan);
+    setWindGale(this.weather.gale);
     this.rainCover = this.underLeaf;
     if (!this.rainCover) for (const leaf of this.leafShelters.shelters) {
       this.temp.subVectors(this.position, leaf.center).applyQuaternion(this.inverseFlower.copy(leaf.rotation).invert());
@@ -1090,7 +1093,7 @@ export class Garden {
       shelterDistance: shelter ? this.position.distanceTo(shelter.perch) * .1 : 0,
       shelterBearing: shelter ? this.yaw - Math.atan2(-(shelter.perch.x - this.position.x), -(shelter.perch.z - this.position.z)) : 0,
       weatherStage: this.weather.stage, rain: this.weather.rain, cloudiness: this.weather.cloudiness, rainExposure: this.rainExposure,
-      heat: this.heat, sunHeat: this.weather.sunHeat, heatExposure: this.heatExposure, shaded: this.shade > .99, needsShade: this.needsShade(),
+      heat: this.heat, sunHeat: this.weather.sunHeat, gale: this.weather.gale, heatExposure: this.heatExposure, shaded: this.shade > .99, needsShade: this.needsShade(),
       cold: this.coldVignette(), chilled: this.chill > .1, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight,
       phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
       homeCost, homeDistance: distance * .1, homeBearing: this.yaw - Math.atan2(-(HOME_EXIT.x - this.position.x), -(HOME_EXIT.z - this.position.z)),
