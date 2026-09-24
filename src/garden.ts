@@ -1096,7 +1096,7 @@ export class Garden {
     if (this.heat > .18 && this.shade > .99) hint = 'Cooling in the shade · E to rest · Space to fly when ready';
     const view: ViewState = {
       reducedMotion: this.reducedMotion, dayProgress: this.dayProgress(), resting: this.resting, restProgress: this.restAge / REST_DURATION, endingStage: this.homecoming.stage, endingFade: this.homecoming.fade,
-      quietFade: active ? this.quietFade() : 0, scenicFade: active ? this.restView.fade(this.reducedMotion) : 0,
+      quietFade: active ? this.quietFade() : 0, scenicFade: active ? this.restView.fade(this.reducedMotion) : 0, scenicAmount: active ? this.restView.amount : 0,
       underLeaf: !!this.underLeaf, onLeaf: !!this.onLeaf, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), onGround: this.onGround, grassCover: this.grassCover, shelterTarget: !!(this.shelterTarget || this.shelterAssist),
       shelterDistance: shelter ? this.position.distanceTo(shelter.perch) * .1 : 0,
       shelterBearing: shelter ? this.yaw - Math.atan2(-(shelter.perch.x - this.position.x), -(shelter.perch.z - this.position.z)) : 0,

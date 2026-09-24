@@ -61,6 +61,7 @@ export function createUI(actions: UIActions): GameUI {
     <div class="pollen-dust" aria-hidden="true">${Array.from({ length: 18 }, (_, i) => `<i style="--x:${i % 2 === 0 ? 2 + ((i * 17) % 23) : 76 + ((i * 13) % 22)}%;--y:${7 + (i * 23) % 88}%;--size:${18 + (i * 7) % 38}px;--r:${i * 41}deg"></i>`).join('')}</div>
     <div class="vision-wash" aria-hidden="true"></div>
     <div class="scenic-veil" aria-hidden="true"></div>
+    <div class="sleep-note" aria-hidden="true" hidden><svg class="sleep-bee" viewBox="0 0 72 48" fill="none" aria-hidden="true"><ellipse cx="36" cy="41" rx="24" ry="4" fill="#5b6b36" opacity=".18"/><g class="sleep-wings"><path d="M40 14c7-9 18-8 19-2 1 5-8 8-17 6" fill="#f6f3e6" stroke="#aaa487" stroke-width=".9" opacity=".92"/><path d="M36 16c4-10 13-13 16-9 2 4-5 9-14 11" fill="#fbf9f0" stroke="#aaa487" stroke-width=".9" opacity=".9"/></g><g class="sleep-body"><path d="M18 30a17 13 0 1 1 34 4c-3 6-12 8-20 6-6-1-11-4-14-10Z" fill="#e8b84e" stroke="#7a5a2c" stroke-width="1.1"/><path d="M30 18.5c3 6 3 14-1 20M39 18c3 7 3 15-2 21M47 21c2 6 1 11-3 16" stroke="#4d3b25" stroke-width="3.2" stroke-linecap="round" opacity=".85"/></g><circle cx="18" cy="31" r="8" fill="#4d3b25" stroke="#3a2c1b" stroke-width=".8"/><path d="M14.5 31q2.2 2 4.4 0" stroke="#f4e5b8" stroke-width="1.2" stroke-linecap="round"/><path d="M15 24c-3-5-8-5-9-2s3 4 4 1M19 23.5c0-5-4-8-7-7" stroke="#3a2c1b" stroke-width="1" stroke-linecap="round"/><path d="M22 38l-1 3M27 40l0 3M33 41l1 2" stroke="#3a2c1b" stroke-width="1" stroke-linecap="round"/></svg><span class="sleep-z sleep-z-1">z</span><span class="sleep-z sleep-z-2">z</span><span class="sleep-z sleep-z-3">z</span><span class="sleep-caption">Resting</span></div>
     <header class="game-heading play-only">
       <div class="little-brand">${icons.bee}<span>Bee Garden</span></div>
       <p class="objective" hidden><span class="shelter-guide" role="img" aria-label="A dry leaf nearby" hidden>${icons.energy}<span data-text="shelter-label">A dry leaf</span><span class="shelter-arrow" aria-hidden="true">↑</span><span data-text="shelter-distance"></span></span></p>
@@ -284,6 +285,7 @@ export function createUI(actions: UIActions): GameUI {
   const endingFade = el('.ending-fade');
   const lossVeil = el('.loss-veil');
   const scenicVeil = el('.scenic-veil');
+  const sleepNote = el('.sleep-note');
   const closingButton = el<HTMLButtonElement>('[data-action="skip-return"]');
   const resultNectarFill = el<SVGRectElement>('[data-result-fill="nectar"]');
   const resultHoneySurface = el<SVGPathElement>('[data-result-honey-surface]');
@@ -423,6 +425,13 @@ export function createUI(actions: UIActions): GameUI {
     root.style.setProperty('--quiet-opacity', (1 - quiet).toFixed(3));
     root.classList.toggle('is-quiet', playing && quiet > .001);
     scenicVeil.style.opacity = percent(state.scenicFade ?? 0, 1).toFixed(3);
+    // Both kinds of rest show a curled, sleeping bee: the restorative E rest (fading in and
+    // out with its progress) and the lingering overhead meadow view (fading with the camera).
+    const restSleep = state.resting ? Math.min(1, state.restProgress / .12, (1 - state.restProgress) / .1) : 0;
+    const sleeping = percent(Math.max(state.scenicAmount ?? 0, restSleep), 1);
+    show(sleepNote, sleeping > .01);
+    sleepNote.style.opacity = sleeping.toFixed(3);
+    sleepNote.classList.toggle('is-still', state.reducedMotion);
     if (factsOpen && state.phase !== factsReturnPhase) closeFacts(false);
     const returning = state.phase === 'returning';
     const failing = state.phase === 'failing';

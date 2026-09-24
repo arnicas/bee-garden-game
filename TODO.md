@@ -49,7 +49,8 @@
 - [ ] Tune rain/heat timing, exposure grace periods, recovery and dusk guidance through player feedback; verify fuel availability and shelter routes over longer outings.
 - [ ] Add a total flower counter (flowers visited) to the day's stats.
 - [ ] Vary the ending dialog text by how good the day was, based on the stats.
-- [ ] Make the lingering overhead meadow view read clearly as a rest, not flight: show a small curled-up sleeping bee with drifting "z z z" at the bottom of the screen while the camera orbits. Keep it still under reduced motion, and let it fade out when any key or click wakes the view.
+- [x] The lingering overhead meadow view reads as a rest: a curled sleeping bee with drifting z's and a small "Resting" caption in the lower left fades in and out with the camera, and also appears during the E rest (without moving the camera). Still under reduced motion.
+- [x] The sleeping bee visibly breathes: its striped body swells gently while the folded wings lift a little, on a slow 3.6-second cycle (still under reduced motion).
 - [x] Start each day at 60% energy (`START_ENERGY` in `src/garden.ts`), so sipping on the opening daisy is the first thing to learn. Legacy test scenarios keep a full meter.
 - [x] Flower info: "Pollinated by you" shows the small colored bloom for that species (red poppy, white daisy, blue cornflower), the same art as the pollination +1 notice.
 - [ ] Add creatures or objects to the undergrowth, found when flying low or walking in the grass.

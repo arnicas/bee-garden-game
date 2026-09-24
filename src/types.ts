@@ -31,6 +31,8 @@ export interface ViewState {
   restProgress: number;
   quietFade: number;
   scenicFade: number;
+  /** 0–1 blend into the lingering overhead meadow view. */
+  scenicAmount: number;
   underLeaf: boolean;
   onLeaf: boolean;
   leafTopTarget: boolean;

@@ -37,6 +37,25 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 500; padding: 3px 5px;
 #ui.is-quiet > :is(.pollen-dust, .vision-wash) { opacity: 0 !important; }
 #ui.is-quiet button, #ui.is-quiet .cargo-meter { pointer-events: none; }
 .scenic-veil { position: absolute; inset: 0; z-index: 6; background: #18241d; opacity: 0; pointer-events: none; }
+/* Resting overhead view: a curled sleeping bee with drifting z's, lower left. */
+.sleep-note { position: absolute; left: clamp(22px, 3vw, 44px); bottom: clamp(18px, 3vh, 34px); z-index: 7; width: 128px; height: 112px; pointer-events: none; isolation: isolate; }
+.sleep-note[hidden] { display: none; }
+.sleep-note::before { content: ''; position: absolute; z-index: -1; inset: -14px -8px -24px -40px; background: radial-gradient(closest-side, rgba(251,245,229,.9), rgba(251,245,229,.62) 50%, rgba(251,245,229,0)); }
+.sleep-bee { position: absolute; left: 4px; bottom: 18px; width: 88px; height: auto; }
+.sleep-body, .sleep-wings { transform-box: fill-box; animation: 3.6s ease-in-out infinite; }
+.sleep-body { transform-origin: 50% 100%; animation-name: sleep-breathe; }
+.sleep-wings { transform-origin: 15% 90%; animation-name: sleep-wings; }
+.sleep-z { position: absolute; left: 16px; bottom: 62px; font: italic 700 19px/1 var(--serif); color: #435634; opacity: 0; animation: sleep-z 3.6s ease-out infinite; }
+.sleep-z-2 { font-size: 15px; animation-delay: 1.2s; }
+.sleep-z-3 { font-size: 12px; animation-delay: 2.4s; }
+.sleep-caption { position: absolute; left: 12px; bottom: 2px; font-size: 10px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: #4a5639; }
+@keyframes sleep-z { 0% { opacity: 0; transform: translate(0, 0) scale(.8); } 15% { opacity: .95; } 100% { opacity: 0; transform: translate(30px, -42px) scale(1.3); } }
+@keyframes sleep-breathe { 0%, 100% { transform: translateY(0) scale(1, 1); } 45% { transform: translateY(-1px) scale(1.04, 1.09); } }
+@keyframes sleep-wings { 0%, 100% { transform: rotate(0deg) translateY(0); } 45% { transform: rotate(-7deg) translateY(-1.5px); } }
+.sleep-note.is-still .sleep-body, .sleep-note.is-still .sleep-wings, .sleep-note.is-still .sleep-z { animation: none; }
+.sleep-note.is-still .sleep-z { opacity: .85; }
+.sleep-note.is-still .sleep-z-2 { transform: translate(10px, -16px); }
+.sleep-note.is-still .sleep-z-3 { transform: translate(20px, -30px); }
 #ui:not([data-phase="flying"]):not([data-phase="landed"]) .play-only { opacity: 0; visibility: hidden; }
 .title-screen, .title-footer { opacity: 0; visibility: hidden; transition: opacity .6s, visibility .6s; }
 #ui[data-phase="title"] .title-screen, #ui[data-phase="title"] .title-footer { opacity: 1; visibility: visible; }
@@ -486,5 +505,9 @@ h1 em { font-weight: 400; font-size: .93em; }
   .ending-eyebrow { font-size: 7px; letter-spacing: 1.4px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .sleep-body, .sleep-wings, .sleep-z { animation: none; }
+  .sleep-z { opacity: .85; }
+  .sleep-z-2 { transform: translate(10px, -16px); }
+  .sleep-z-3 { transform: translate(20px, -30px); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
