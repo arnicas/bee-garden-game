@@ -65,7 +65,8 @@
   - Ant trails: a line of tiny ants between a flower base and a small nest mound on the ground.
   - Discovery: the first close encounter with each kind shows one gentle note (e.g. "A ladybird! They keep the meadow's aphids in check."), then they are just there to enjoy.
   - A "meadow friends found" line on the results screen, and a Small wonders topic for each creature (sourced, as with `Flower_Facts.md`).
-  - Implementation plan for ladybirds (not started):
+  - [x] Ladybirds are in (`src/friends.ts`, `tests/friends.spec.ts`): 18 per meadow on stems, leaves and the ground; crawl, pause, turn, rare flutter hop, shy when the bee is very close; first-meeting note; "Meadow friends" count on the results screen. Tune count, size and how easy they are to find through play.
+  - Original implementation plan for ladybirds:
     - New `src/friends.ts`, built like `src/webs.ts`: `createFriends(scene, seed, flowers, leaves)`, rebuilt with the meadow in `Garden.rebuildMeadow()`, reset in `begin()`, disposed in `dispose()`.
     - Perches: flower stems use the same curve as the stem collision in `Garden.fly()` (`base` to `center`, eased by `stemU²`), so a ladybird at height u follows the swaying stem; keep u low (about 0.1–0.45). Leaves use each leaf's `center`/`rotation` with `leafSurfaceHeight()` (top) or just below it (underside). Ground ones use `meadowGroundHeight()` near a stem base and climb onto that stem.
     - Art: one `InstancedMesh` for the red domed shell (spots painted in `onBeforeCompile` from the local position, like the leaf washes) and one for the black head/legs; small wing-case pieces only for the rare flutter. Scale about 0.06–0.07 units. Hide beyond about 12 units and skip updates when the bee is far.

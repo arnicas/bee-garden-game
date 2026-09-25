@@ -174,6 +174,16 @@ Rain also changes the broad leaves: they darken and turn shinier, then dry over
 about half a minute. Perched on or just above a leaf top in rain, the patter is
 louder, with occasional drop “plinks” (softer and lower from underneath).
 
+### Meadow friends
+
+Ladybirds live low in the meadow: about 18 per day, mostly on flower stems near
+the ground, some on the broad leaves (tops and undersides) and a few on the
+ground, heading for a stem to climb. They crawl slowly, pause and turn, hold
+still when the bee comes very close, and now and then flutter off to a nearby
+stem. They are harmless. Getting close to one counts it for the day (“Meadow
+friends” on the results screen), and the first one met brings a short note.
+Snails after rain and ant trails are planned next ([TODO.md](TODO.md)).
+
 ### Spider webs in the grass
 
 The grass is a refuge from rain, heat and wind, but not a free one: about 28
@@ -286,6 +296,7 @@ not a WebGPU/TSL pipeline. The HUD and journals use HTML/CSS and inline SVG.
 | [day-report.ts](src/day-report.ts) | Day tiers at the hive: delivery × pollination table, Queen/meadow wording, stats line, tip, and the next morning's line |
 | [world.ts](src/world.ts), [meadow-plan.ts](src/meadow-plan.ts), [shelters.ts](src/shelters.ts) | Seeded meadow and next-day species mix, flowers, instanced vegetation, moving leaf perches, collision/cover geometry and LOD |
 | [wind.ts](src/wind.ts), [wind-effects.ts](src/wind-effects.ts) | Shared wind field, inward edge gusts, current trails and drifting fragments |
+| [friends.ts](src/friends.ts) | Ladybirds: seeded perches on stems, leaves and ground, instanced shell art with painted spots, crawling, flutter hops |
 | [webs.ts](src/webs.ts) | Spider webs in the grass: seeded placement, loose/torn thread lines, dew and rain drops; catching and escape live in `garden.ts` |
 | [weather.ts](src/weather.ts), [atmosphere.ts](src/atmosphere.ts) | Daily weather plans (showers, heat, gales), lighting, sky and haze |
 | [rain.ts](src/rain.ts), [flower-rain.ts](src/flower-rain.ts) | Rain and water beads on moving petals/leaves |
@@ -456,7 +467,8 @@ Development and production URLs with `?test` expose:
 
 - `window.__BEE_TEST__`: detailed snapshots and flower/shelter, cargo, weather
   clock (`setDayProgress`, `setQuietTime`), position setup helpers, and
-  `webs()` / `setWebs(enabled)`. Spider webs are off on `?test` pages so older
+  `webs()` / `setWebs(enabled)` and `ladybirds()`. The first-ladybird note is
+  skipped on `?test` pages unless `?friends` is added. Spider webs are off on `?test` pages so older
   flight checks never fly into one; add `?webs` to turn them on.
 - `window.__THREE_GAME_TEST_HOOKS__`: seeded scenes, frozen captures and reduced
   motion. Named states are `title`, `flight-start`, `active-play`, `windy`,

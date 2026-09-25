@@ -213,7 +213,7 @@ export function createUI(actions: UIActions): GameUI {
             ${flowerTypes.map(([species, name]) => `<div class="result-species-petal" data-result-species="${species}" role="img" aria-label="${name}: 0 flowers pollinated"><span class="petal-tally">${coveragePetals[species]}<b data-text="result-coverage-${species}">0</b></span><span class="petal-name">${name}</span></div>`).join('')}
           </div>
         </section>
-        <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl></div>
+        <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Meadow friends</dt><dd data-text="result-friends"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl></div>
         <div class="result-actions">
           <button class="primary-button" data-action="restart"><span data-text="restart-label">Play another day</span><span class="button-arrow">${icons.arrow}</span></button>
           <button class="result-info" data-action="result-facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts">About bees ${icons.arrow}</button>
@@ -719,6 +719,7 @@ export function createUI(actions: UIActions): GameUI {
       text('result-nectar', `${share(state.nectar, state.nectarCapacity)}%`);
       text('result-pollen', `${share(state.pollen, state.pollenGoal)}%`);
       text('result-visited', String(state.visited));
+      text('result-friends', state.friendsFound === 0 ? 'None met' : `${state.friendsFound} ladybird${state.friendsFound === 1 ? '' : 's'}`);
       text('result-pollinated', String(state.pollinated));
       text('result-pollinated-label', state.pollinated === 1 ? 'flower pollinated' : 'flowers pollinated');
       for (const { species, name, element } of resultSpeciesPetals) {

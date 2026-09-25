@@ -73,6 +73,8 @@ export interface ViewState {
   homeY: number;
   homeVisible: boolean;
   harvestReady: boolean;
+  /** Distinct ladybirds met today. */
+  friendsFound: number;
   /** Chose to fly home before the harvest goal. */
   headingHome: boolean;
   /** Carries enough nectar for the flight home. */
