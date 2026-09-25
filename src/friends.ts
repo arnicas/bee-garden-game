@@ -10,9 +10,20 @@ import type { Flower } from './types';
  * leaves (tops and undersides) and a few on the ground by a stem, heading for it.
  * They follow the swaying stems and leaves, pause and turn, now and then flutter
  * to a nearby stem, and hold still when the bee is very close.
- * One instanced draw for the bodies and one for the rare flying wings.
+ * Aphids cluster on some stems just below the flower head (mostly cornflowers and poppies). A ladybird on
+ * such a stem walks to the cluster and eats it down; untended clusters slowly
+ * grow back. One instanced draw each for bodies, flying wings and aphids.
  */
 export type LadybirdPerch = 'stem' | 'leaf' | 'ground' | 'flying';
+export interface AphidCluster {
+  id: number;
+  flowerId: number;
+  /** 0–1 share of the cluster still there. */
+  population: number;
+  /** Middle of the cluster on the stem surface, and the direction it faces. */
+  position: THREE.Vector3;
+  facing: THREE.Vector3;
+}
 export interface Ladybird {
   id: number;
   perch: LadybirdPerch;
@@ -35,9 +46,14 @@ interface Bird extends Ladybird {
   pause: number;
   random: () => number;
   flight: { from: THREE.Vector3; to: Flower; toU: number; t: number } | null;
+  eating: boolean;
 }
 
 const COUNT = 18;
+const CLUSTERS = 14;
+const APHIDS_PER_CLUSTER = 14;
+/** Eaten per second by one ladybird, and regrown per second when left alone. */
+const APHID_EAT_RATE = .03, APHID_REGROW_RATE = .004;
 const MAX_FLYING = 3;
 /** Half-extents of the shell dome (about 8.5 mm long at 10 cm per unit). */
 const SHELL = new THREE.Vector3(.032, .026, .042);
@@ -63,8 +79,36 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
       z: perch === 'leaf' ? Math.sin(t) * r : Math.sin(t) * (.18 + r * .5),
       angle: random() * Math.PI * 2, heading: random() * Math.PI * 2,
       direction: random() < .5 ? 1 : -1, speed: .035 + random() * .03, pause: random() * 3,
-      random: rng((seed + id * 7919) >>> 0 || 3), flight: null,
+      random: rng((seed + id * 7919) >>> 0 || 3), flight: null, eating: false,
     });
+  }
+
+  // ---- aphids: clusters on stems, mostly cornflowers and poppies (black bean
+  // aphids on poppies are dark; the others green).
+  interface Cluster extends AphidCluster { flower: Flower; u: number; angle: number; aphids: { du: number; da: number; size: number; turn: number }[] }
+  const clusters: Cluster[] = [];
+  const hosts = stems.filter(f => f.species !== 'daisy'), daisies = stems.filter(f => f.species === 'daisy');
+  const clusterOn = new Map<number, Cluster>();
+  /** A point on the stem just below the flower head, clear of its petals and cup. */
+  const underHead = (f: Flower, r: number) => {
+    const h = Math.max(.2, f.center.y - f.base.y);
+    return THREE.MathUtils.clamp(1 - (f.radius * .45 + .06 + r * .05) / h, .45, .92);
+  };
+  for (let id = 0; id < CLUSTERS && stems.length; id++) {
+    const pool = random() < .8 && hosts.length ? hosts : daisies.length ? daisies : stems;
+    const flower = pool[Math.floor(random() * pool.length)];
+    if (clusterOn.has(flower.id)) continue;
+    const cluster: Cluster = {
+      id: clusters.length, flowerId: flower.id, flower, population: .6 + random() * .4, position: new THREE.Vector3(), facing: new THREE.Vector3(),
+      u: underHead(flower, random()), angle: random() * Math.PI * 2,
+      aphids: Array.from({ length: APHIDS_PER_CLUSTER }, () => ({ du: (random() - .5) * .07, da: (random() - .5) * 1.4, size: .7 + random() * .5, turn: (random() - .5) * .6 })),
+    };
+    clusters.push(cluster); clusterOn.set(flower.id, cluster);
+  }
+  // A few ladybirds start near a cluster, so they can be found at work.
+  for (const cluster of clusters.slice(0, 4)) {
+    const bird = birds.find(b => b.perch === 'stem' && !clusters.some(c => c.flower === b.flower));
+    if (bird) { bird.flower = cluster.flower; bird.u = Math.max(.06, cluster.u - .12); bird.direction = 1; }
   }
 
   // ---- art: shell dome, black head and belly, six tiny legs, in one geometry.
@@ -128,10 +172,23 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
   wings.name = 'ladybird wings'; wings.frustumCulled = false; wings.count = 0;
   scene.add(wings);
 
+  const aphidGeometry = new THREE.SphereGeometry(1, 7, 5).scale(.0065, .0055, .0105);
+  const aphidMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .45, metalness: 0 });
+  const aphidMesh = new THREE.InstancedMesh(aphidGeometry, aphidMaterial, Math.max(1, clusters.length * APHIDS_PER_CLUSTER));
+  aphidMesh.name = 'aphids'; aphidMesh.frustumCulled = false;
+  const green = new THREE.Color('#8db24a'), paleGreen = new THREE.Color('#b5c96a'), dark = new THREE.Color('#2e2a2c'), tint = new THREE.Color();
+  clusters.forEach(cluster => cluster.aphids.forEach((aphid, i) => {
+    tint.copy(cluster.flower.species === 'poppy' ? dark : green).lerp(cluster.flower.species === 'poppy' ? green : paleGreen, cluster.flower.species === 'poppy' ? .08 * aphid.size : (aphid.size - .7) * .8);
+    aphidMesh.setColorAt(cluster.id * APHIDS_PER_CLUSTER + i, tint);
+  }));
+  if (aphidMesh.instanceColor) aphidMesh.instanceColor.needsUpdate = true;
+  scene.add(aphidMesh);
+
   const matrix = new THREE.Matrix4(), hidden = new THREE.Matrix4().makeScale(0, 0, 0);
   const up = new THREE.Vector3(), forward = new THREE.Vector3(), right = new THREE.Vector3(), tangent = new THREE.Vector3(), radial = new THREE.Vector3();
   const local = new THREE.Vector3(), normal = new THREE.Vector3();
   let lastTime = 0, flutterTimer = 25;
+  const aphidMatrix = new THREE.Matrix4(), aphidScale = new THREE.Vector3();
 
   const stemPoint = (f: Flower, u: number, out: THREE.Vector3) =>
     out.set(f.base.x + (f.center.x - f.base.x) * u * u, f.base.y + (f.center.y - f.base.y) * u, f.base.z + (f.center.z - f.base.z) * u * u);
@@ -183,21 +240,27 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
     for (const f of stems) {
       if (f === bird.flower) continue;
       const d = Math.hypot(f.base.x - from.x, f.base.z - from.z);
-      if (d > .8 && d < 3.2 && d < best + bird.random() * .8) { best = d; target = f; }
+      // Aphid-covered stems draw ladybirds from further away.
+      const lure = (clusterOn.get(f.id)?.population ?? 0) > .2 ? 1.6 : 0;
+      if (d > .8 && d < 3.2 && d - lure < best + bird.random() * .8) { best = d - lure; target = f; }
     }
     if (!target) return;
-    bird.flight = { from, to: target, toU: .12 + bird.random() * .25, t: 0 };
+    const cluster = clusterOn.get(target.id);
+    bird.flight = { from, to: target, toU: cluster ? Math.max(.06, cluster.u - .1) : .12 + bird.random() * .25, t: 0 };
     bird.perch = 'flying'; bird.leaf = null;
   }
 
   return {
     birds: birds as readonly Ladybird[],
+    aphids: clusters as readonly AphidCluster[],
     /** Moves and places the ladybirds near the camera. */
     update(time: number, bee: THREE.Vector3, camera: THREE.Vector3, reducedMotion: boolean): void {
       const dt = Math.min(.1, Math.max(0, time - lastTime)); lastTime = time;
       flutterTimer -= dt;
       let flying = 0;
+      for (const cluster of clusters) if (dt > 0 && !reducedMotion) cluster.population = Math.min(1, cluster.population + dt * APHID_REGROW_RATE);
       for (const bird of birds) {
+        bird.eating = false;
         const near = bird.position.lengthSq() === 0 || bird.position.distanceTo(camera) < VISIBLE_RANGE;
         const shy = bird.position.distanceTo(bee) < SHY_DISTANCE;
         if (near && !reducedMotion && dt > 0) {
@@ -208,9 +271,17 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
           else if (bird.pause > 0) bird.pause -= dt;
           else {
             const step = bird.speed * dt;
-            if (bird.perch === 'stem' && bird.flower) {
+            const cluster = bird.perch === 'stem' && bird.flower ? clusterOn.get(bird.flower.id) : undefined;
+            if (cluster && cluster.population > .02 && Math.abs(cluster.u - bird.u) < .03) {
+              // At the cluster: eat, slowly working around the stem to the aphids.
+              bird.eating = true;
+              cluster.population = Math.max(0, cluster.population - dt * APHID_EAT_RATE);
+              bird.angle += Math.atan2(Math.sin(cluster.angle - bird.angle), Math.cos(cluster.angle - bird.angle)) * Math.min(1, dt * .8);
+            } else if (bird.perch === 'stem' && bird.flower) {
+              if (cluster && cluster.population > .02) bird.direction = cluster.u > bird.u ? 1 : -1;
               bird.u += bird.direction * step / Math.max(.3, bird.flower.center.y - bird.flower.base.y);
-              if (bird.u > .5 || bird.u < .05) { bird.u = THREE.MathUtils.clamp(bird.u, .05, .5); bird.direction = bird.direction === 1 ? -1 : 1; bird.pause = .6 + bird.random() * 1.5; }
+              const top = cluster ? Math.max(.5, cluster.u + .02) : .5;
+              if (bird.u > top || bird.u < .05) { bird.u = THREE.MathUtils.clamp(bird.u, .05, top); bird.direction = bird.direction === 1 ? -1 : 1; bird.pause = .6 + bird.random() * 1.5; }
             } else if (bird.perch === 'leaf' && bird.leaf) {
               bird.x += Math.sin(bird.heading) * step; bird.z += Math.cos(bird.heading) * step;
               bird.heading += (bird.random() - .5) * dt * 1.2;
@@ -222,7 +293,7 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
               bird.x += Math.sin(bird.heading) * step; bird.z += Math.cos(bird.heading) * step;
               if (d < .045) { bird.perch = 'stem'; bird.u = .03; bird.direction = 1; bird.angle = Math.atan2(bird.z, bird.x); }
             }
-            if (bird.random() < dt * .08) bird.pause = 1 + bird.random() * 3;
+            if (!bird.eating && bird.random() < dt * .08) bird.pause = 1 + bird.random() * 3;
           }
         }
         // Now and then a ladybird near the bee lifts its wing cases and flutters off.
@@ -239,6 +310,31 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
       }
       if (flutterTimer <= 0) flutterTimer = 10;
       bodies.instanceMatrix.needsUpdate = true;
+      for (const cluster of clusters) {
+        const f = cluster.flower, h = f.center.y - f.base.y;
+        const near = Math.hypot(f.base.x - camera.x, f.base.z - camera.z) < VISIBLE_RANGE;
+        const shown = Math.round(cluster.population * APHIDS_PER_CLUSTER);
+        stemPoint(f, cluster.u, cluster.position);
+        tangent.set((f.center.x - f.base.x) * 2 * cluster.u, h, (f.center.z - f.base.z) * 2 * cluster.u).normalize();
+        cluster.facing.set(Math.cos(cluster.angle), 0, Math.sin(cluster.angle)).addScaledVector(tangent, -Math.cos(cluster.angle) * tangent.x - Math.sin(cluster.angle) * tangent.z).normalize();
+        cluster.position.addScaledVector(cluster.facing, STEM_RADIUS);
+        cluster.aphids.forEach((aphid, i) => {
+          const index = cluster.id * APHIDS_PER_CLUSTER + i;
+          if (!near || i >= shown) { aphidMesh.setMatrixAt(index, hidden); return; }
+          const u = cluster.u + aphid.du;
+          stemPoint(f, u, local);
+          tangent.set((f.center.x - f.base.x) * 2 * u, h, (f.center.z - f.base.z) * 2 * u).normalize();
+          radial.set(Math.cos(cluster.angle + aphid.da), 0, Math.sin(cluster.angle + aphid.da));
+          radial.addScaledVector(tangent, -radial.dot(tangent)).normalize();
+          local.addScaledVector(radial, STEM_RADIUS * .72);
+          // Aphids sit head-down along the stem, each turned a little.
+          forward.copy(tangent).multiplyScalar(-1).applyAxisAngle(radial, aphid.turn);
+          right.crossVectors(radial, forward).normalize();
+          aphidMatrix.makeBasis(right, radial, forward).scale(aphidScale.setScalar(aphid.size)).setPosition(local);
+          aphidMesh.setMatrixAt(index, aphidMatrix);
+        });
+      }
+      aphidMesh.instanceMatrix.needsUpdate = true;
       wings.count = flying; if (flying) wings.instanceMatrix.needsUpdate = true;
     },
     /** The nearest ladybird to a point, for discovery. */
@@ -250,9 +346,10 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
     markSeen(id: number): void { const bird = birds[id]; if (bird) bird.seen = true; },
     seenCount(): number { return birds.filter(b => b.seen).length; },
     reset(): void { for (const bird of birds) bird.seen = false; },
-    diagnostics() { return { count: birds.length, seen: birds.filter(b => b.seen).length, flying: birds.filter(b => b.perch === 'flying').length }; },
+    diagnostics() { return { count: birds.length, seen: birds.filter(b => b.seen).length, flying: birds.filter(b => b.perch === 'flying').length, eating: birds.filter(b => b.eating).length, aphids: clusters.reduce((sum, c) => sum + c.population, 0) }; },
     dispose(): void {
-      scene.remove(bodies, wings); bodyGeometry.dispose(); bodyMaterial.dispose(); wingGeometry.dispose(); wingMaterial.dispose(); bodies.dispose(); wings.dispose();
+      scene.remove(bodies, wings, aphidMesh); bodyGeometry.dispose(); bodyMaterial.dispose(); wingGeometry.dispose(); wingMaterial.dispose(); bodies.dispose(); wings.dispose();
+      aphidGeometry.dispose(); aphidMaterial.dispose(); aphidMesh.dispose();
     },
   };
 }

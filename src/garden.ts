@@ -76,6 +76,7 @@ interface TestControl {
   webs(): { id: number; center: number[]; normal: number[]; radius: number; torn: boolean }[];
   setWebs(enabled: boolean): void;
   ladybirds(): { id: number; perch: string; position: number[]; up: number[]; seen: boolean }[];
+  aphids(): { id: number; flowerId: number; population: number; position: number[]; facing: number[] }[];
 }
 declare global { interface Window { __BEE_TEST__?: TestControl; beeGarden?: { screenshot(): void }; } }
 
@@ -1358,6 +1359,7 @@ export class Garden {
       setQuietTime: value => { this.quietAge = Math.max(0, value); },
       setEndingTime: value => { if (this.phase === 'returning') this.returnAge = THREE.MathUtils.clamp(value, 0, this.reducedMotion ? QUIET_ENDING_DURATION : ENDING_DURATION); },
       webs: () => this.webs.webs.map(w => ({ id: w.id, center: w.center.toArray(), normal: w.normal.toArray(), radius: w.radius, torn: w.torn })),
+      aphids: () => this.ladybirds.aphids.map(c => ({ id: c.id, flowerId: c.flowerId, population: c.population, position: c.position.toArray(), facing: c.facing.toArray() })),
       ladybirds: () => this.ladybirds.birds.map(b => ({ id: b.id, perch: b.perch, position: b.position.toArray(), up: b.up.toArray(), seen: b.seen })),
       setWebs: enabled => { this.websEnabled = enabled; this.webs.setVisible(enabled); if (!enabled) this.caughtWeb = null; },
       flowers: () => this.meadow.flowers.map(f => ({ id: f.id, species: f.species, center: f.center.toArray(), base: f.base.toArray(), rotation: f.rotation.toArray(), velocity: f.velocity.toArray(), height: f.height, radius: f.radius, pollenFraction: f.pollenFraction, visiblePollen: f.pollen.count, pollenMatch: f.pollenMatch })),

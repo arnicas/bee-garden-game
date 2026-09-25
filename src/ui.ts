@@ -576,7 +576,7 @@ export function createUI(actions: UIActions): GameUI {
     endingFade.style.opacity = fade;
     transition.style.setProperty('--ending-fade', failing ? String(percent((loss - .72) / .28, 1)) : fade);
     const meadowEnding = state.endingStage === 'meadow';
-    text('ending-eyebrow', failing ? state.lossFromNight ? 'NIGHT FALLS ON THE MEADOW' : 'THE MEADOW FALLS QUIET' : meadowEnding ? 'THE DAY YOU LEAVE BEHIND' : 'A LITTLE HARVEST, BROUGHT HOME');
+    text('ending-eyebrow', failing ? state.lossFromNight ? 'NIGHT FALLS ON THE MEADOW' : 'THE MEADOW FALLS QUIET' : meadowEnding ? '' : 'A LITTLE HARVEST, BROUGHT HOME');
     text('ending-caption', failing ? state.lossFromNight ? 'The last light slips away…' : 'Wings growing still…' : 'Heading home…');
     text('closing-action', failing ? 'Continue' : 'Skip to totals');
     attribute(transition, 'aria-label', failing ? state.lossFromNight ? 'Nightfall in the meadow' : 'The end of a little life' : "The day's journey home");

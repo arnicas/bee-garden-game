@@ -384,6 +384,7 @@ h1 em { font-weight: 400; font-size: .93em; }
 .return-transition { position: absolute; inset: 0; z-index: 7; pointer-events: none; color: #fff8e6; }
 .ending-caption { position: absolute; bottom: clamp(72px, 11vh, 110px); left: 50%; transform: translateX(-50%); width: min(580px, calc(100% - 72px)); text-align: center; text-shadow: 0 2px 14px #172518a6, 0 1px 3px #17251899; opacity: calc(1 - var(--ending-fade, 0)); }
 .ending-eyebrow { display: block; font-size: 8px; letter-spacing: 2px; margin-bottom: 12px; }
+.ending-eyebrow:empty { display: none; }
 .return-transition p { font-family: var(--serif); font-size: clamp(25px, 2.7vw, 36px); font-style: italic; font-weight: 400; line-height: 1.25; }
 .ending-skip { position: absolute; right: 32px; bottom: 27px; display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 37px; border: 1px solid #fff8e64a; border-radius: 3px; background: #20302538; color: #fff8e6; font-size: 10px; transition: background .2s, border-color .2s; }
 .ending-skip:hover { background: #2030258c; border-color: #fff8e680; }
