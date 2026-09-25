@@ -73,6 +73,11 @@ export interface ViewState {
   homeY: number;
   homeVisible: boolean;
   harvestReady: boolean;
+  /** Chose to fly home before the harvest goal. */
+  headingHome: boolean;
+  /** Carries enough nectar for the flight home. */
+  canHeadHome: boolean;
+  dayNumber: number;
   canReturn: boolean;
   wind: number;
   windBearing: number;

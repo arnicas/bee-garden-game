@@ -72,7 +72,7 @@ at 60% energy, so sipping its nectar is a good first step.
 | Sip nectar | Aim at the golden nectar and **hold F or the left mouse button** |
 | Bee Vision | Q |
 | Pull free of a spider web | Tap Space or W (holding also works, more slowly) |
-| Way home | R or the Way home button gives guidance; fly to the hive-facing meadow edge to finish |
+| Way home | R heads home at any time (it needs 5 nectar for the flight); then fly to the hive-facing meadow edge. With the harvest goal met, the marker appears by itself |
 | Pause / release mouse | Esc during play; losing focus or switching tabs also pauses |
 | Bee facts | Esc → Small wonders, or About bees on either results screen |
 | Sound | M or the speaker button |
@@ -201,10 +201,14 @@ or accelerated daylight of the six-second E rest.
 
 ### Finishing the day
 
-Gather **at least 50 stored nectar and 140 pollen**, with energy above zero.
-Of that nectar, 45 is the hive's goal and 5 pays for the final offscreen flight.
-Follow the hive compass and ready-harvest marker to the meadow edge while
-airborne. Arrival automatically starts the ending; R cannot skip the crossing.
+The hive's goal is **45 nectar and 140 pollen**, plus 5 nectar for the final
+offscreen flight. Once the goal is met, the hive marker appears; follow it to
+the meadow edge while airborne and arrival starts the ending by itself.
+
+The bee may also head home earlier with whatever it carries: press R (or the
+Way home button) with at least 5 nectar in the jar. The marker and a “Heading
+home early” label appear, and arriving at the edge ends the day. Before that
+choice, the edge never ends the day by accident. R cannot skip the crossing.
 Keep an eye on nectar used for energy along the way.
 
 The ending rises above the working meadow, approaches the hive, shows two bees
@@ -219,11 +223,31 @@ clouds. A harvest ready at that moment can still finish the ordinary flight home
 paying normal energy costs and meeting the same arrival requirements. Zero energy
 at any time instead triggers the exhaustion ending.
 
-Both results screens retain gathered totals and offer **About bees** and a new
-day. A new day resets supplies, cargo and pollination, rolls new weather and
-lays out a new meadow. There is no persistent save. Carrying one day's
-pollination into the next day's flower mix is planned; the hook is
-`speciesMixAfter()` in [src/meadow-plan.ts](src/meadow-plan.ts).
+Getting home is judged on two things, and pollination counts for more:
+
+| | All three kinds, 4+ each | All three kinds | 3+ pollinated | 0–2 pollinated |
+| --- | --- | --- | --- | --- |
+| **Brimming** (85+ nectar, full pouch) | Fantastic | Good | Reasonable | Okay |
+| **Full** (45+ nectar, full pouch) | Good | Good | Reasonable | Okay |
+| **Partial** (less) | Reasonable | Reasonable | Okay | Okay |
+
+The results screen names the day (“A fantastic day!”, “A good day”, “A
+reasonable day”, “An okay day”), with a line from the Queen, a line about the
+meadow, a short line of the stats behind it, and on the lower tiers one tip
+aimed at the weakest stat (for example the kind of flower that was missed).
+Thresholds and wording live in [src/day-report.ts](src/day-report.ts). Not
+getting home (exhaustion or nightfall) keeps its own ending and advice, with
+the same stats line.
+
+Both results screens offer **About bees** and a new day. Days are counted
+through the session (restarting a day doesn't count). A new day resets
+supplies, cargo and pollination, rolls new weather and lays out a new meadow
+whose flower mix follows the day before: each kind's share is 0.75 + 0.1 per
+flower of it pollinated (kept between 0.5 and 1.8), so kinds you helped spread
+and kinds you skipped thin out, without ever disappearing
+(`speciesMixAfter()` in [src/meadow-plan.ts](src/meadow-plan.ts)). From the
+second day, leaving the first daisy brings a morning line from the Queen that
+echoes how the day before went. There is no persistent save yet.
 
 ### Bee facts and accessibility
 
@@ -254,6 +278,7 @@ not a WebGPU/TSL pipeline. The HUD and journals use HTML/CSS and inline SVG.
 | Files | Responsibility |
 | --- | --- |
 | [main.ts](src/main.ts), [garden.ts](src/garden.ts), [types.ts](src/types.ts) | Startup, simulation/state transitions, input, foraging, exposure, return rules and UI state |
+| [day-report.ts](src/day-report.ts) | Day tiers at the hive: delivery × pollination table, Queen/meadow wording, stats line, tip, and the next morning's line |
 | [world.ts](src/world.ts), [meadow-plan.ts](src/meadow-plan.ts), [shelters.ts](src/shelters.ts) | Seeded meadow and next-day species mix, flowers, instanced vegetation, moving leaf perches, collision/cover geometry and LOD |
 | [wind.ts](src/wind.ts), [wind-effects.ts](src/wind-effects.ts) | Shared wind field, inward edge gusts, current trails and drifting fragments |
 | [webs.ts](src/webs.ts) | Spider webs in the grass: seeded placement, loose/torn thread lines, dew and rain drops; catching and escape live in `garden.ts` |
@@ -286,7 +311,8 @@ Current balance values are gameplay choices, not biological measurements:
 
 | Setting | Value / source |
 | --- | --- |
-| Harvest and capacities | `garden.ts`: nectar goal 45 + return fuel 5; jar capacity 100; pollen goal/capacity 140 |
+| Harvest and capacities | `garden.ts`: nectar goal 45 + return fuel 5; jar capacity 100; pollen goal/capacity 140. Going home early needs only the 5 fuel |
+| Day tiers | `day-report.ts` `REPORT_THRESHOLDS`: brimming 85 nectar, flourishing 4 of each kind, “some” 3 pollinated |
 | Harvest yield | `garden.ts`: pollen and nectar award 0.5 usable units per raw supply unit; flower labels show usable amounts |
 | Energy conversion | `garden.ts`: 3.5 energy per stored nectar; sipping/rest recovery capped at 6 energy/second |
 | Rest | `garden.ts`: 6 seconds at 18× daylight; perching costs 0.065 energy/second, rest 0.025, before weather costs |

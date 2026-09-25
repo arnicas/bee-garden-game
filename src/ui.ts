@@ -1,4 +1,5 @@
 import type { GameUI, UIActions, ViewState } from './types';
+import { dayReport } from './day-report';
 import { cargoArt, energyWedge } from './cargo-art';
 import { coveragePetals, happyMeadowArt, pollinationFlowers } from './meadow-art';
 import { beeFacts, beeFactsMarkup } from './bee-facts';
@@ -29,6 +30,11 @@ const keyboardCluster = (arrows = false) => `<div class="learning-keys" aria-lab
 </div>`;
 // The result illustrations coexist with the live HUD. Give every paint server
 // and fill hook its own identity so hidden HUD artwork cannot capture a clone.
+// The Queen on the results screen: the usual bee with a little gold crown
+// between her antennae (the viewBox grows upward to make room).
+const queenBee = icons.bee
+  .replace('viewBox="0 0 56 40"', 'viewBox="4 -6 48 46"')
+  .replace('</svg>', '<path d="M21.6 17 20.8 8.6l4 3.4L28 5.6l3.2 6.4 4-3.4-.8 8.4Z" fill="#efc24a" stroke="#8d5d17" stroke-width="1.1" stroke-linejoin="round"/><circle cx="28" cy="5" r="1.4" fill="#efc24a" stroke="#8d5d17" stroke-width=".8"/><circle cx="20.8" cy="8.2" r="1" fill="#efc24a" stroke="#8d5d17" stroke-width=".7"/><circle cx="35.2" cy="8.2" r="1" fill="#efc24a" stroke="#8d5d17" stroke-width=".7"/></svg>');
 const resultArt = (source: string, prefix: string) => {
   let artwork = source;
   for (const [, id] of source.matchAll(/\bid="([^"]+)"/g)) {
@@ -114,7 +120,7 @@ export function createUI(actions: UIActions): GameUI {
       <div class="home-heading"><span class="compass-arrow" aria-hidden="true">↑</span><span>THE HIVE</span>${icons.hive}</div>
       <div class="home-distance"><span data-text="home-distance">0</span><small>m to meadow edge</small></div>
       <p data-text="home-guidance">The hive lies beyond the meadow.</p>
-      <div class="return-ready" hidden><span>YOUR HIVE IS CALLING</span><button data-action="return" class="small-button">Way home ${key('R')}</button></div>
+      <div class="return-ready" hidden><span data-text="return-ready-label">YOUR HIVE IS CALLING</span><button data-action="return" class="small-button">Way home ${key('R')}</button></div>
     </section>
     <section class="cargo-bar" aria-label="Foraging progress">
       <div class="cargo-meter energy-meter" role="meter" tabindex="0" aria-label="Energy" aria-valuemin="0" aria-valuemax="100" aria-describedby="energy-detail">
@@ -194,7 +200,7 @@ export function createUI(actions: UIActions): GameUI {
       </div>
       ${beeFactsMarkup()}
       <div class="journal-page result-page" hidden>
-        <span class="eyebrow" data-text="result-eyebrow"></span><div class="result-bee">${icons.bee}</div><h2 data-text="result-title"></h2><p class="menu-intro" data-text="result-description"></p>
+        <span class="eyebrow" data-text="result-eyebrow"></span><div class="result-bee">${icons.bee}</div><h2 data-text="result-title"></h2><div class="result-voice result-voice-queen"><span class="result-voice-art" aria-hidden="true">${queenBee}</span><p class="menu-intro" data-text="result-description"></p></div><div class="result-voice result-voice-meadow" hidden><span class="result-voice-art" aria-hidden="true">${resultArt(happyMeadowArt, 'result-voice')}</span><p class="menu-intro result-meadow" data-text="result-meadow"></p></div><p class="result-why" data-text="result-why"></p><p class="result-tip" data-text="result-tip" hidden></p>
         <div class="result-harvest" role="group" aria-label="The day's harvest">
           <figure class="result-jar">${resultArt(cargoArt.nectar, 'result-nectar')}<figcaption><b data-text="result-nectar"></b><span data-text="result-nectar-label">Nectar brought home</span></figcaption></figure>
           <figure class="result-pouch">${resultArt(cargoArt.pollen, 'result-pollen')}<figcaption><b data-text="result-pollen"></b><span data-text="result-pollen-label">Pollen brought home</span></figcaption></figure>
@@ -562,7 +568,7 @@ export function createUI(actions: UIActions): GameUI {
     transition.style.setProperty('--ending-fade', failing ? String(percent((loss - .72) / .28, 1)) : fade);
     const meadowEnding = state.endingStage === 'meadow';
     text('ending-eyebrow', failing ? state.lossFromNight ? 'NIGHT FALLS ON THE MEADOW' : 'THE MEADOW FALLS QUIET' : meadowEnding ? 'THE DAY YOU LEAVE BEHIND' : 'A LITTLE HARVEST, BROUGHT HOME');
-    text('ending-caption', failing ? state.lossFromNight ? 'The last light slips away…' : 'Wings growing still…' : meadowEnding ? 'A meadow, alive together.' : 'Following the scent of home…');
+    text('ending-caption', failing ? state.lossFromNight ? 'The last light slips away…' : 'Wings growing still…' : 'Heading home…');
     text('closing-action', failing ? 'Continue' : 'Skip to totals');
     attribute(transition, 'aria-label', failing ? state.lossFromNight ? 'Nightfall in the meadow' : 'The end of a little life' : "The day's journey home");
     attribute(closingButton, 'aria-label', failing ? 'Skip to results' : 'Skip to totals');
@@ -636,11 +642,14 @@ export function createUI(actions: UIActions): GameUI {
     }
     attribute(reserveMark, 'transform', `translate(0 ${(80 - 52 * percent(nectarTotal, state.nectarCapacity)).toFixed(2)})`);
     text('home-distance', state.homeDistance.toFixed(1));
-    text('home-guidance', state.harvestReady ? 'Carry your harvest to the meadow edge.' : 'Gather nectar and pollen for the journey.');
+    text('home-guidance', state.harvestReady ? 'Carry your harvest to the meadow edge.' : state.headingHome ? 'Heading home early with what you carry.' : 'Gather nectar and pollen for the journey.');
+    text('return-ready-label', state.harvestReady ? 'YOUR HIVE IS CALLING' : 'HEADING HOME EARLY');
     compass.style.transform = `rotate(${state.homeBearing}rad)`;
-    show(homeReady, state.harvestReady && playing);
-    returnButton.disabled = !state.harvestReady;
-    show(homeMarker, state.harvestReady && playing && state.homeVisible);
+    const homeward = state.harvestReady || state.headingHome;
+    show(homeReady, homeward && playing);
+    // R works any time there is nectar for the flight; the button appears once homeward.
+    returnButton.disabled = !state.canHeadHome;
+    show(homeMarker, homeward && playing && state.homeVisible);
     homeMarker.style.left = `${state.homeX * 100}%`;
     homeMarker.style.top = `${state.homeY * 100}%`;
     show(flowerNote, state.phase === 'landed' && (leafPerch || onGround || !!state.flowerName));
@@ -682,9 +691,18 @@ export function createUI(actions: UIActions): GameUI {
     }
     if (state.phase === 'won' || state.phase === 'lost') {
       const won = state.phase === 'won';
-      text('result-eyebrow', won ? 'ONE SMALL BEE. ONE SUMMER DAY.' : state.lossFromNight ? 'DAYLIGHT RAN OUT' : state.lossFromHeat ? 'TOO MUCH SUN' : state.lossFromRain ? 'CAUGHT IN THE COLD RAIN' : 'AT THE END OF YOUR ENERGY');
-      text('result-title', won ? 'A day well spent.' : state.lossFromNight ? 'Night in the meadow.' : 'The meadow grows quiet.');
-      text('result-description', won ? 'Your little harvest is home. The meadow carries the rest of your day.' : state.lossFromNight ? 'Night fell before your harvest was ready for home. The flowers you helped still count. Next time, watch the sun: resting moves the day along.' : state.lossFromHeat ? 'The hot sun exhausted your bee’s energy. Next time, cool beneath a leaf or in dense grass; rest with stored nectar to recover.' : state.lossFromRain ? 'The cold rain exhausted your bee’s energy. Next time, shelter under a leaf and rest with stored nectar to recover.' : 'Your bee ran out of energy. Sip nectar along the way, and rest with a little stored nectar before your wings tire.');
+      // The day's tier: delivery and pollination (see day-report.ts). Losses keep
+      // their own words but still show what was gathered and pollinated.
+      const report = dayReport({ nectar: state.nectar, pollen: state.pollen, pollinatedBySpecies: state.pollinatedBySpecies, visited: state.visited, flowerTotal: state.flowerTotal });
+      resultPage.dataset.tier = won ? report.tier : 'lost';
+      text('result-meadow', won ? report.meadow : '');
+      show(el('.result-voice-meadow'), won);
+      text('result-why', report.why);
+      text('result-tip', won ? report.tip : '');
+      show(el('[data-text="result-tip"]'), won && !!report.tip);
+      text('result-eyebrow', won ? `DAY ${Math.max(1, state.dayNumber)} · ONE SMALL BEE` : state.lossFromNight ? 'DAYLIGHT RAN OUT' : state.lossFromHeat ? 'TOO MUCH SUN' : state.lossFromRain ? 'CAUGHT IN THE COLD RAIN' : 'AT THE END OF YOUR ENERGY');
+      text('result-title', won ? report.title : state.lossFromNight ? 'Night in the meadow.' : 'The meadow grows quiet.');
+      text('result-description', won ? report.queen : state.lossFromNight ? 'Night fell before your harvest was ready for home. The flowers you helped still count. Next time, watch the sun: resting moves the day along.' : state.lossFromHeat ? 'The hot sun exhausted your bee’s energy. Next time, cool beneath a leaf or in dense grass; rest with stored nectar to recover.' : state.lossFromRain ? 'The cold rain exhausted your bee’s energy. Next time, shelter under a leaf and rest with stored nectar to recover.' : 'Your bee ran out of energy. Sip nectar along the way, and rest with a little stored nectar before your wings tire.');
       text('result-score', String(Math.round(state.resultScore)));
       text('result-nectar-label', won ? 'Nectar brought home' : 'Nectar gathered');
       text('result-pollen-label', won ? 'Pollen brought home' : 'Pollen gathered');

@@ -306,6 +306,19 @@ h1 em { font-weight: 400; font-size: .93em; }
 .result-page { width: min(570px, 100%); text-align: center; padding: 29px 38px 27px; }
 .result-page h2 { font-size: 36px; max-width: 420px; margin: 11px auto 0; }
 .result-page .menu-intro { font-size: 14px; max-width: 380px; margin: 9px auto 0; line-height: 1.45; }
+/* The Queen's line with the bee, the meadow's with its flowers. */
+/* Both lines share one left edge, so the bee and the flowers line up. */
+.result-voice { display: flex; align-items: center; justify-content: flex-start; gap: 11px; width: min(420px, 100%); margin: 10px auto 0; text-align: left; }
+.result-voice + .result-voice { margin-top: 6px; }
+.result-page .result-voice .menu-intro { margin: 0; max-width: 370px; }
+.result-voice-art { flex: 0 0 auto; display: grid; place-items: center; width: 36px; }
+.result-voice-queen .result-voice-art { color: var(--rust); transform: rotate(-8deg); }
+.result-voice-queen .result-voice-art svg { width: 34px; height: 33px; }
+.result-voice-meadow .result-voice-art .meadow-art { width: 36px; height: auto; }
+.result-page.is-lost .result-voice { justify-content: center; text-align: center; }
+.result-page.is-lost .result-voice-art { display: none; }
+.result-why { max-width: 440px; margin: 9px auto 0; font-size: 11px; line-height: 1.45; letter-spacing: .01em; color: var(--muted); }
+.result-tip { max-width: 400px; margin: 6px auto 0; font: italic 13px/1.4 var(--serif); color: var(--rust); }
 .result-bee { position: absolute; top: 22px; right: 29px; color: var(--rust); transform: rotate(12deg); }
 .result-bee svg { width: 33px; height: 25px; }
 .result-harvest { display: grid; grid-template-columns: 1fr 1fr; gap: 21px; padding: 16px 27px 19px; }
