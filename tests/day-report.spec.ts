@@ -22,7 +22,7 @@ test('day tiers follow the delivery × pollination table', () => {
 test('day reports explain the tier and aim a tip at the weakest stat', () => {
   const fantastic = day(92, 140, 4, 5, 5);
   expect(fantastic.title).toBe('A fantastic day!');
-  expect(fantastic.why).toBe('All three flowers, 4 or more of each · 14 pollinated · Nectar jar brimming (92) · Pollen pouch full');
+  expect(fantastic.why).toBe('All three flowers, 4 or more of each · 14 pollinated · Nectar jar brimming (92%) · Pollen pouch full');
   expect(fantastic.tip).toBe('');
   const reasonable = day(50, 140, 2, 3, 0);
   expect(reasonable.meadow).toContain('The cornflowers missed you today');
@@ -31,7 +31,7 @@ test('day reports explain the tier and aim a tip at the weakest stat', () => {
   const okay = day(10, 30, 0, 0, 0);
   expect(okay.queen).toContain('small list');
   expect(okay.meadow).toContain('No flowers were pollinated');
-  expect(okay.why).toBe('No flowers pollinated · 10 of 45 nectar · 30 of 140 pollen');
+  expect(okay.why).toBe('No flowers pollinated · Jar 10% full · Pouch 21% full');
   expect(morningLine(2, 'okay')).toMatch(/^Day 2 · /);
   expect(morningLine(2, null)).toBe('');
 });
@@ -67,7 +67,7 @@ test('R heads home early and the partial delivery is judged at the hive', async 
   await page.keyboard.press('Space');
   await expect(page.locator('.result-page')).toBeVisible();
   await expect(page.locator('[data-text="result-title"]')).toHaveText('An okay day');
-  await expect(page.locator('[data-text="result-why"]')).toContainText('10 of 45 nectar');
+  await expect(page.locator('[data-text="result-why"]')).toContainText('Jar 10% full');
   await expect(page.locator('[data-text="result-tip"]')).toBeVisible();
   expect((await state()).report.tier).toBe('okay');
 });

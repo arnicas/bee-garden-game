@@ -86,7 +86,7 @@ test('single day light, aerial detail, homecoming, pause, mute, delivery and res
   expect(delivered.nectar).toBeCloseTo(before.nectar - accepted.returnFuel, 8);
   expect(delivered.pollen).toBe(140);
   expect(delivered.dayProgress).toBe(1);
-  await expect(page.locator('[data-text="result-nectar"]')).toHaveText(String(Math.floor(delivered.nectar)));
+  await expect(page.locator('[data-text="result-nectar"]')).toHaveText(`${Math.floor(delivered.nectar + 1e-6)}%`);
   await page.screenshot({ path: 'artifacts/day-ending-1/totals.png' });
   await page.setViewportSize({ width: 1024, height: 600 });
   await page.screenshot({ path: 'artifacts/day-ending-1/totals-small.png' });

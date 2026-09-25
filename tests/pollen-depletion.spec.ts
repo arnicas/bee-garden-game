@@ -100,7 +100,7 @@ for (const [id, species] of [[0, 'daisy'], [1, 'poppy'], [2, 'cornflower']] as c
     const empty = await flower(page, id), emptyState = await state(page);
     expect(empty.visiblePollen).toBe(0);
     expect(emptyState.pollen).toBeCloseTo((initialSupply - coatOnlyTaken) * .5, 5);
-    await expect(page.locator('[data-text="pollen"]')).toHaveText(`${Math.floor(emptyState.pollen + 1e-8)} / 140`);
+    await expect(page.locator('[data-text="pollen"]')).toHaveText(`${Math.floor(emptyState.pollen / 140 * 100 + 1e-6)}%`);
     await page.screenshot({ path: `artifacts/walking-forage-1/pollen/${species}-empty.png` });
     await page.keyboard.press('Space');
     await page.evaluate(id => window.__BEE_TEST__!.approachFlower(id), id);

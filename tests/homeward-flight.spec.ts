@@ -31,11 +31,13 @@ test('return requires the hive-facing edge, flight height and a balanced harvest
   }
   await expect(page.locator('[data-text="message"]')).toContainText('Space');
   await page.evaluate(() => window.__BEE_TEST__!.setPose([0, 4, 30], Math.PI, 0));
+  // Short of the goal, reaching the edge doesn't end the day by itself; the bee
+  // goes home early only after choosing to with R (see day-report.spec.ts).
   for (const cargo of [[49.9, 140, 70], [50, 139.9, 70], [50, 140, 0], [50, 35, 70]]) {
     await page.evaluate(([nectar, pollen, energy]) => window.__BEE_TEST__!.setCargo(nectar, pollen, energy), cargo);
-    await page.keyboard.press('r');
     expect((await state(page)).phase).toBe('flying');
     expect((await state(page)).harvestReady).toBe(false);
+    expect((await state(page)).canReturn).toBe(false);
   }
   // The outer part of the broad arrival zone is as valid as its center.
   await page.evaluate(() => {

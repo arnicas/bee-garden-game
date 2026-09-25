@@ -34,6 +34,9 @@ const ENERGY_PER_NECTAR = 3.5, SIP_ENERGY_RATE = 6;
 const REST_DURATION = 6, REST_DAY_RATE = 18;
 const LOSS_DURATION = 3.6, QUIET_LOSS_DURATION = 1.5;
 /** A fresh 32-bit seed for a new day's meadow or weather. */
+/** Modifier keys alone never wake the quiet view or count as activity, so
+ * system shortcuts (like Cmd+Shift+4 for a screenshot) leave a rest alone. */
+const MODIFIER_KEYS = new Set(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight']);
 const randomSeed = (): number => (Math.random() * 2 ** 32) >>> 0 || 1;
 
 // A forager leaves the hive with a little fuel, not a full tank: sipping on the
@@ -72,7 +75,7 @@ interface TestControl {
   webs(): { id: number; center: number[]; normal: number[]; radius: number; torn: boolean }[];
   setWebs(enabled: boolean): void;
 }
-declare global { interface Window { __BEE_TEST__?: TestControl; } }
+declare global { interface Window { __BEE_TEST__?: TestControl; beeGarden?: { screenshot(): void }; } }
 
 export class Garden {
   private renderer: THREE.WebGLRenderer;
@@ -268,6 +271,7 @@ export class Garden {
     this.fillLight = new THREE.PointLight('#fcdfa2', .08, 2.5, 2); this.camera.add(this.fillLight);
     this.ui = createUI({ start: () => this.begin(), explore: () => this.explore(), restart: () => this.begin(), resume: () => this.resume(), pause: () => this.pause(), toggleSound: () => this.audio.toggle(), toggleUV: () => { this.uv = !this.uv; }, returnHome: () => this.returnHome(), skipReturn: () => this.skipClosing(), toggleRest: () => this.toggleRest() });
     this.resetSupply(); this.bindInput(); this.resize(); this.updateWorld(0); this.updateView(0); this.installHooks();
+    window.beeGarden = { screenshot: () => this.saveScreenshot() };
     this.raf = requestAnimationFrame(this.tick);
   }
 
@@ -400,6 +404,11 @@ export class Garden {
     // Catch wake gestures before buttons, pointer lock, or flight controls.
     // Held-key repeats stay consumed until release; waking never launches a bee.
     window.addEventListener('keydown', e => {
+      // P saves a picture of the meadow without waking a resting bee.
+      if (e.code === 'KeyP' && !e.metaKey && !e.ctrlKey && !e.altKey && this.phase !== 'title') {
+        e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) this.saveScreenshot(); return;
+      }
+      if (MODIFIER_KEYS.has(e.code) || e.metaKey) return;
       if (this.quietHeldKeys.has(e.code) || this.wakeQuiet()) {
         if (e.code === 'Escape' && document.pointerLockElement === this.canvas) this.quietUnlockExpected = true;
         this.quietHeldKeys.add(e.code); e.preventDefault(); e.stopImmediatePropagation();
@@ -416,6 +425,7 @@ export class Garden {
       if (this.suppressQuietClick) { this.suppressQuietClick = false; e.preventDefault(); e.stopImmediatePropagation(); }
     }, { signal, capture: true });
     window.addEventListener('keydown', e => {
+      if (e.metaKey || e.code === 'MetaLeft' || e.code === 'MetaRight') return;
       if (this.closingHeldKeys.has(e.code)) { e.preventDefault(); return; }
       if (e.target instanceof HTMLButtonElement && (e.code === 'Space' || e.code === 'Enter')) return;
       if (['Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault();
@@ -623,7 +633,7 @@ export class Garden {
       else this.notify('The last light · Your harvest is ready. Follow the hive marker home.', 9);
     }
     const safePerch = this.phase === 'landed' && this.dayElapsed < DUSK_START && this.energy > 35 && this.chill < .18 && this.rainExposure < .05 && this.heat < .18 && this.heatExposure < .18;
-    const idle = safePerch && !this.keys.size && !this.quietHeldKeys.size && !this.mouseDown && !this.dragging && !this.drinking && !this.suppressQuietClick;
+    const idle = safePerch && ![...this.keys].some(code => !MODIFIER_KEYS.has(code)) && !this.quietHeldKeys.size && !this.mouseDown && !this.dragging && !this.drinking && !this.suppressQuietClick;
     this.quietAge = idle ? this.quietAge + dt : 0;
     this.restView.step(dt, this.quietAge >= SCENIC_AFTER, this.position, this.reducedMotion);
   }
@@ -1051,7 +1061,7 @@ export class Garden {
   private canReturn(): boolean { return this.phase === 'flying' && !this.landingAssist && !this.shelterAssist && this.atHomeEdge() && this.canHeadHome() && (this.harvestReady() || this.headingHome); }
   private returnHome(): void {
     if (this.phase !== 'flying' && this.phase !== 'landed') return;
-    if (!this.canHeadHome()) { this.notify(`You need ${HOME_RETURN_FUEL} nectar in your jar for the flight home.`, 5); return; }
+    if (!this.canHeadHome()) { this.notify(`You need a little nectar in your jar (${HOME_RETURN_FUEL}%) for the flight home.`, 5); return; }
     if (!this.harvestReady() && !this.headingHome) {
       this.headingHome = true;
       if (!this.atHomeEdge()) {
@@ -1187,7 +1197,7 @@ export class Garden {
     else if (this.target && this.position.distanceTo(this.target.center) < 3.5) hint = this.landingHint;
     if (edgeGust && this.phase === 'flying') hint = 'An outer gust is carrying you back toward the flowers';
     if (harvestReady && this.phase === 'flying' && !this.canLand && !edgeGust) hint = 'A good day’s work · You’re hauling a lot! Follow the hive marker home';
-    else if (this.headingHome && this.phase === 'flying' && !this.canLand && !edgeGust) hint = this.canHeadHome() ? 'Heading home early · Follow the hive marker' : `Heading home · You need ${HOME_RETURN_FUEL} nectar for the flight`;
+    else if (this.headingHome && this.phase === 'flying' && !this.canLand && !edgeGust) hint = this.canHeadHome() ? 'Heading home early · Follow the hive marker' : 'Heading home · You need a little nectar for the flight';
     if (this.landingAssist) hint = 'Settling onto the flower · Space to cancel';
     if (this.underLeaf) hint = this.weather.rain > .05 ? 'Shelter beneath a leaf · E to rest through the shower · Space to fly out' : 'Shelter beneath a leaf · E to rest · Space to fly out';
     if (this.onLeaf) hint = this.needsLeafShelter() ? (this.weather.rain > .05 ? 'Rain falls on the leaf · E to tuck underneath' : 'Hot sun on the leaf · E to tuck into shade') : 'A leafy perch · E to rest · Space to fly';
@@ -1213,7 +1223,7 @@ export class Garden {
       canReturn,
       wind: this.wind.length(), windBearing: this.yaw - Math.atan2(-this.wind.x, -this.wind.z), flightMode: this.flightMode, sheltered: !!this.underLeaf || this.position.y < 3.7, edgeGust,
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
-      flowerName: target ? NAMES[target.species] : '', flowerSpecies: target?.species ?? null, flowerNectar: (supply?.nectar ?? 0) * NECTAR_YIELD, flowerPollen: (supply?.pollen ?? 0) * POLLEN_YIELD,
+      flowerName: target ? NAMES[target.species] : '', flowerSpecies: target?.species ?? null, flowerNectar: (supply?.nectar ?? 0) * NECTAR_YIELD, flowerNectarMax: Math.max(...Object.values(NECTAR_SUPPLY)) * NECTAR_YIELD, flowerPollenMax: Math.max(...Object.values(POLLEN_SUPPLY)) * POLLEN_YIELD, flowerPollen: (supply?.pollen ?? 0) * POLLEN_YIELD,
       targetX: x, targetY: y, targetVisible, canLand: this.canLand, landing: !!(this.landingAssist || this.shelterAssist), canDrink: this.canDrink, drinking: this.drinking, satiated: this.satiated,
       dust: Math.min(1, Object.values(this.loose).reduce((a, b) => a + (b || 0), 0) * .55), pollinated: this.pollinated, visited: this.visited, flowerTotal: this.supplies.size,
       pollinatedBySpecies: this.pollinatedBySpecies,
@@ -1339,6 +1349,20 @@ export class Garden {
   }
   private leafWet = 0;
 
+  /** Saves the 3D view (without the HUD) as a PNG download: P, or
+   * beeGarden.screenshot() in the browser console. */
+  private saveScreenshot(): void {
+    this.renderer.render(this.scene, this.camera);
+    this.canvas.toBlob(blob => {
+      if (!blob) return;
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `bee-garden-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 2000);
+    }, 'image/png');
+  }
+
   // ---- Spider webs: flying or walking through one catches the bee. Tapping
   // Space or W (or holding either) pulls it free at an energy cost; a heavy load
   // makes that harder, very low energy easier. A web never ends the day itself.
@@ -1408,6 +1432,6 @@ export class Garden {
     this.nectarDrop.dispose(); this.energyWash.dispose(); this.renderer.dispose();
     this.homecoming.dispose();
     this.leafShelters.dispose(); this.rainFX.dispose(); this.flowerRain.dispose(); this.webs.dispose();
-    delete window.__BEE_TEST__; delete window.__THREE_GAME_TEST_HOOKS__; delete window.__THREE_GAME_DIAGNOSTICS__;
+    delete window.__BEE_TEST__; delete window.beeGarden; delete window.__THREE_GAME_TEST_HOOKS__; delete window.__THREE_GAME_DIAGNOSTICS__;
   }
 }

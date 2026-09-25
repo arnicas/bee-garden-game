@@ -50,6 +50,7 @@
 - [x] Add a total flower counter: the meadow heading shows "x/72 flowers visited" under the mood label (Quiet, Waking, Happy, All three happy).
 - [x] Vary the ending by how good the day was: four tiers (Fantastic, Good, Reasonable, Okay) from delivery (brimming / full / partial) × pollination (4+ of each kind / all three kinds / 3+ / fewer), each with a Queen line, a meadow line, a stats line and, on the lower tiers, one tip. `src/day-report.ts`.
 - [x] Head home at any time: R (with 5 nectar for the flight) shows the marker; arriving at the edge ends the day with a partial delivery. The harvest goal is now what a good day looks like, not the gate home.
+- [x] Percentages instead of raw amounts: jar and pouch on the HUD and results screen show % full (hive goal 45%). The flower panel shows small nectar/pollen bars on a shared scale (richest flower = full bar) so kinds compare at a glance; exact shares are in their labels for screen readers. Meadow points removed from the results screen.
 - [ ] Tune the tier thresholds (85 nectar, 4 of each, 3 pollinated) through play, and see how often each tier comes up.
 - [x] The lingering overhead meadow view reads as a rest: a curled sleeping bee with drifting z's and a small "Resting" caption in the lower left fades in and out with the camera, and also appears during the E rest (without moving the camera). Still under reduced motion.
 - [x] The sleeping bee visibly breathes: its striped body swells gently while the folded wings lift a little, on a slow 3.6-second cycle (still under reduced motion).

@@ -76,6 +76,7 @@ at 60% energy, so sipping its nectar is a good first step.
 | Pause / release mouse | Esc during play; losing focus or switching tabs also pauses |
 | Bee facts | Esc → Small wonders, or About bees on either results screen |
 | Sound | M or the speaker button |
+| Save a picture | P saves the 3D view (without the HUD) as a PNG; it doesn't wake a resting bee. `beeGarden.screenshot()` in the browser console does the same. System screenshot shortcuts (Cmd+Shift+4) no longer wake the quiet view either |
 | Skip a closing scene | Space, Enter, left-click the meadow or the skip button |
 | Wake the quiet view | Any key or click; the first gesture restores the view, so press again to act |
 
@@ -104,8 +105,12 @@ from the flower: it restores energy first, then puts the remainder in the jar.
 It works even when the jar is full if the bee still needs energy. With both
 full, the tongue curls away and sipping stops. Poppies offer pollen only.
 
-The HUD shows energy on a plate, nectar in a jar (capacity 100), and pollen in
-a pouch (capacity 140). The left flower panel shows remaining supplies and a
+The HUD shows energy on a plate, nectar in a jar and pollen in a pouch, each as
+a percentage (the jar holds 100 nectar, the pouch 140 pollen; the hive's nectar
+goal is the 45% mark). The results screen uses the same percentages. The left
+flower panel shows what the flower still offers as two small bars on one scale
+per resource: a fresh cornflower fills the nectar bar and a fresh poppy the
+pollen bar, so a daisy's bars sit about halfway. It also shows a
 short collection reminder. More cargo gradually slows flight. From about 60%
 full the bee wobbles, sags and strains: quick beats dip the view and deepen the
 wing hum, and a hint says to follow the hive marker home. Shift halves the

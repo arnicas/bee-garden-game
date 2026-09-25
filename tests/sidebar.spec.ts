@@ -50,7 +50,7 @@ test('stacked sidebar keeps the landing view clear and fits desktop windows', as
       expect(bounds.textFits).toBe(true);
       expect(bounds.overflow).toBe(false);
       await expect(page.getByRole('meter', { name: 'Nectar stored' })).toHaveAttribute('aria-valuemax', '100');
-      await expect(page.locator('[data-text="nectar-goal"]')).toHaveText('Hive goal 45');
+      await expect(page.locator('[data-text="nectar-goal"]')).toHaveText('Hive goal 45%');
       await page.screenshot({ path: `artifacts/cargo-art-1/${scene}-${size.width}.png`, animations: 'disabled' });
     }
   }
@@ -77,8 +77,8 @@ test('illustrated supplies show empty, low, partial and full states with keyboar
     await page.evaluate(({ nectar, pollen, energy }) => window.__BEE_TEST__!.setCargo(nectar, pollen, energy), { nectar, pollen, energy });
     await expect(page.getByRole('meter', { name: 'Energy', exact: true })).toHaveAttribute('aria-valuenow', String(energy));
     await expect(page.locator('[data-text="energy"]')).toHaveText(`${energy}%`);
-    await expect(page.locator('[data-text="nectar"]')).toHaveText(`${nectar} / 100`);
-    await expect(page.locator('[data-text="pollen"]')).toHaveText(`${pollen} / 140`);
+    await expect(page.locator('[data-text="nectar"]')).toHaveText(`${nectar}%`);
+    await expect(page.locator('[data-text="pollen"]')).toHaveText(`${Math.floor(pollen / 140 * 100 + 1e-6)}%`);
     const quantities = await page.evaluate(() => ({
       honey: Number(document.querySelector('[data-fill="nectar"]')!.getAttribute('height')),
       seeds: Number(document.querySelector('[data-fill="pollen"]')!.getAttribute('height')),
@@ -106,7 +106,7 @@ test('illustrated supplies show empty, low, partial and full states with keyboar
   await page.keyboard.press('Tab');
   await expect(page.getByRole('meter', { name: 'Nectar stored' })).toBeFocused();
   await expect(page.locator('#nectar-detail')).toBeVisible();
-  await expect(page.locator('[data-text="nectar-goal"]')).toHaveText('Hive goal 45');
+  await expect(page.locator('[data-text="nectar-goal"]')).toHaveText('Hive goal 45%');
   await page.screenshot({ path: 'artifacts/cargo-art-1/keyboard-detail.png', animations: 'disabled' });
   await page.keyboard.press('Tab');
   await expect(page.getByRole('meter', { name: 'Pollen collected' })).toBeFocused();
@@ -115,7 +115,7 @@ test('illustrated supplies show empty, low, partial and full states with keyboar
   // Over-goal pollen keeps the true total while the meter's range stays valid.
   await page.evaluate(() => window.__BEE_TEST__!.setCargo(100, 150, 70));
   await expect(page.getByRole('meter', { name: 'Pollen collected' })).toHaveAttribute('aria-valuenow', '140');
-  await expect(page.getByRole('meter', { name: 'Pollen collected' })).toHaveAttribute('aria-valuetext', '150 of 140 needed for the hive');
+  await expect(page.getByRole('meter', { name: 'Pollen collected' })).toHaveAttribute('aria-valuetext', '107 percent of what the hive needs');
   await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.setState('title'));
   await expect(page.locator('.cargo-bar')).toBeHidden();
   await expect(page.locator('#pollen-detail')).toBeHidden();

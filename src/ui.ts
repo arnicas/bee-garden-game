@@ -46,6 +46,8 @@ const resultArt = (source: string, prefix: string) => {
     .replaceAll('data-honey-surface', 'data-result-honey-surface')
     .replaceAll('class="reserve-mark"', 'class="result-reserve-mark"');
 };
+/** Whole percent of a container, never over 100. */
+const share = (value: number, max: number) => Math.floor(Math.max(0, Math.min(1, value / max)) * 100 + 1e-6);
 const flowerTypes = [ ['poppy', 'Poppy'], ['daisy', 'Daisy'], ['cornflower', 'Cornflower'] ] as const;
 const controls = [
   [key('W A S D'), 'Fly & walk<small>W follows your view</small>'],
@@ -99,7 +101,7 @@ export function createUI(actions: UIActions): GameUI {
       </div>
       <div class="flower-note" hidden>
         <span class="flower-number" data-text="flower-number">ON THE FLOWER</span><h2 data-text="flower-name"></h2>
-        <p class="flower-resources"><span>${icons.nectar}<b data-text="flower-nectar"></b> nectar</span><span>${icons.pollen}<b data-text="flower-pollen"></b> pollen</span></p>
+        <div class="flower-resources"><span class="supply supply-nectar">${icons.nectar}<span class="supply-bar" data-supply="nectar" role="img" aria-label="Nectar here"><i></i></span><small>nectar</small></span><span class="supply supply-pollen">${icons.pollen}<span class="supply-bar" data-supply="pollen" role="img" aria-label="Pollen here"><i></i></span><small>pollen</small></span></div>
         <p class="flower-guidance" data-text="flower-guidance" hidden></p>
         <p class="flower-forage" data-text="flower-forage" hidden></p>
         <p class="flower-pollinated" hidden>${flowerTypes.map(([species]) => `<span class="flower-pollinated-mark" data-flower-pollinated="${species}" hidden>${pollinationFlowers[species]}</span>`).join('')}<span>Pollinated by you</span></p>
@@ -131,12 +133,12 @@ export function createUI(actions: UIActions): GameUI {
       </div>
       <div class="cargo-meter nectar-meter" role="meter" tabindex="0" aria-label="Nectar stored" aria-valuemin="0" aria-describedby="nectar-detail">
         ${cargoArt.nectar}
-        <div class="meter-caption"><span>Nectar</span><b data-text="nectar">0 / 100</b></div>
+        <div class="meter-caption"><span>Nectar</span><b data-text="nectar">0%</b></div>
         <div class="meter-detail" id="nectar-detail" role="tooltip"><strong>A little sweetness</strong><span><span data-text="nectar-goal"></span> <span data-text="home-fuel"></span></span><small>The green mark shows how much you need to bring home.</small></div>
       </div>
       <div class="cargo-meter pollen-meter" role="meter" tabindex="0" aria-label="Pollen collected" aria-valuemin="0" aria-describedby="pollen-detail">
         ${cargoArt.pollen}
-        <div class="meter-caption"><span>Pollen</span><b data-text="pollen">0 / 140</b></div>
+        <div class="meter-caption"><span>Pollen</span><b data-text="pollen">0%</b></div>
         <div class="meter-detail" id="pollen-detail" role="tooltip"><strong>A pouch of sunshine</strong><span data-text="pollen-note">Gather as you crawl</span><small>Even with a full pouch, pollen on your legs can help more flowers.</small></div>
       </div>
     </section>
@@ -211,7 +213,7 @@ export function createUI(actions: UIActions): GameUI {
             ${flowerTypes.map(([species, name]) => `<div class="result-species-petal" data-result-species="${species}" role="img" aria-label="${name}: 0 flowers pollinated"><span class="petal-tally">${coveragePetals[species]}<b data-text="result-coverage-${species}">0</b></span><span class="petal-name">${name}</span></div>`).join('')}
           </div>
         </section>
-        <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl><div class="result-score"><b data-text="result-score"></b><span>MEADOW POINTS</span></div></div>
+        <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl></div>
         <div class="result-actions">
           <button class="primary-button" data-action="restart"><span data-text="restart-label">Play another day</span><span class="button-arrow">${icons.arrow}</span></button>
           <button class="result-info" data-action="result-facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts">About bees ${icons.arrow}</button>
@@ -273,6 +275,13 @@ export function createUI(actions: UIActions): GameUI {
   const target = el('.target-marker');
   const flowerNote = el('.flower-note');
   const flowerResources = el('.flower-resources');
+  const nectarBar = el('[data-supply="nectar"]'), pollenBar = el('[data-supply="pollen"]');
+  const supplyBar = (bar: HTMLElement, fraction: number, label: string) => {
+    const f = Math.max(0, Math.min(1, fraction || 0));
+    bar.style.setProperty('--supply', f.toFixed(3));
+    bar.classList.toggle('is-empty', f < .005);
+    if (bar.getAttribute('aria-label') !== label) bar.setAttribute('aria-label', label);
+  };
   const flowerGuidance = el('.flower-guidance');
   const flowerForage = el('.flower-forage');
   const restButton = el<HTMLButtonElement>('[data-action="rest"]');
@@ -591,10 +600,10 @@ export function createUI(actions: UIActions): GameUI {
     text('energy', `${Math.ceil(state.energy)}%`);
     text('feeding-status', resting ? 'Resting' : state.autoFeeding ? 'Eating' : state.drinking && state.energy < 99.5 ? 'Sipping' : '');
     text('energy-note', overheated ? (state.shaded ? 'Cooling in the shade · nectar restores energy' : 'Heat drains energy · rest beneath a leaf or in dense grass') : shelterBeneath ? 'Leaf tops are exposed · E tucks beneath' : state.chilled ? (underLeaf ? 'Warming under a leaf · nectar restores energy' : grassSheltered ? 'Warming in dense grass · nectar restores energy' : exposedToRain ? (onGround ? 'Rain reaches this patch · walk into denser grass' : 'Cold rain drains energy · seek a leaf or dense grass') : 'Dry air warms your wings · nectar restores energy') : exposedFlower ? 'Flowers are exposed · leaves and dense grass offer shelter' : onGround && exposedToRain ? 'Rain reaches this patch · denser grass keeps you dry' : resting ? (state.energy >= 99.5 ? 'Resting · your wings are ready' : state.nectar > 0 ? 'Resting with stored nectar · energy rising' : 'No stored nectar · rest alone cannot restore energy') : state.autoFeeding ? 'Eating stored nectar · energy rising' : state.drinking && state.energy < 99.5 ? 'Nectar is restoring your energy' : state.energy < 25 ? 'Find nectar. Rest your wings.' : state.phase === 'flying' && state.flightMode === 'steady' ? 'Working to hold against the wind' : state.phase === 'flying' && state.flightMode === 'riding' ? 'Riding the breeze saves energy' : state.energy < 55 ? 'Nectar will restore your energy' : 'Your wings are rested');
-    text('nectar', `${Math.floor(state.nectar)} / ${state.nectarCapacity}`);
-    text('nectar-goal', `Hive goal ${state.nectarGoal}`);
-    text('pollen', `${Math.floor(state.pollen + 1e-8)} / ${state.pollenGoal}`);
-    text('home-fuel', `+ ${Math.ceil(state.homeCost)} for home`);
+    text('nectar', `${share(state.nectar, state.nectarCapacity)}%`);
+    text('nectar-goal', `Hive goal ${share(state.nectarGoal, state.nectarCapacity)}%`);
+    text('pollen', `${share(state.pollen, state.pollenGoal)}%`);
+    text('home-fuel', `+ ${Math.round(state.homeCost / state.nectarCapacity * 100)}% for home`);
     text('pollen-note', state.pollen >= state.pollenGoal ? 'A lovely harvest for the hive' : 'Gather as you crawl');
     text('pollination-count', String(state.pollinated));
     text('pollination-count-label', state.pollinated === 1 ? 'flower pollinated' : 'flowers pollinated');
@@ -638,7 +647,7 @@ export function createUI(actions: UIActions): GameUI {
       const meter = meters[name];
       attribute(meter, 'aria-valuenow', String(Math.round(Math.min(value, max))));
       attribute(meter, 'aria-valuemax', String(max));
-      attribute(meter, 'aria-valuetext', name === 'energy' ? `${Math.ceil(value)} percent` : `${Math.floor(value)} of ${max}${name === 'pollen' ? ' needed for the hive' : ' capacity'}`);
+      attribute(meter, 'aria-valuetext', name === 'energy' ? `${Math.ceil(value)} percent` : name === 'pollen' ? `${Math.floor(value / max * 100 + 1e-6)} percent of what the hive needs` : `${share(value, max)} percent of the jar`);
     }
     attribute(reserveMark, 'transform', `translate(0 ${(80 - 52 * percent(nectarTotal, state.nectarCapacity)).toFixed(2)})`);
     text('home-distance', state.homeDistance.toFixed(1));
@@ -658,8 +667,10 @@ export function createUI(actions: UIActions): GameUI {
     text('flower-forage', state.flowerSpecies === 'poppy' ? 'Move to collect pollen.' : 'Move to collect pollen, F for nectar.');
     text('flower-number', onGround ? (grassSheltered ? 'A LITTLE SHELTER' : 'AT GROUND LEVEL') : underLeaf ? 'A LITTLE SHELTER' : onLeaf ? 'A LEAFY PERCH' : 'ON THE FLOWER');
     text('flower-name', onGround ? 'Among the grass' : underLeaf ? 'Under a leaf' : onLeaf ? 'On a leaf' : state.flowerName);
-    text('flower-nectar', `${Math.ceil(state.flowerNectar)}`);
-    text('flower-pollen', `${Math.ceil(state.flowerPollen)}`);
+    // What this flower still offers, on one scale per resource: the richest kind
+    // (cornflower nectar, poppy pollen) fills the bar, so differences show.
+    supplyBar(nectarBar, state.flowerNectar / state.flowerNectarMax, `Nectar here: ${Math.ceil(state.flowerNectar / state.nectarCapacity * 100 - 1e-6)}% of a jar`);
+    supplyBar(pollenBar, state.flowerPollen / state.flowerPollenMax, `Pollen here: ${Math.ceil(state.flowerPollen / state.pollenGoal * 100 - 1e-6)}% of a pouch`);
     const guidance = cooling ? 'Cooling in the shade. Nectar restores energy.' : overheated ? (shelterBeneath ? 'Hot sun falls here. E tucks into shade.' : 'Open to the hot sun. Leaves or dense grass offer shade.') : onGround ? (grassSheltered ? (state.chilled ? 'Your wings are warming. Nectar restores energy.' : 'Sheltered by the grass. Nectar restores energy.') : exposedToRain ? 'Rain reaches this patch. Denser grass offers shelter.' : 'A quiet place to rest. Stored nectar restores energy.') : underLeaf ? (state.chilled ? 'Shelter beneath a leaf. Your wings are warming.' : 'Shelter beneath a leaf') : onLeaf ? (shelterBeneath ? (state.rain > .05 ? 'Rain falls here. Tuck beneath to get dry.' : 'Hot sun falls here. E tucks into shade.') : 'A quiet perch. Stored nectar restores energy.') : exposedFlower ? 'Open to cold rain. Leaves or dense grass offer shelter.' : '';
     text('flower-guidance', guidance);
     show(flowerGuidance, !!guidance);
@@ -703,11 +714,10 @@ export function createUI(actions: UIActions): GameUI {
       text('result-eyebrow', won ? `DAY ${Math.max(1, state.dayNumber)} · ONE SMALL BEE` : state.lossFromNight ? 'DAYLIGHT RAN OUT' : state.lossFromHeat ? 'TOO MUCH SUN' : state.lossFromRain ? 'CAUGHT IN THE COLD RAIN' : 'AT THE END OF YOUR ENERGY');
       text('result-title', won ? report.title : state.lossFromNight ? 'Night in the meadow.' : 'The meadow grows quiet.');
       text('result-description', won ? report.queen : state.lossFromNight ? 'Night fell before your harvest was ready for home. The flowers you helped still count. Next time, watch the sun: resting moves the day along.' : state.lossFromHeat ? 'The hot sun exhausted your bee’s energy. Next time, cool beneath a leaf or in dense grass; rest with stored nectar to recover.' : state.lossFromRain ? 'The cold rain exhausted your bee’s energy. Next time, shelter under a leaf and rest with stored nectar to recover.' : 'Your bee ran out of energy. Sip nectar along the way, and rest with a little stored nectar before your wings tire.');
-      text('result-score', String(Math.round(state.resultScore)));
       text('result-nectar-label', won ? 'Nectar brought home' : 'Nectar gathered');
       text('result-pollen-label', won ? 'Pollen brought home' : 'Pollen gathered');
-      text('result-nectar', String(Math.floor(state.nectar)));
-      text('result-pollen', String(Math.floor(state.pollen + 1e-8)));
+      text('result-nectar', `${share(state.nectar, state.nectarCapacity)}%`);
+      text('result-pollen', `${share(state.pollen, state.pollenGoal)}%`);
       text('result-visited', String(state.visited));
       text('result-pollinated', String(state.pollinated));
       text('result-pollinated-label', state.pollinated === 1 ? 'flower pollinated' : 'flowers pollinated');

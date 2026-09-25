@@ -42,7 +42,7 @@ for (const species of ['daisy', 'poppy', 'cornflower'] as const) {
     expect(coated.forelegPollenColors[pollenColors[species]]).toBeGreaterThan(0);
     expect((await flowers(page)).find(f => f.id === donor.id)!.pollenFraction).toBeLessThan(1);
     await expect(page.locator('.goal-seal')).toHaveCount(0);
-    await expect(page.locator('[data-text="pollen"]')).toHaveText('140 / 140');
+    await expect(page.locator('[data-text="pollen"]')).toHaveText('100%');
     await page.screenshot({ path: `artifacts/foraging-balance-1/${species}-full-pouch.png` });
     await page.keyboard.press('q');
     await expect.poll(() => matches(page)).toContain(recipient.id);

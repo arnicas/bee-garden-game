@@ -14,6 +14,8 @@ export const REPORT_THRESHOLDS = {
   /** The hive's nectar goal, after the flight home. */
   nectarGoal: 45,
   pollenGoal: 140,
+  /** Jar capacity, for showing nectar as a share of the jar. */
+  nectarCapacity: 100,
   /** Delivered nectar for a "brimming" jar (the most possible is 95). */
   brimmingNectar: 85,
   /** Flowers of each kind for a "flourishing" meadow. */
@@ -81,7 +83,7 @@ export function dayReport(stats: DayStats): DayReport {
   const total = SPECIES.reduce((sum, species) => sum + (stats.pollinatedBySpecies[species] ?? 0), 0);
   const helped = SPECIES.filter(species => (stats.pollinatedBySpecies[species] ?? 0) > 0);
   const missing = SPECIES.filter(species => !helped.includes(species));
-  const nectar = Math.floor(stats.nectar), pollen = Math.floor(stats.pollen + 1e-6);
+  const pollen = Math.floor(stats.pollen + 1e-6);
 
   // Why: what was pollinated, then what came home.
   const why: string[] = [];
@@ -89,8 +91,9 @@ export function dayReport(stats: DayStats): DayReport {
   else if (pollination === 'allThree') why.push('All three flowers pollinated', `${total} pollinated`);
   else if (total > 0) why.push(`${total} pollinated (${list(helped.map(s => stats.pollinatedBySpecies[s] === 1 ? `a ${ONE[s]}` : MANY[s]))})`);
   else why.push('No flowers pollinated');
-  why.push(delivery === 'brimming' ? `Nectar jar brimming (${nectar})` : nectar >= t.nectarGoal ? `${nectar} nectar` : `${nectar} of ${t.nectarGoal} nectar`);
-  why.push(pollen >= t.pollenGoal ? 'Pollen pouch full' : `${pollen} of ${t.pollenGoal} pollen`);
+  const jar = Math.floor(Math.min(1, stats.nectar / t.nectarCapacity) * 100 + 1e-6), pouch = Math.floor(Math.min(1, stats.pollen / t.pollenGoal) * 100 + 1e-6);
+  why.push(delivery === 'brimming' ? `Nectar jar brimming (${jar}%)` : `Jar ${jar}% full`);
+  why.push(pollen >= t.pollenGoal ? 'Pollen pouch full' : `Pouch ${pouch}% full`);
 
   // One tip, aimed at what most held the day back.
   const pollinationTip = missing.length && total > 0

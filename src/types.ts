@@ -92,6 +92,9 @@ export interface ViewState {
   flowerSpecies: Species | null;
   flowerNectar: number;
   flowerPollen: number;
+  /** Usable nectar/pollen in a fresh flower of the richest kind, for the panel's bars. */
+  flowerNectarMax: number;
+  flowerPollenMax: number;
   targetX: number;
   targetY: number;
   targetVisible: boolean;

@@ -82,7 +82,7 @@ test('each nectar drop gives half the harvest while sipping still restores energ
   await perch(page, 0, 0, 60);
   await expect.poll(async () => (await state(page)).canDrink).toBe(true);
   await freeze(page, true);
-  await expect(page.locator('[data-text="flower-nectar"]')).toHaveText('13');
+  await expect(page.locator('[data-supply="nectar"]')).toHaveAttribute('aria-label', 'Nectar here: 13% of a jar');
   const before = await state(page);
   await page.keyboard.down('f');
   await freeze(page, false);
@@ -106,7 +106,8 @@ test('each nectar drop gives half the harvest while sipping still restores energ
   const empty = await state(page);
   expect(accounted(empty)).toBeCloseTo(13, 4);
   expect(empty.nectar).toBeLessThan(13); // Some of the smaller harvest fed the bee.
-  await expect(page.locator('[data-text="flower-nectar"]')).toHaveText('0');
+  await expect(page.locator('[data-supply="nectar"]')).toHaveAttribute('aria-label', 'Nectar here: 0% of a jar');
+  await expect(page.locator('[data-supply="nectar"]')).toHaveClass(/is-empty/);
   await mkdir('artifacts/harvest-yield-1', { recursive: true });
   await page.screenshot({ path: 'artifacts/harvest-yield-1/daisy-after-sipping.png' });
   await writeFile('artifacts/harvest-yield-1/nectar.json', JSON.stringify({ before, sipping, empty, usableNectar: accounted(empty) }, null, 2));
