@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import { dayReport, morningLine } from '../src/day-report';
-import { speciesMixAfter } from '../src/meadow-plan';
 import { startFlyingFixture } from './support/start';
 
 const day = (nectar: number, pollen: number, poppy: number, daisy: number, cornflower: number) =>
@@ -26,22 +25,14 @@ test('day reports explain the tier and aim a tip at the weakest stat', () => {
   expect(fantastic.tip).toBe('');
   const reasonable = day(50, 140, 2, 3, 0);
   expect(reasonable.meadow).toContain('The cornflowers missed you today');
-  expect(reasonable.tip).toBe('Tomorrow, carry cornflower pollen to another cornflower.');
+  expect(reasonable.tip).toBe('Next summer, carry cornflower pollen to another cornflower.');
   expect(day(40, 140, 0, 1, 0).why).toContain('1 pollinated (a daisy)');
   const okay = day(10, 30, 0, 0, 0);
   expect(okay.queen).toContain('small list');
   expect(okay.meadow).toContain('No flowers were pollinated');
   expect(okay.why).toBe('No flowers pollinated · Jar 10% full · Pouch 21% full');
-  expect(morningLine(2, 'okay')).toMatch(/^Day 2 · /);
+  expect(morningLine(2, 'okay')).toMatch(/^Summer 2 · /);
   expect(morningLine(2, null)).toBe('');
-});
-
-test('pollinated flowers come back in greater numbers the next day', () => {
-  expect(speciesMixAfter(null)).toEqual({ daisy: 1, poppy: 1, cornflower: 1 });
-  const mix = speciesMixAfter({ pollinatedBySpecies: { poppy: 0, daisy: 6, cornflower: 2 }, completed: true, tier: 'reasonable' });
-  expect(mix.daisy).toBeGreaterThan(mix.cornflower);
-  expect(mix.cornflower).toBeGreaterThan(mix.poppy);
-  expect(mix.poppy).toBeGreaterThanOrEqual(.5);
 });
 
 test('R heads home early and the partial delivery is judged at the hive', async ({ page }) => {

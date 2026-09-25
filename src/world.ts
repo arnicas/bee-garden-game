@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CarriedPollen, Flower, Meadow, Species } from './types';
 import { flowerFlex, flowerSwayAt, flowerSwayGLSL, windGLSL, windUniforms } from './wind';
 import { createGroundPaint } from './ground-paint';
-import { EVEN_MIX, type SpeciesMix } from './meadow-plan';
+import { EVEN_MIX, type FlowerSpot, type SpeciesMix } from './meadow-plan';
 
 /** Authored botanical geometry, in art units (one unit is about 10 cm).
  * Plant placement is immutable; head poses and a shared shader clock own wind.
@@ -407,7 +407,12 @@ function pickSpecies(u: number, mix: SpeciesMix): Species {
   return SPECIES[SPECIES.length - 1];
 }
 
-export function createMeadow(scene: THREE.Scene, seed = 7919, mix: SpeciesMix = EVEN_MIX): Meadow {
+/** The hand-placed opening flowers come first in every meadow and never change. */
+export const FIXED_FLOWERS = 6;
+
+/** Builds the meadow. Without `spots` the flowers are seeded evenly (the first
+ * summer); with them, each summer's planned layout is planted (see planNextSummer). */
+export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly FlowerSpot[] | null = null): Meadow {
   const root = new THREE.Group(); root.name = 'the living meadow'; scene.add(root);
   const random = rng(seed), clock = { value: 0 }, uvMode = { value: 0 };
   const petalMaterial = botanicalMaterial(clock, uvMode, true, false), plantMaterial = botanicalMaterial(clock, uvMode, false, false), grassMaterial = botanicalMaterial(clock, uvMode, false, true);
@@ -484,10 +489,11 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, mix: SpeciesMix = 
   plant('daisy', 0, -3.5, 3.4, 1.03); plant('poppy', 3, -7, 4.2, 1.05); plant('cornflower', -3, -6, 3.8, 0.98);
   // Deliberately composed near blooms, then seeded, spaced habitat records.
   plant('poppy', -3.7, -1.4, 3.0, 0.9); plant('daisy', 4.7, -0.8, 3.45, 0.86); plant('cornflower', 2.8, -11.5, 4.9, 0.89);
-  for (let attempt = 0; flowers.length < 72 && attempt < 6000; attempt++) {
+  if (spots) for (const spot of spots) plant(spot.species, spot.x, spot.z, spot.height, spot.radius);
+  else for (let attempt = 0; flowers.length < 72 && attempt < 6000; attempt++) {
     const angle = random() * TAU, radius = 5.8 + Math.sqrt(random()) * 17.5, x = Math.cos(angle) * radius, z = Math.sin(angle) * radius - 3;
     if (flowers.some(f => Math.hypot(f.base.x - x, f.base.z - z) < 2.05)) continue;
-    const species = pickSpecies(random(), mix);
+    const species = pickSpecies(random(), EVEN_MIX);
     plant(species, x, z, 2.8 + random() * 2.1, 0.68 + random() * 0.36);
   }
   const terrain = keep(new THREE.PlaneGeometry(180, 180, 96, 96)); terrain.rotateX(-Math.PI / 2);

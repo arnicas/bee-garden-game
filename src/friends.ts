@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { meadowGroundHeight, rng } from './world';
 import { leafPlanarDistance, leafSurfaceHeight, type LeafShelter } from './shelters';
 import type { Flower } from './types';
+import { countSpecies, friendCounts } from './meadow-plan';
 
 /**
  * Ladybirds, the first of the meadow friends: small, harmless, found by flying
@@ -12,7 +13,8 @@ import type { Flower } from './types';
  * to a nearby stem, and hold still when the bee is very close.
  * Aphids cluster on some stems just below the flower head (mostly cornflowers and poppies). A ladybird on
  * such a stem walks to the cluster and eats it down; untended clusters slowly
- * grow back. One instanced draw each for bodies, flying wings and aphids.
+ * grow back. How many clusters and ladybirds a meadow has follows its flowers
+ * (friendCounts in meadow-plan.ts). One instanced draw each for bodies, flying wings and aphids.
  */
 export type LadybirdPerch = 'stem' | 'leaf' | 'ground' | 'flying';
 export interface AphidCluster {
@@ -49,8 +51,6 @@ interface Bird extends Ladybird {
   eating: boolean;
 }
 
-const COUNT = 18;
-const CLUSTERS = 14;
 const APHIDS_PER_CLUSTER = 14;
 /** Eaten per second by one ladybird, and regrown per second when left alone. */
 const APHID_EAT_RATE = .03, APHID_REGROW_RATE = .004;
@@ -64,8 +64,10 @@ const SHY_DISTANCE = .6;
 export function createLadybirds(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[]) {
   const random = rng((seed ^ 0x1adb1d) >>> 0 || 11);
   const stems = flowers.filter(f => f.id !== 0);
+  // Fewer poppies and cornflowers mean fewer aphids; fewer aphids and daisies, fewer ladybirds.
+  const { aphidClusters, ladybirds: birdCount } = friendCounts(countSpecies(flowers));
   const birds: Bird[] = [];
-  for (let id = 0; id < COUNT && stems.length; id++) {
+  for (let id = 0; id < birdCount && stems.length; id++) {
     const roll = random();
     const perch: LadybirdPerch = roll < .55 || !leaves.length ? 'stem' : roll < .85 ? 'leaf' : 'ground';
     const flower = stems[Math.floor(random() * stems.length)];
@@ -94,7 +96,7 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
     const h = Math.max(.2, f.center.y - f.base.y);
     return THREE.MathUtils.clamp(1 - (f.radius * .45 + .06 + r * .05) / h, .45, .92);
   };
-  for (let id = 0; id < CLUSTERS && stems.length; id++) {
+  for (let id = 0; id < aphidClusters && stems.length; id++) {
     const pool = random() < .8 && hosts.length ? hosts : daisies.length ? daisies : stems;
     const flower = pool[Math.floor(random() * pool.length)];
     if (clusterOn.has(flower.id)) continue;

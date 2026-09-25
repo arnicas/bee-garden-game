@@ -23,6 +23,27 @@ export interface Meadow {
   update(time: number, cameraPosition: Vector3, uv: boolean, carriedPollen?: CarriedPollen): void;
   dispose(): void;
 }
+export interface SummerPreview {
+  now: Record<Species, number>;
+  next: Record<Species, number>;
+  ladybirds: number;
+  nextLadybirds: number;
+  /** 0 in the first summer. */
+  lastSummerLadybirds: number;
+}
+/** The start page of a new summer: how the meadow changed since the last one. */
+export interface SummerStart {
+  summer: number;
+  line: string;
+  before: Record<Species, number>;
+  after: Record<Species, number>;
+  /** The knock-on effect for aphids and ladybirds. */
+  friendsLine: string;
+  aphidsBefore: number;
+  aphidsAfter: number;
+  ladybirdsBefore: number;
+  ladybirdsAfter: number;
+}
 export interface ViewState {
   phase: Phase;
   dayProgress: number;
@@ -79,7 +100,12 @@ export interface ViewState {
   headingHome: boolean;
   /** Carries enough nectar for the flight home. */
   canHeadHome: boolean;
-  dayNumber: number;
+  /** Summers played this session (each round is one day that stands for a summer). */
+  summerNumber: number;
+  /** On the results screen: this summer's meadow and what next summer brings. */
+  summerPreview: SummerPreview | null;
+  /** On the start page from the second summer. */
+  summerStart: SummerStart | null;
   canReturn: boolean;
   wind: number;
   windBearing: number;

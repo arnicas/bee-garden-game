@@ -1,4 +1,5 @@
-import type { Species } from './types';
+import type { Species, SummerPreview } from './types';
+import { friendCounts, SPECIES_ORDER, trend, type SpeciesCounts } from './meadow-plan';
 
 /**
  * How a day at the hive is judged. Two ratings, delivery and pollination, pick
@@ -97,9 +98,9 @@ export function dayReport(stats: DayStats): DayReport {
 
   // One tip, aimed at what most held the day back.
   const pollinationTip = missing.length && total > 0
-    ? `Tomorrow, carry ${ONE[missing[0]]} pollen to another ${ONE[missing[0]]}.`
+    ? `Next summer, carry ${ONE[missing[0]]} pollen to another ${ONE[missing[0]]}.`
     : 'Pollen on your legs pollinates the next flower of the same kind.';
-  const deliveryTip = pollen < t.pollenGoal ? 'Tomorrow, fill your pollen pouch before heading home.' : 'Tomorrow, bring home a fuller nectar jar.';
+  const deliveryTip = pollen < t.pollenGoal ? 'Next summer, fill your pollen pouch before heading home.' : 'Next summer, bring home a fuller nectar jar.';
   const weakPollination = pollination === 'some' || pollination === 'few';
 
   const lines: Record<DayTier, Pick<DayReport, 'title' | 'queen' | 'meadow' | 'tip'>> = {
@@ -135,15 +136,56 @@ export function dayReport(stats: DayStats): DayReport {
   return { tier, delivery, pollination, ...lines[tier], why: capital(why.join(' · ')) };
 }
 
-/** The Queen's words the next morning, echoing how the day before ended. */
-export function morningLine(day: number, previous: DayTier | 'lost' | null): string {
-  const lead = `Day ${day} · `;
+/** The Queen's words at the start of a summer, echoing how the last one ended. */
+export function morningLine(summer: number, previous: DayTier | 'lost' | null): string {
+  const lead = `Summer ${summer} · `;
   switch (previous) {
-    case 'fantastic': return lead + 'The hive is still buzzing about yesterday. The Queen smiles as you set out.';
-    case 'good': return lead + 'The Queen nods as you leave. Another good day ahead?';
+    case 'fantastic': return lead + 'The hive is still buzzing about last summer. The Queen smiles as you set out.';
+    case 'good': return lead + 'The Queen nods as you leave. Another good summer ahead?';
     case 'reasonable': return lead + 'The Queen believes in you. The meadow has flowers waiting.';
-    case 'okay': return lead + 'The Queen is watching, kindly. The meadow could use your help today.';
-    case 'lost': return lead + 'The hive is glad you’re safe. Fly carefully today.';
+    case 'okay': return lead + 'The Queen is watching, kindly. The meadow could use your help this summer.';
+    case 'lost': return lead + 'The hive is glad of a new summer. Fly carefully.';
     default: return '';
   }
+}
+
+/** One short sentence on how the meadow changed since last summer, or ''. */
+export function meadowChangeLine(before: SpeciesCounts, after: SpeciesCounts): string {
+  const by = (kind: 'more' | 'fewer') => SPECIES_ORDER.filter(s => trend(before[s], after[s]) === kind)
+    .sort((a, b) => Math.abs(after[b] - before[b]) - Math.abs(after[a] - before[a]));
+  const grew = by('more'), thinned = by('fewer');
+  if (grew.length && thinned.length) return `${capital(MANY[grew[0]])} have spread, and the ${MANY[thinned[0]]} are sparse.`;
+  if (grew.length) return `${capital(MANY[grew[0]])} have spread where you worked last summer.`;
+  if (thinned.length) return `The ${MANY[thinned[0]]} are sparse this year.`;
+  return '';
+}
+
+/** The results screen's look ahead: which flowers and friends there will be more or fewer of. */
+export function nextSummerLine(preview: SummerPreview): string {
+  const more: string[] = [], fewer: string[] = [];
+  for (const s of SPECIES_ORDER) {
+    const t = trend(preview.now[s], preview.next[s]);
+    if (t === 'more') more.push(MANY[s]); else if (t === 'fewer') fewer.push(MANY[s]);
+  }
+  const bugs = trend(preview.ladybirds, preview.nextLadybirds);
+  if (bugs === 'more') more.push('ladybirds'); else if (bugs === 'fewer') fewer.push('ladybirds');
+  const parts = [more.length ? `more ${list(more)}` : '', fewer.length ? `fewer ${list(fewer)}` : ''].filter(Boolean);
+  return parts.length ? `Next summer: ${parts.join(', ')}.` : 'Next summer, the meadow will look much the same.';
+}
+
+/** The knock-on effect for the meadow friends: poppies and cornflowers feed the
+ * aphids, aphids and daisies feed the ladybirds. One sentence, or ''. */
+export function friendsChangeLine(before: SpeciesCounts, after: SpeciesCounts): string {
+  const was = friendCounts(before), now = friendCounts(after);
+  const aphids = trend(was.aphidClusters, now.aphidClusters), ladybirds = trend(was.ladybirds, now.ladybirds);
+  const daisies = trend(before.daisy, after.daisy);
+  if (ladybirds === 'fewer') return aphids === 'fewer'
+    ? 'Fewer poppies and cornflowers meant fewer aphids, so fewer ladybirds stayed.'
+    : 'With fewer daisies to fall back on, fewer ladybirds stayed.';
+  if (ladybirds === 'more') return aphids === 'more'
+    ? 'More poppies and cornflowers brought aphids, and more ladybirds came to eat them.'
+    : 'More daisies drew more ladybirds.';
+  if (aphids === 'fewer') return 'Fewer poppies and cornflowers meant fewer aphids for the ladybirds.';
+  if (aphids === 'more') return 'More poppies and cornflowers brought more aphids for the ladybirds.';
+  return daisies === 'fewer' ? 'The ladybirds have fewer daisies to fall back on.' : '';
 }

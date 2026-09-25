@@ -53,7 +53,7 @@ test('a quiet flower rest advances sunlight, spends stored nectar, pauses and fi
   await page.getByRole('button', { name: 'Back to the breeze', exact: true }).click();
   await expect.poll(async () => (await state(page)).restAge).toBeGreaterThan(3.2);
   await expect(page.locator('[data-text="day-label"]')).toContainText('MORNING');
-  await expect(page.locator('[data-action="rest"]')).toContainText('Resting a while');
+  await expect(page.locator('[data-action="rest"]')).toContainText('Resting · time passes');
   await page.screenshot({ path: 'artifacts/day-rest-1/resting.png' });
   const middle = await state(page);
   expect(middle.localPosition).toEqual(before.localPosition);
@@ -80,7 +80,7 @@ test('a quiet flower rest advances sunlight, spends stored nectar, pauses and fi
   expect((before.nectar - after.nectar) * 3.5 - (after.energy - before.energy)).toBeCloseTo(metabolicCost, 6);
   expect(elapsed).toBeLessThan(7.5);
   expect(after.supplies).toEqual(before.supplies);
-  await expect(page.locator('[data-action="rest"]')).toContainText('Rest a moment');
+  await expect(page.locator('[data-action="rest"]')).toContainText('Rest and pass time');
   await page.screenshot({ path: 'artifacts/day-rest-1/after-rest.png' });
   await page.setViewportSize({ width: 1024, height: 600 });
   await page.keyboard.press('e');

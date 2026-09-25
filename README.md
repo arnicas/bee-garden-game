@@ -149,7 +149,7 @@ Stored nectar automatically feeds a bee with low energy. A full nectar jar also
 starts a meal if energy needs topping up. **Rest does not create food**: a
 six-second E rest uses stored nectar to restore up to 36 energy while advancing
 daylight about 108 seconds. With no nectar, it only saves energy. The left-side
-label reads “Resting a while” and a small sleeping bee appears in the lower
+label reads “Resting · time passes” (before resting, “Rest and pass time”) and a small sleeping bee appears in the lower
 left during this state. E cancels it; looking around
 with arrow keys does not. No flower supplies are collected during rest.
 
@@ -254,15 +254,30 @@ Thresholds and wording live in [src/day-report.ts](src/day-report.ts). Not
 getting home (exhaustion or nightfall) keeps its own ending and advice, with
 the same stats line.
 
-Both results screens offer **About bees** and a new day. Days are counted
-through the session (restarting a day doesn't count). A new day resets
-supplies, cargo and pollination, rolls new weather and lays out a new meadow
-whose flower mix follows the day before: each kind's share is 0.75 + 0.1 per
-flower of it pollinated (kept between 0.5 and 1.8), so kinds you helped spread
-and kinds you skipped thin out, without ever disappearing
-(`speciesMixAfter()` in [src/meadow-plan.ts](src/meadow-plan.ts)). From the
-second day, leaving the first daisy brings a morning line from the Queen that
-echoes how the day before went. There is no persistent save yet.
+Each round is one day that stands for a whole **summer**. Both results screens
+retain gathered totals, look ahead to next summer ("Next summer: more poppies,
+fewer ladybirds.") and offer **About bees** and **Next summer**. A finished
+round, home or not, grows the next meadow from what was pollinated
+([src/meadow-plan.ts](src/meadow-plan.ts)):
+
+- Poppies and cornflowers are annuals: next summer's number follows how many
+  were pollinated (normal × (0.3 + 0.2 per pollinated), up to 1.8×), and
+  seedlings sprout where pollinated flowers stood, around them, and (most of
+  them) blown across the meadow, so it's denser where you worked without
+  splitting into patches.
+  Unpollinated ones leave gaps. A small seed bank brings a kind back, shrinking
+  after summers in a row with none pollinated, down to one flower.
+- Oxeye daisies are perennials: they keep their places and change about ±12%
+  a summer.
+- Aphid clusters follow the poppies and cornflowers; ladybirds follow the
+  aphids and daisies. The six opening flowers never change.
+
+Summers are counted through the session (restarting a round doesn't count, and
+keeps its meadow); each new one resets supplies, cargo and pollination and rolls
+new weather. From the second summer, leaving the first daisy brings a morning
+line from the Queen that echoes how the last one went and names how the meadow
+changed. There is no persistent save yet. Test pages
+(`?test`) keep one meadow; add `?summers` to let it change.
 
 ### Bee facts and accessibility
 
@@ -535,8 +550,8 @@ documented here, and the in-game facts and citations are kept in source.
 Current limits and follow-up work:
 
 - Desktop keyboard/trackpad play; iPhone/iPad controls and validation are deferred.
-- One outing per day, no saved progress, multiple delivery trips or queen/hive
-  metric. Multi-day play is next (see [TODO.md](TODO.md)).
+- One outing per summer, no saved progress, multiple delivery trips or queen/hive
+  metric. Summers are in progress (see [TODO.md](TODO.md)).
 - Pacing, weather costs, fuel availability and remaining HUD text need continued
   playtesting; open work is tracked in [TODO.md](TODO.md).
 - Gameplay shapes, pollen colors, energy costs, weather and time are stylized.

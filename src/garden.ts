@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { createMeadow, grassRainCover, meadowGroundHeight, rng } from './world';
-import { EVEN_MIX, speciesMixAfter, type DayOutcome, type SpeciesMix } from './meadow-plan';
-import { dayReport, morningLine, type DayReport } from './day-report';
+import { createMeadow, FIXED_FLOWERS, grassRainCover, meadowGroundHeight, rng } from './world';
+import { countSpecies, friendCounts, nextBadSummers, nextCounts, planNextSummer, type DayOutcome, type FlowerSpot, type PastFlower, type SpeciesCounts, type SummerPlan } from './meadow-plan';
+import { dayReport, friendsChangeLine, meadowChangeLine, morningLine, type DayReport } from './day-report';
 import { createUI } from './ui';
 import { createBeeRig } from './bee';
 import { createNectarDrop } from './nectar';
@@ -77,6 +77,8 @@ interface TestControl {
   setWebs(enabled: boolean): void;
   ladybirds(): { id: number; perch: string; position: number[]; up: number[]; seen: boolean }[];
   aphids(): { id: number; flowerId: number; population: number; position: number[]; facing: number[] }[];
+  /** Ends the summer as if these flowers were pollinated and grows the next meadow. */
+  nextSummer(pollinatedIds?: number[]): { counts: Record<Species, number>; badSummers: Record<Species, number>; gaps: number; ladybirds: number; aphidClusters: number };
 }
 declare global { interface Window { __BEE_TEST__?: TestControl; beeGarden?: { screenshot(): void }; } }
 
@@ -229,14 +231,23 @@ export class Garden {
   })();
   private seed = this.pinnedMeadowSeed ?? randomSeed();
   private dayPlayed = false;
-  /** Counts days played this session; the morning line names it. */
-  private dayNumber = 0;
+  /** Counts summers played this session; the morning line names it. */
+  private summerNumber = 0;
   /** The player chose to fly home before the harvest goal (R). */
   private headingHome = false;
   /** How the last day at the hive went (set when the bee gets home). */
   private report: DayReport | null = null;
   /** The last finished day, which shapes the next meadow's species mix. */
   private previousDay: DayOutcome | null = null;
+  /** Summers in a row with none of each kind pollinated (the seed bank shrinks). */
+  private badSummers: SpeciesCounts = { daisy: 0, poppy: 0, cornflower: 0 };
+  /** Flowers and ladybirds in last summer's meadow (null in the first summer). */
+  private lastSummerCounts: SpeciesCounts | null = null;
+  private lastSummerLadybirds = 0;
+  /** Where unpollinated annuals stood last summer, for dry stalks later. */
+  private meadowGaps: FlowerSpot[] = [];
+  /** ?test pins the meadow; ?summers lets it change between summers anyway. */
+  private summersInTest = new URLSearchParams(location.search).has('summers');
   private temp = new THREE.Vector3();
   private collisionPrevious = new THREE.Vector3();
   private inverseFlower = new THREE.Quaternion();
@@ -261,7 +272,7 @@ export class Garden {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.scene.add(this.camera);
     this.atmosphere = createAtmosphere(this.scene);
-    this.meadow = createMeadow(this.scene, this.seed, speciesMixAfter(this.previousDay));
+    this.meadow = createMeadow(this.scene, this.seed);
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
     this.rainFX = createRain(this.scene);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
@@ -294,10 +305,10 @@ export class Garden {
   }
   private notify(message: string, duration = 4): void { this.notice = message; this.noticeUntil = this.time + duration; }
   /** Replaces the meadow and everything built on its flowers. */
-  private rebuildMeadow(seed: number, mix: SpeciesMix): void {
+  private rebuildMeadow(seed: number, spots: readonly FlowerSpot[] | null): void {
     this.stopRest(); this.clearShelter(); this.leafShelters.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.ladybirds.dispose(); this.caughtWeb = null; this.seed = seed;
     this.pollinationFX.reset(); this.homecoming.dispose(); this.meadow.dispose();
-    this.meadow = createMeadow(this.scene, seed, mix);
+    this.meadow = createMeadow(this.scene, seed, spots);
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
     this.webs = createWebs(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
@@ -306,12 +317,44 @@ export class Garden {
     this.resetSupply(); this.landed = null; this.landingAssist = null;
   }
 
-  /** Every day after the first grows a new meadow, its species mix shaped by the
-   * day before (see speciesMixAfter). The first day keeps the title-screen meadow. */
+  /** A finished round (home or not) ends the summer, and the next meadow grows
+   * from what was pollinated (see planNextSummer). Restarting a round keeps the
+   * same meadow. The first summer keeps the title-screen meadow. */
   private nextMeadow(): void {
     if (!this.dayPlayed) { this.dayPlayed = true; return; }
+    const finished = this.phase === 'won' || this.phase === 'lost';
     this.previousDay = { pollinatedBySpecies: { ...this.pollinatedBySpecies }, completed: this.phase === 'won', tier: this.phase === 'won' ? this.report?.tier ?? null : this.phase === 'lost' ? 'lost' : null };
-    if (this.pinnedMeadowSeed === null) this.rebuildMeadow(randomSeed(), speciesMixAfter(this.previousDay));
+    if (finished && (this.pinnedMeadowSeed === null || this.summersInTest)) this.advanceSummer();
+  }
+  /** This summer's flowers, and which of them were pollinated. */
+  private pastFlowers(): PastFlower[] {
+    return this.meadow.flowers.map(f => ({ species: f.species, x: f.base.x, z: f.base.z, height: f.height, radius: f.radius, pollinated: this.supplies.get(f.id)?.pollinated ?? false }));
+  }
+  private advanceSummer(seed = randomSeed()): SummerPlan {
+    const past = this.pastFlowers();
+    const plan = planNextSummer({ fixed: past.slice(0, FIXED_FLOWERS), seeded: past.slice(FIXED_FLOWERS), badSummers: this.badSummers, random: rng(seed) });
+    this.badSummers = plan.badSummers; this.meadowGaps = plan.gaps;
+    this.lastSummerCounts = countSpecies(past); this.lastSummerLadybirds = this.ladybirds.diagnostics().count;
+    this.rebuildMeadow(seed, plan.spots);
+    return plan;
+  }
+  /** How the meadow changed since last summer, for the start page. */
+  private summerStart(): ViewState['summerStart'] {
+    if (!this.lastSummerCounts) return null;
+    const after = countSpecies(this.meadow.flowers);
+    return {
+      summer: this.summerNumber, line: meadowChangeLine(this.lastSummerCounts, after), before: this.lastSummerCounts, after,
+      friendsLine: friendsChangeLine(this.lastSummerCounts, after), aphidsBefore: friendCounts(this.lastSummerCounts).aphidClusters, aphidsAfter: this.ladybirds.aphids.length,
+      ladybirdsBefore: this.lastSummerLadybirds, ladybirdsAfter: this.ladybirds.diagnostics().count,
+    };
+  }
+  /** What next summer brings, from what has been pollinated so far. */
+  private summerPreview(): ViewState['summerPreview'] {
+    const past = this.pastFlowers(), fixed = countSpecies(past.slice(0, FIXED_FLOWERS));
+    const pollinated = countSpecies(past.filter(f => f.pollinated));
+    const seeded = nextCounts(countSpecies(past.slice(FIXED_FLOWERS)), pollinated, nextBadSummers(this.badSummers, pollinated));
+    const next = { daisy: seeded.daisy + fixed.daisy, poppy: seeded.poppy + fixed.poppy, cornflower: seeded.cornflower + fixed.cornflower };
+    return { now: countSpecies(past), next, ladybirds: this.ladybirds.diagnostics().count, nextLadybirds: friendCounts(next).ladybirds, lastSummerLadybirds: this.lastSummerLadybirds };
   }
 
   /** Each day gets its own showers, hot spell and wind timing and direction. */
@@ -325,7 +368,7 @@ export class Garden {
 
   private begin(showWelcome = true): void {
     // A finished day (home or not) moves the count on; restarting a day does not.
-    if (this.dayNumber === 0 || this.phase === 'won' || this.phase === 'lost') this.dayNumber++;
+    if (this.summerNumber === 0 || this.phase === 'won' || this.phase === 'lost') this.summerNumber++;
     this.nextMeadow();
     this.rollDayWeather();
     this.headingHome = false; this.report = null;
@@ -362,7 +405,7 @@ export class Garden {
     if (this.phase !== 'learning') return;
     this.phase = 'landed'; this.clearInput(); this.quietAge = 0;
     // From the second day, the Queen's words echo how the day before went.
-    const morning = this.dayNumber > 1 ? morningLine(this.dayNumber, this.previousDay?.tier ?? null) : '';
+    const morning = this.summerNumber > 1 ? morningLine(this.summerNumber, this.previousDay?.tier ?? null) : '';
     if (morning) this.notify(morning, 8);
     this.canvas.focus({ preventScroll: true });
     this.updateView(0);
@@ -1235,7 +1278,7 @@ export class Garden {
       cold: this.coldVignette(), chilled: this.chill > .1, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight,
       phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
       homeCost, homeDistance: distance * .1, homeBearing: this.yaw - Math.atan2(-(HOME_EXIT.x - this.position.x), -(HOME_EXIT.z - this.position.z)),
-      homeX, homeY, homeVisible, harvestReady, friendsFound: this.ladybirds.seenCount(), headingHome: this.headingHome, canHeadHome: this.canHeadHome(), dayNumber: this.dayNumber,
+      homeX, homeY, homeVisible, harvestReady, friendsFound: this.ladybirds.seenCount(), headingHome: this.headingHome, canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
       canReturn,
       wind: this.wind.length(), windBearing: this.yaw - Math.atan2(-this.wind.x, -this.wind.z), flightMode: this.flightMode, sheltered: !!this.underLeaf || this.position.y < 3.7, edgeGust,
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
@@ -1318,7 +1361,7 @@ export class Garden {
     // ordinary player flow. Real-input tests use snapshots only during play.
     if (!import.meta.env.DEV && !new URLSearchParams(location.search).has('test')) return;
     window.__THREE_GAME_TEST_HOOKS__ = {
-      seed: (value: number) => this.rebuildMeadow(value, EVEN_MIX),
+      seed: (value: number) => this.rebuildMeadow(value, null),
       setState: (name: string) => {
         const states = ['title', 'flight-start', 'active-play', 'windy', 'landed', 'uv', 'pollinated', 'complete', 'failed'];
         if (!states.includes(name)) throw new Error(`Unknown state: ${name}`);
@@ -1345,7 +1388,7 @@ export class Garden {
       hideDebugUi: (_value: boolean) => { /* No debug panels in the player interface. */ },
     };
     window.__BEE_TEST__ = {
-      snapshot: () => ({ pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), nectarSurface: this.nectarDrop.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, dayNumber: this.dayNumber, report: this.report, atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
+      snapshot: () => ({ pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), nectarSurface: this.nectarDrop.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
       setPose: (p, yaw = 0, pitch = -.35, velocity = [0, 0, 0]) => { this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.fromArray(p); this.previousPosition.copy(this.position); this.yaw = yaw; this.pitch = pitch; this.velocity.fromArray(velocity); },
       approachFlower: (id: number) => { const f = this.meadow.flowers.find(f => f.id === id); if (!f) throw new Error('Unknown flower'); this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.copy(f.center).add(new THREE.Vector3(0, .55, f.radius + .5)); this.previousPosition.copy(this.position); this.yaw = 0; this.pitch = -.32; this.velocity.set(0,0,0); this.takeoffCooldown = 0; },
       shelters: () => this.leafShelters.shelters.map(leaf => ({ id: leaf.id, center: leaf.center.toArray(), perch: leaf.perch.toArray(), topPerch: leaf.topPerch.toArray(), rotation: leaf.rotation.toArray(), root: leaf.root.toArray(), radius: leaf.radius })),
@@ -1359,6 +1402,11 @@ export class Garden {
       setQuietTime: value => { this.quietAge = Math.max(0, value); },
       setEndingTime: value => { if (this.phase === 'returning') this.returnAge = THREE.MathUtils.clamp(value, 0, this.reducedMotion ? QUIET_ENDING_DURATION : ENDING_DURATION); },
       webs: () => this.webs.webs.map(w => ({ id: w.id, center: w.center.toArray(), normal: w.normal.toArray(), radius: w.radius, torn: w.torn })),
+      nextSummer: (ids = []) => {
+        for (const id of ids) { const supply = this.supplies.get(id); if (supply) supply.pollinated = true; }
+        const plan = this.advanceSummer();
+        return { counts: countSpecies(this.meadow.flowers), badSummers: plan.badSummers, gaps: this.meadowGaps.length, ladybirds: this.ladybirds.diagnostics().count, aphidClusters: this.ladybirds.aphids.length };
+      },
       aphids: () => this.ladybirds.aphids.map(c => ({ id: c.id, flowerId: c.flowerId, population: c.population, position: c.position.toArray(), facing: c.facing.toArray() })),
       ladybirds: () => this.ladybirds.birds.map(b => ({ id: b.id, perch: b.perch, position: b.position.toArray(), up: b.up.toArray(), seen: b.seen })),
       setWebs: enabled => { this.websEnabled = enabled; this.webs.setVisible(enabled); if (!enabled) this.caughtWeb = null; },
