@@ -113,6 +113,8 @@ export class Garden {
     nectar: id => this.supplies.get(id)?.nectar ?? 0,
     sip: (id, amount) => { const supply = this.supplies.get(id); if (supply && this.butterfliesSip) supply.nectar = Math.max(0, supply.nectar - amount); },
     beeFlower: -1,
+    rain: 0,
+    sun: 1,
   };
   private butterflyTime = 0;
   /** The first-meeting note shows once per session; test pages skip it unless ?friends. */
@@ -295,7 +297,7 @@ export class Garden {
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
     this.webs = createWebs(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
     this.ladybirds = createLadybirds(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters);
-    this.butterflies = createButterflies(this.scene, this.seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers)).butterflies);
+    this.butterflies = createButterflies(this.scene, this.seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers)).butterflies, this.leafShelters.shelters);
     this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
     this.bee = createBeeRig(this.camera);
     this.energyWash = createEnergyWash(this.scene);
@@ -331,7 +333,7 @@ export class Garden {
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
     this.webs = createWebs(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
     this.ladybirds = createLadybirds(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters);
-    this.butterflies = createButterflies(this.scene, seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers)).butterflies);
+    this.butterflies = createButterflies(this.scene, seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers)).butterflies, this.leafShelters.shelters);
     this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
     this.resetSupply(); this.landed = null; this.landingAssist = null;
   }
@@ -1193,6 +1195,7 @@ export class Garden {
     // Butterflies sip real nectar, so they step with game time (still while paused).
     const butterflyDt = THREE.MathUtils.clamp(time - this.butterflyTime, 0, .1); this.butterflyTime = time;
     this.butterflyWorld.beeFlower = this.landed?.id ?? -1;
+    this.butterflyWorld.rain = this.weather.rain; this.butterflyWorld.sun = 1 - this.weather.cloudiness;
     this.butterflies.update(time, butterflyDt, this.position, this.reducedMotion, this.butterflyWorld);
     if (this.landed) this.position.copy(this.localPosition).applyQuaternion(this.landed.rotation).add(this.landed.center);
     if (this.underLeaf) this.position.copy(this.underLeaf.perch);

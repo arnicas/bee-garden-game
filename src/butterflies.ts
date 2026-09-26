@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { rng } from './world';
+import { meadowGroundHeight, rng } from './world';
 import { surfaceHeight } from './wind';
+import { leafSurfaceHeight, type LeafShelter } from './shelters';
 import type { Flower } from './types';
 
 /**
@@ -11,8 +12,15 @@ import type { Flower } from './types';
  * the flower's nectar drains a little, so a bee may find it emptier: a gentle
  * competition. They lift off when the bee comes close. How many live in the
  * meadow follows its daisies and cornflowers (friendCounts in meadow-plan.ts).
+ *
+ * Weather: in rain they stop flying (drops are heavy at their size and the air
+ * too cool) and shelter under the broad leaves or down in the grass, wings
+ * closed. When the rain stops they come out and bask, wings flat to the sun,
+ * before feeding again. Under heavy cloud they sit longer between flights.
+ * The male common blue's blue is structural (tiny scale ridges), so it has an
+ * angle-dependent sheen; females are brown.
  */
-export type ButterflyState = 'flying' | 'feeding';
+export type ButterflyState = 'flying' | 'feeding' | 'sheltering';
 export interface Butterfly {
   id: number;
   kind: number;
@@ -24,7 +32,9 @@ export interface Butterfly {
 
 /** Four familiar meadow species; their wings are painted in wingAtlas(). */
 export const BUTTERFLY_KINDS = ['common blue', 'meadow brown', 'small tortoiseshell', 'small white'] as const;
-const WING_KINDS = BUTTERFLY_KINDS.length;
+/** Atlas columns: the four species, plus the brown female common blue. */
+const WING_KINDS = 5;
+const FEMALE_BLUE = 4;
 /** The wing outline's box in shape units (x from the hinge, y forward). */
 const WING_BOX = { w: .21, y0: -.11, h: .24 };
 
@@ -116,6 +126,15 @@ export function wingAtlas(outline: THREE.Vector2[]): THREE.CanvasTexture {
     [() => { wash('#e9e5d6', '#fbf9f1'); grain('#c9c4b2', 140); blob(.185, .11, .075, '70,66,62', .85, .5); dot(.13, .075, .012, '#3b3733'); blob(.02, 0, .1, '150,146,138', .35, .3); veins('#b7b2a3', .25); border('#e3dfcf', 4, '#fbf9f1'); },
      () => { wash('#f2efdf', '#f7f3e3'); blob(.08, -.05, .2, '236,226,168', .95, .55); blob(.18, .105, .07, '236,226,168', .9, .5); dot(.12, .07, .01, '#57524b'); grain('#b9b08a', 160); veins('#cfc8ad', .25); border('#ece6c9', 4, '#fbf9f1'); }],
   ];
+  // Female common blue: brown above, dusted blue near the body, orange spots
+  // along the border; the same underside as the male.
+  painters.push([
+    () => { wash('#5b4432', '#86664a'); blob(.03, 0, .16, '98,122,196', .5, .3); grain('#3e2d20');
+      along(fore[0] + 2, fore[1], 5, .018, (u, v) => dot(u, v, .012, '#e5903c'));
+      along(hind[0], hind[1], 6, .02, (u, v) => dot(u, v, .016, '#e5903c'));
+      veins('#3e2d20', .25); border('#3a2b20', 12, '#f3efe4'); },
+    painters[0][1],
+  ]);
   painters.forEach(([upper, under], kind) => {
     for (const [side, paint] of [[0, upper], [1, under]] as const) {
       ox = kind * cell; oy = side * cell; seed = 17 + kind * 31 + side * 7;
@@ -163,9 +182,21 @@ export function createButterflyMeshes(capacity: number, size = 1) {
       // The left wing is turned half over, so its upper side is the back face.
       bool upper = gl_FrontFacing != (vMirror > .5);
       vec2 atlasUv = vec2((clamp(vWingUv.x, .002, .998) + vKind) * ${(1 / WING_KINDS).toFixed(4)}, (clamp(vWingUv.y, .002, .998) + (upper ? 1. : 0.)) * .5);
-      diffuseColor *= texture2D(map, atlasUv);`);
+      diffuseColor *= texture2D(map, atlasUv);
+      bool blueSheen = upper && vKind < .5;`).replace('#include <opaque_fragment>', `
+      // Structural blue: a sheen that brightens and shifts toward violet at
+      // grazing angles, and glints when the wing tilts to the sun.
+      if (blueSheen) {
+        float facing = abs(dot(normal, normalize(vViewPosition)));
+        float sheen = pow(1. - facing, 1.6) * .3;
+        #if NUM_DIR_LIGHTS > 0
+          sheen += pow(max(dot(normal, normalize(directionalLights[0].direction + normalize(vViewPosition))), 0.), 20.) * .8;
+        #endif
+        outgoingLight += mix(vec3(.3, .48, 1.), vec3(.55, .38, 1.), 1. - facing) * sheen;
+      }
+      #include <opaque_fragment>`);
   };
-  wingMaterial.customProgramCacheKey = () => 'butterfly-wing-atlas-v1';
+  wingMaterial.customProgramCacheKey = () => 'butterfly-wing-atlas-v2';
   const wings = new THREE.InstancedMesh(wingGeometry, wingMaterial, Math.max(1, capacity * 2));
   const kinds = new Float32Array(Math.max(1, capacity * 2)), mirrors = new Float32Array(Math.max(1, capacity * 2));
   for (let i = 1; i < mirrors.length; i += 2) mirrors[i] = 1;
@@ -231,6 +262,10 @@ interface Flier extends Butterfly {
   feedLeft: number; perchAngle: number; perchYaw: number;
   /** The petal height under its feet, measured once per flower. */
   perchFlower: Flower | null; perchHeight: number;
+  /** Where it waits out rain: under a leaf (leaf-local x, z) or down in the grass. */
+  shelter: { leaf: LeafShelter | null; x: number; z: number; grass: THREE.Vector3 } | null;
+  /** Seconds left basking with wings open after rain. */
+  baskLeft: number; baskNext: boolean;
   rotation: THREE.Quaternion;
 }
 
@@ -241,9 +276,12 @@ export interface ButterflyWorld {
   sip(flowerId: number, amount: number): void;
   /** A flower the bee is on, which butterflies leave to her (-1 for none). */
   beeFlower: number;
+  /** 0–1 rain, and 0–1 sunshine (1 - cloudiness). */
+  rain: number;
+  sun: number;
 }
 
-export function createButterflies(scene: THREE.Scene, seed: number, flowers: readonly Flower[], count: number) {
+export function createButterflies(scene: THREE.Scene, seed: number, flowers: readonly Flower[], count: number, leaves: readonly LeafShelter[] = []) {
   const random = rng((seed ^ 0xb077e9f1) >>> 0 || 13);
   const meshes = createButterflyMeshes(count);
   scene.add(meshes.wings, meshes.bodies);
@@ -299,20 +337,45 @@ export function createButterflies(scene: THREE.Scene, seed: number, flowers: rea
     f.bend.y = Math.max(f.from.y, target.y) + 1 + f.random() * 2;
     f.duration = Math.max(2, f.from.distanceTo(target) / FLIGHT_SPEED + 1);
   }
+  const shelterLocal = new THREE.Vector3(), flip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
+  /** Hanging under a leaf (feet on its underside), or perched low in the grass. */
+  const shelterPoint = (f: Flier, out: THREE.Vector3) => {
+    const s = f.shelter!;
+    if (!s.leaf) return out.copy(s.grass);
+    shelterLocal.set(s.x, leafSurfaceHeight(s.x, s.z) - LEG_REACH - .012, s.z);
+    return out.copy(shelterLocal).applyQuaternion(s.leaf.rotation).add(s.leaf.center);
+  };
+  /** Rain: hurry to the nearest broad leaf (or the grass if none is near). */
+  function seekShelter(f: Flier) {
+    let leaf: LeafShelter | null = null, best = 12;
+    for (const l of leaves) { const d = l.center.distanceTo(f.position); if (d < best) { best = d; leaf = l; } }
+    const a = f.random() * Math.PI * 2, r = .12 + f.random() * .2;
+    const grass = new THREE.Vector3(f.position.x + (f.random() - .5) * 3, 0, f.position.z + (f.random() - .5) * 3);
+    grass.y = meadowGroundHeight(grass.x, grass.z) + .22 + f.random() * .12;
+    f.shelter = { leaf, x: Math.cos(a) * r * .7, z: Math.sin(a) * r, grass };
+    f.flower = null; f.state = 'flying'; f.from.copy(f.position); f.t = 0;
+    const target = shelterPoint(f, temp);
+    f.bend.copy(f.from).lerp(target, .5); f.bend.y = Math.max(f.from.y, target.y) + .4;
+    f.duration = Math.max(1, f.from.distanceTo(target) / (FLIGHT_SPEED * 1.6) + .5);
+    f.perchYaw = f.random() * Math.PI * 2;
+  }
 
   for (let id = 0; id < count && nectarFlowers.length; id++) {
     const f: Flier = {
-      id, kind: Math.floor(random() * BUTTERFLY_KINDS.length), state: 'feeding', flower: null, position: new THREE.Vector3(), seen: false,
+      id, kind: 0, state: 'feeding', flower: null, position: new THREE.Vector3(), seen: false,
       random: rng((seed + id * 7919) >>> 0 || 3), phase: random() * 10,
       from: new THREE.Vector3(), bend: new THREE.Vector3(), t: 0, duration: 1,
       feedLeft: 0, perchAngle: random() * Math.PI * 2, perchYaw: random() * Math.PI * 2, rotation: new THREE.Quaternion(), perchFlower: null, perchHeight: 0,
+      shelter: null, baskLeft: 0, baskNext: false,
     };
+    // About half the common blues are brown females.
+    f.kind = Math.floor(random() * BUTTERFLY_KINDS.length); if (f.kind === 0 && random() < .5) f.kind = FEMALE_BLUE;
     meshes.setKind(id, f.kind);
     fliers.push(f);
   }
   function place() {
     for (const f of fliers) {
-      f.flower = null; f.seen = false;
+      f.flower = null; f.seen = false; f.shelter = null; f.baskLeft = 0; f.baskNext = false;
       const flower = chooseFlower(f, null);
       if (flower && f.random() < .6) {
         f.flower = flower; f.state = 'feeding'; f.feedLeft = 4 + f.random() * 14;
@@ -327,26 +390,42 @@ export function createButterflies(scene: THREE.Scene, seed: number, flowers: rea
   place();
 
   const update = (time: number, dt: number, bee: THREE.Vector3, reduced: boolean, world: ButterflyWorld) => {
+    const wet = world.rain > .08, dry = world.rain < .03;
     for (const f of fliers) {
       let open: number;
-      if (f.state === 'feeding' && f.flower) {
+      if (wet && !f.shelter) seekShelter(f);
+      if (f.state === 'sheltering') {
+        // Out again once the rain has passed, each in its own time; it basks first.
+        if (dry && !reduced && f.random() < dt * .4) { f.shelter = null; f.baskNext = true; takeOff(f, world); }
+      }
+      if (f.state === 'sheltering' && f.shelter) {
+        shelterPoint(f, f.position);
+        yawTurn.setFromAxisAngle(up, f.perchYaw);
+        if (f.shelter.leaf) f.rotation.copy(f.shelter.leaf.rotation).multiply(flip).multiply(yawTurn);
+        else f.rotation.copy(yawTurn);
+        open = 1.42;
+      } else if (f.state === 'feeding' && f.flower) {
         const flower = f.flower;
         if (!reduced) f.feedLeft -= dt;
         const tooClose = bee.distanceTo(f.position) < SHY_DISTANCE || flower.id === world.beeFlower;
         if (world.nectar(flower.id) > 0 && dt > 0) world.sip(flower.id, Math.min(world.nectar(flower.id), SIP_RATE * dt));
+        // Under heavy cloud it often sits a while longer (too cool to fly far).
+        if (!reduced && f.feedLeft <= 0 && world.sun < .3 && !tooClose && f.random() < .6) f.feedLeft = 6 + f.random() * 8;
+        if (f.baskLeft > 0 && !reduced) f.baskLeft -= dt;
         if (!reduced && (f.feedLeft <= 0 || tooClose || world.nectar(flower.id) <= .05)) takeOff(f, world);
         perchPoint(f, flower, f.position);
         // Sit on the flower's surface, facing its own way; wings mostly closed,
         // now and then opened flat to bask.
         yawTurn.setFromAxisAngle(up, f.perchYaw);
         f.rotation.copy(flower.rotation).multiply(yawTurn);
-        const bask = reduced ? 0 : Math.max(0, Math.sin(time * .45 + f.phase)) ** 3;
-        open = 1.35 - 1.2 * bask + (reduced ? 0 : Math.sin(time * 2.2 + f.phase) * .06);
+        const bask = f.baskLeft > 0 ? 1 : reduced ? 0 : Math.max(0, Math.sin(time * .45 + f.phase)) ** 3 * Math.min(1, world.sun * 1.5);
+        open = 1.35 - 1.28 * bask + (reduced ? 0 : Math.sin(time * 2.2 + f.phase) * .06);
       } else {
         // The bee (or another butterfly) got there first: pick another flower from here.
         if (f.flower && (f.flower.id === world.beeFlower || busy(f.flower, f))) takeOff(f, world);
-        f.t = Math.min(1, f.t + (reduced ? 0 : dt / f.duration));
-        const target = f.flower ? perchPoint(f, f.flower, temp) : temp.copy(f.bend).setY(f.bend.y - 1);
+        // With reduced motion, a butterfly heading for shelter is simply there.
+        f.t = Math.min(1, f.t + (reduced ? (f.shelter ? 1 : 0) : dt / f.duration));
+        const target = f.shelter ? shelterPoint(f, temp) : f.flower ? perchPoint(f, f.flower, temp) : temp.copy(f.bend).setY(f.bend.y - 1);
         const t = f.t, u = 1 - t;
         previous.copy(f.position);
         f.position.copy(f.from).multiplyScalar(u * u).addScaledVector(f.bend, 2 * u * t).addScaledVector(target, t * t);
@@ -356,8 +435,12 @@ export function createButterflies(scene: THREE.Scene, seed: number, flowers: rea
         f.position.x += Math.sin(time * 2.9 + f.phase * 2) * .22 * wander;
         f.position.z += Math.cos(time * 2.3 + f.phase) * .22 * wander;
         if (f.t >= 1) {
-          if (f.flower) { f.state = 'feeding'; f.feedLeft = 8 + f.random() * 12; }
-          else takeOff(f, world);
+          if (f.shelter) f.state = 'sheltering';
+          else if (f.flower) {
+            f.state = 'feeding'; f.feedLeft = 8 + f.random() * 12;
+            // First stop after rain: open the wings to the sun and warm up.
+            if (f.baskNext) { f.baskNext = false; f.baskLeft = 6 + f.random() * 6; f.feedLeft = Math.max(f.feedLeft, f.baskLeft + 4); }
+          } else takeOff(f, world);
         }
         temp.subVectors(f.position, previous);
         if (temp.lengthSq() > 1e-8) {
@@ -383,7 +466,7 @@ export function createButterflies(scene: THREE.Scene, seed: number, flowers: rea
     markSeen(id: number) { const f = fliers[id]; if (f) f.seen = true; },
     seenCount() { return fliers.filter(f => f.seen).length; },
     reset() { place(); },
-    diagnostics() { return { count: fliers.length, seen: fliers.filter(f => f.seen).length, feeding: fliers.filter(f => f.state === 'feeding').length, onPoppies: fliers.filter(f => f.state === 'feeding' && f.flower?.species === 'poppy').length }; },
+    diagnostics() { return { count: fliers.length, seen: fliers.filter(f => f.seen).length, feeding: fliers.filter(f => f.state === 'feeding').length, sheltering: fliers.filter(f => f.state === 'sheltering').length, onPoppies: fliers.filter(f => f.state === 'feeding' && f.flower?.species === 'poppy').length }; },
     dispose() { scene.remove(meshes.wings, meshes.bodies); meshes.dispose(); },
   };
 }

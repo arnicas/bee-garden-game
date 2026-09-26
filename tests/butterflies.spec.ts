@@ -32,3 +32,19 @@ test('butterflies sip only from daisies and cornflowers, a visit drains nectar, 
   await expect(page.locator('[data-text="message"]')).toContainText('butterfly');
   expect(errors).toEqual([]);
 });
+
+test('in rain butterflies shelter under leaves or in the grass, and come out after', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/?test');
+  await startFlyingFixture(page);
+  await page.evaluate(() => { window.__THREE_GAME_TEST_HOOKS__!.setPausedForScreenshot(false); window.__BEE_TEST__!.setDayProgress(.35); });
+  const snapshot = async () => ((await page.evaluate(() => window.__BEE_TEST__!.snapshot())) as Record<string, any>).butterflies;
+  const count = (await snapshot()).count;
+  await expect.poll(async () => (await snapshot()).sheltering, { timeout: 15000 }).toBe(count);
+  expect((await page.evaluate(() => window.__BEE_TEST__!.butterflies())).every(b => b.state === 'sheltering')).toBe(true);
+  // The shower clears: out they come.
+  await page.evaluate(() => window.__BEE_TEST__!.setDayProgress(.455));
+  await expect.poll(async () => (await snapshot()).sheltering, { timeout: 15000 }).toBe(0);
+  expect(errors).toEqual([]);
+});
