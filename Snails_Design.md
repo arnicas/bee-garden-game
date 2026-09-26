@@ -97,14 +97,15 @@ Build it the same way as `friends.ts` and `butterflies.ts`:
 4. Trails.
 5. Meeting a snail, the note, and the results row.
 6. Summers: `friendCounts`, the start-page cell and sentence, and snails clearing the dry stalks (once the gaps are drawn).
+7. Optional: resting on a snail's shell (see below).
 
 ## Open questions for Lynn
 
-Decided 2026-09-26: one kind (the banded snail), and snails eat dead plant matter only.
-
-Still open:
-1. **Could the bee rest on a snail's shell?** A slow ride would be a charming Small wonders moment, but it's extra work.
-2. **Slugs:** leave them out? I'd say yes.
+Decided 2026-09-26:
+- One kind, the banded snail.
+- Snails eat dead plant matter only.
+- No slugs.
+- Resting on a snail's shell: yes, if it turns out easy. It would be a last, optional step (7). The bee would land on a crawling snail's shell the way it lands on a leaf top: a moving perch that carries her slowly along, with E to rest there. The leaf-top landing code already handles a perch that moves, so this is mostly adding a new kind of landing target. If it gets fiddly, it waits.
 
 ## Sources
 

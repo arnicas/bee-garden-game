@@ -4,7 +4,7 @@ import { walkForPollen } from './support/foraging';
 
 test.use({ viewport: { width: 1280, height: 720 } });
 const state = (page: Page) => page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Promise<Record<string, any>>;
-const guide = (page: Page) => page.getByRole('dialog', { name: 'Your day begins on a flower.' });
+const guide = (page: Page) => page.getByRole('dialog', { name: 'Your summer day begins on a flower.' });
 
 test('flower-first guide is readable, safe to try keys in, and leaves the bee on its petal', async ({ page }) => {
   const errors: string[] = [];

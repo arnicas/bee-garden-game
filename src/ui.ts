@@ -161,14 +161,14 @@ export function createUI(actions: UIActions): GameUI {
     <section class="title-screen" aria-labelledby="game-title">
       <div class="title-bee">${icons.bee}</div>
       <h1 id="game-title">Bee<br><em>Garden</em><span class="title-star">✳</span></h1>
-      <p class="title-subtitle">A little life in a<br>wildflower meadow.</p>
+      <p class="title-subtitle">A summer in a day —<br>Feed the hive and the meadow, and shape the next summer day.</p>
       <button class="primary-button start-button" data-action="start"><span>Take flight</span><span class="button-arrow">${icons.arrow}</span></button>
     </section>
     <div class="title-footer"><span>A MEADOW STUDY <i>—</i> No. 01</span></div>
     <section class="learning-overlay" hidden>
       <div class="learning-page" role="dialog" aria-modal="true" aria-labelledby="learning-title" aria-describedby="learning-goals">
         <div class="learning-flower">${pollinationFlowers.daisy}</div>
-        <h2 id="learning-title" tabindex="-1">Your day begins on a flower.</h2>
+        <h2 id="learning-title" tabindex="-1">Your summer day begins on a flower.</h2>
         <section class="learning-summer" aria-label="How the meadow changed since last summer" hidden>
           <div class="summer-group"><h3>Flowers <span>last summer → this summer</span></h3>
             <div class="learning-summer-counts">${summerKinds.map(([species, name]) => `<div data-summer-kind="${species}"><span class="summer-art">${pollinationFlowers[species]}</span><span class="summer-name">${name}</span><span class="summer-change"><span data-text="summer-was-${species}"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-${species}"></b></span><span class="summer-delta" data-text="summer-delta-${species}"></span></div>`).join('')}</div>
@@ -178,6 +178,11 @@ export function createUI(actions: UIActions): GameUI {
             <p class="summer-lesson" data-text="summer-friends-line"></p></div>
         </section>
         <p id="learning-goals">Fly between flowers, gathering nectar for energy and the hive.<br>Carry pollen to matching flowers and help the meadow bloom.</p>
+        <ul class="learning-cycle" aria-label="How one summer shapes the next">
+          <li><span class="learning-cycle-art" aria-hidden="true">${pollinationFlowers.poppy}</span>Flowers you pollinate set seed and spread next summer.</li>
+          <li><span class="learning-cycle-art" aria-hidden="true">${ladybirdArt}</span>Aphids, ladybirds and butterflies follow the flowers.</li>
+          <li><span class="learning-cycle-art" aria-hidden="true">${butterflyArt}</span>Skipped flowers thin out, and meadow life with them.</li>
+        </ul>
         <details class="learning-controls" open>
           <summary>Keyboard controls</summary>
         <div class="learning-movement">
@@ -322,6 +327,7 @@ export function createUI(actions: UIActions): GameUI {
   const learningSummer = el('.learning-summer');
   const learningControls = el<HTMLDetailsElement>('.learning-controls');
   const learningGoals = el('#learning-goals');
+  const learningCycle = el('.learning-cycle');
   let controlsFoldedFor = -1;
   const learningButton = el<HTMLButtonElement>('[data-action="explore"]');
   const learningKeys = Array.from(root.querySelectorAll<HTMLElement>('[data-learn-key]'));
@@ -610,7 +616,8 @@ export function createUI(actions: UIActions): GameUI {
       const start = state.summerStart;
       show(learningSummer, !!start);
       show(learningGoals, !start);
-      const title = start ? `Summer ${start.summer} begins on a flower.` : 'Your day begins on a flower.';
+      show(learningCycle, !start);
+      const title = start ? `Summer ${start.summer} begins on a flower.` : 'Your summer day begins on a flower.';
       if (learningTitle.textContent !== title) learningTitle.textContent = title;
       const summer = start?.summer ?? 1;
       if (controlsFoldedFor !== summer) { controlsFoldedFor = summer; learningControls.open = !start; }
