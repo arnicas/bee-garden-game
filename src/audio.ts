@@ -267,6 +267,21 @@ export class GardenAudio {
     osc.onended = () => { osc.disconnect(); gain.disconnect(); };
   }
 
+  /** A raindrop striking the bee: a soft, low thud with a small wet splash on top. */
+  dropHit(): void {
+    const ctx = this.context; if (this.disposed || !ctx || !this.master) return;
+    const at = ctx.currentTime;
+    const thud = ctx.createOscillator(), thudGain = ctx.createGain();
+    thud.type = 'sine'; thud.frequency.setValueAtTime(190, at); thud.frequency.exponentialRampToValueAtTime(62, at + .14);
+    thudGain.gain.setValueAtTime(0, at); thudGain.gain.linearRampToValueAtTime(.11, at + .006); thudGain.gain.exponentialRampToValueAtTime(.0001, at + .26);
+    thud.connect(thudGain).connect(this.master); thud.start(at); thud.stop(at + .28);
+    const splash = ctx.createOscillator(), splashGain = ctx.createGain();
+    splash.type = 'triangle'; splash.frequency.setValueAtTime(1150, at + .01); splash.frequency.exponentialRampToValueAtTime(520, at + .09);
+    splashGain.gain.setValueAtTime(0, at + .01); splashGain.gain.linearRampToValueAtTime(.025, at + .016); splashGain.gain.exponentialRampToValueAtTime(.0001, at + .12);
+    splash.connect(splashGain).connect(this.master); splash.start(at + .01); splash.stop(at + .13);
+    for (const [osc, gain] of [[thud, thudGain], [splash, splashGain]] as const) osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+  }
+
   chime(kind: 'land' | 'pollen' | 'nectar' | 'pollinate' | 'win' | 'fail'): void {
     const ctx = this.context; if (this.disposed || !ctx || !this.master) return;
     const notes = kind === 'win' ? [523, 659, 784, 1047] : kind === 'pollinate' ? [659, 784, 1047] : kind === 'fail' ? [220, 165] : kind === 'nectar' ? [784] : kind === 'pollen' ? [587] : [392, 523];

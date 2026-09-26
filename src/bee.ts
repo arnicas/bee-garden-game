@@ -102,7 +102,7 @@ export function createBeeRig(camera: THREE.PerspectiveCamera) {
   const tangent = new THREE.Vector3(), previousTangent = new THREE.Vector3();
   const frameNormal = new THREE.Vector3(), frameBinormal = new THREE.Vector3(), radial = new THREE.Vector3();
   const frameTurn = new THREE.Quaternion();
-  let extension = 0, curl = 1;
+  let extension = 0, curl = 1, groom = 0;
   // The foreground rig is presented after the meadow so close petals cannot
   // hide the bee's own legs. Its tongue tip still resolves the real nectar point.
   root.traverse(object => {
@@ -116,6 +116,9 @@ export function createBeeRig(camera: THREE.PerspectiveCamera) {
     tongueTipMaterial: tongueMat,
     snapPose(landed: boolean, drinking = false) { curl = landed ? 0 : 1; extension = drinking ? 1 : 0; },
     curlAmount() { return curl; },
+    /** 0–1: forelegs sweep over the head and wings, wiping water off. */
+    setGrooming(amount: number) { groom = THREE.MathUtils.clamp(amount, 0, 1); },
+    groomAmount() { return groom; },
     tonguePose() { return { extension, visible: tongue.visible }; },
     writeTongueContact(tip: THREE.Vector3, approach: THREE.Vector3) {
       tip.copy(centers[tongueSteps]).applyMatrix4(camera.matrixWorld);
@@ -173,8 +176,10 @@ export function createBeeRig(camera: THREE.PerspectiveCamera) {
       }
       legs.forEach((leg, i) => {
         const side = i === 0 ? -1 : 1;
-        leg.rotation.z = side * (THREE.MathUtils.lerp(.20, -.04, curl) + extension * .36);
-        leg.rotation.x = THREE.MathUtils.lerp(-.24, .10, curl) + Math.sin(time * 3 + i) * .025 * (1 - curl) + Math.sin(time * 14 + i) * .009 * curl;
+        // Grooming: the two forelegs take turns sweeping up and across.
+        const sweep = Math.sin(time * 5.5 + i * Math.PI);
+        leg.rotation.z = side * (THREE.MathUtils.lerp(.20, -.04, curl) + extension * .36 - groom * (.1 + .22 * Math.max(0, sweep)));
+        leg.rotation.x = THREE.MathUtils.lerp(-.24, .10, curl) + Math.sin(time * 3 + i) * .025 * (1 - curl) + Math.sin(time * 14 + i) * .009 * curl + groom * (.28 * Math.max(0, sweep) - .06);
         leg.position.y = THREE.MathUtils.lerp(-.245, -.285, curl) + Math.sin(time * 2 + i) * .003;
       });
       tongue.visible = extension > .025 || (landed && satiated);
