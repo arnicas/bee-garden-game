@@ -110,15 +110,18 @@ export function nextCounts(seeded: SpeciesCounts, pollinated: SpeciesCounts, bad
 
 /** Aphid clusters, ladybirds and butterflies for a meadow with these flower
  * counts (opening flowers included). A normal meadow has 14 clusters, 18
- * ladybirds and 8 butterflies. Butterflies want nectar only, so they follow the
+ * ladybirds, 8 butterflies and 12 snails. Butterflies want nectar only, so they follow the
  * daisies and cornflowers and leave a poppy-heavy meadow. */
-export function friendCounts(all: SpeciesCounts): { aphidClusters: number; ladybirds: number; butterflies: number } {
+export function friendCounts(all: SpeciesCounts): { aphidClusters: number; ladybirds: number; butterflies: number; snails: number } {
   const normal = MEADOW_PLAN.normalEach + MEADOW_PLAN.fixedEach;
   const hosts = (all.poppy ?? 0) + (all.cornflower ?? 0);
   const aphidClusters = clamp(Math.round(14 * hosts / (2 * normal)), 2, 22);
   const ladybirds = clamp(Math.round(18 * (.65 * aphidClusters / 14 + .35 * (all.daisy ?? 0) / normal)), 4, 26);
   const butterflies = clamp(Math.round(8 * ((all.daisy ?? 0) + (all.cornflower ?? 0)) / (2 * normal)), 1, 14);
-  return { aphidClusters, ladybirds, butterflies };
+  // Snails need the damp shade of a full meadow: 12 normally, fewer when it's thin.
+  const flowersTotal = (all.daisy ?? 0) + (all.poppy ?? 0) + (all.cornflower ?? 0);
+  const snails = clamp(Math.round(12 * flowersTotal / (3 * normal)), 4, 16);
+  return { aphidClusters, ladybirds, butterflies, snails };
 }
 
 export interface SummerPlan {
@@ -216,4 +219,11 @@ export function trend(now: number, next: number): Trend {
   const change = next - now;
   if (Math.abs(change) < Math.max(2, now * .15)) return 'same';
   return change > 0 ? 'more' : 'fewer';
+}
+
+/** 0–1: how dry a thin meadow keeps the ground (a normal meadow of 72 is 0).
+ * Snails in a dry meadow more often stay sealed, even when it's damp. */
+export function meadowDryness(all: SpeciesCounts): number {
+  const total = (all.daisy ?? 0) + (all.poppy ?? 0) + (all.cornflower ?? 0);
+  return clamp((3 * (MEADOW_PLAN.normalEach + MEADOW_PLAN.fixedEach) - total) / 36, 0, 1);
 }

@@ -216,3 +216,11 @@ export function butterflyChangeLine(before: SpeciesCounts, after: SpeciesCounts)
   if (change === 'more') return 'More daisies and cornflowers drew more butterflies, which sip nectar too.';
   return '';
 }
+
+/** How the snails changed with the meadow's cover, or ''. */
+export function snailChangeLine(before: SpeciesCounts, after: SpeciesCounts): string {
+  const change = trend(friendCounts(before).snails, friendCounts(after).snails);
+  if (change === 'fewer') return 'With the meadow patchier, the ground dried out and fewer snails were about.';
+  if (change === 'more') return 'A fuller meadow kept the ground damp, and more snails were about.';
+  return '';
+}

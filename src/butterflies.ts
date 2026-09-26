@@ -156,6 +156,8 @@ const FLIGHT_SPEED = 1.5;
 const SHY_DISTANCE = .9;
 /** How far below the body its feet reach (life size). */
 const LEG_REACH = .024;
+/** Space between butterflies sheltering under one leaf: a wing's length and a bit. */
+const SHELTER_SPACING = .27;
 
 /** One body draw and one wing draw for a whole flock. `size` scales the insect
  * (1 is life size, about 4 cm across the wings). */
@@ -347,12 +349,22 @@ export function createButterflies(scene: THREE.Scene, seed: number, flowers: rea
   };
   /** Rain: hurry to the nearest broad leaf (or the grass if none is near). */
   function seekShelter(f: Flier) {
-    let leaf: LeafShelter | null = null, best = 12;
-    for (const l of leaves) { const d = l.center.distanceTo(f.position); if (d < best) { best = d; leaf = l; } }
-    const a = f.random() * Math.PI * 2, r = .12 + f.random() * .2;
+    // The nearest leaf with room: each butterfly keeps a wing's length from the
+    // others already under it, so their wings don't touch.
+    let leaf: LeafShelter | null = null, x = 0, z = 0;
+    const near = leaves.map(l => ({ l, d: l.center.distanceTo(f.position) })).filter(n => n.d < 12).sort((a, b) => a.d - b.d);
+    for (const { l } of near) {
+      const taken = fliers.filter(o => o !== f && o.shelter?.leaf === l).map(o => o.shelter!);
+      for (let attempt = 0; attempt < 16 && !leaf; attempt++) {
+        const a = f.random() * Math.PI * 2, r = .1 + f.random() * .34;
+        const tx = Math.cos(a) * r * .7, tz = Math.sin(a) * r;
+        if (taken.every(o => Math.hypot(o.x - tx, o.z - tz) >= SHELTER_SPACING)) { leaf = l; x = tx; z = tz; }
+      }
+      if (leaf) break;
+    }
     const grass = new THREE.Vector3(f.position.x + (f.random() - .5) * 3, 0, f.position.z + (f.random() - .5) * 3);
     grass.y = meadowGroundHeight(grass.x, grass.z) + .22 + f.random() * .12;
-    f.shelter = { leaf, x: Math.cos(a) * r * .7, z: Math.sin(a) * r, grass };
+    f.shelter = { leaf, x, z, grass };
     f.flower = null; f.state = 'flying'; f.from.copy(f.position); f.t = 0;
     const target = shelterPoint(f, temp);
     f.bend.copy(f.from).lerp(target, .5); f.bend.y = Math.max(f.from.y, target.y) + .4;
@@ -403,7 +415,13 @@ export function createButterflies(scene: THREE.Scene, seed: number, flowers: rea
         yawTurn.setFromAxisAngle(up, f.perchYaw);
         if (f.shelter.leaf) f.rotation.copy(f.shelter.leaf.rotation).multiply(flip).multiply(yawTurn);
         else f.rotation.copy(yawTurn);
-        open = 1.42;
+        // Mostly still with wings closed: a slow, tiny breathing, and now and
+        // then (about every 9 s, each on its own timing) a brief parting.
+        if (reduced) open = 1.42;
+        else {
+          const flick = Math.max(0, (Math.sin(time * .7 + f.phase * 5) - .95) / .05);
+          open = 1.42 + Math.sin(time * 1.4 + f.phase) * .07 - .35 * flick * flick;
+        }
       } else if (f.state === 'feeding' && f.flower) {
         const flower = f.flower;
         if (!reduced) f.feedLeft -= dt;

@@ -271,8 +271,9 @@ round, home or not, grows the next meadow from what was pollinated
   a summer.
 - Aphid clusters follow the poppies and cornflowers; ladybirds follow the
   aphids and daisies; butterflies follow the daisies and cornflowers (they want
-  nectar only) and sip a little from the flowers they sit on. The six opening
-  flowers never change.
+  nectar only) and sip a little from the flowers they sit on; snails follow how
+  full the meadow is (a thin one dries the ground and keeps more of them sealed).
+  The six opening flowers never change.
 
 Summers are counted through the session (restarting a round doesn't count, and
 keeps its meadow); each new one resets supplies, cargo and pollination and rolls

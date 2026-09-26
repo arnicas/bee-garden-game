@@ -172,12 +172,30 @@ function flowerHead(species: Species, variant: number, simple = false, medium = 
   return { geometry: combine(parts), grains };
 }
 
-function stalkGeometry(species: Species, height: number, phase: number): THREE.BufferGeometry {
-  const parts: THREE.BufferGeometry[] = [];
-  const curve = new THREE.CatmullRomCurve3([
+/** A flower's resting stalk: a gentle curve from the base to the head. */
+function stalkCurve(height: number, phase: number): THREE.CatmullRomCurve3 {
+  return new THREE.CatmullRomCurve3([
     new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.sin(phase) * 0.10, height * 0.32, Math.cos(phase) * 0.08),
     new THREE.Vector3(Math.sin(phase + 1) * 0.09, height * 0.69, Math.cos(phase + 1) * 0.06), new THREE.Vector3(0, height, 0),
   ]);
+}
+/** A point on a flower's real stalk at u (0 base, 1 head): its resting curve
+ * plus the same wind bend as the stem shader (sway × (y / height)²), so small
+ * creatures on a stem sit on its surface. */
+export function stalkPoint(f: Flower, u: number, out: THREE.Vector3): THREE.Vector3 {
+  f.stalk.getPointAt(THREE.MathUtils.clamp(u, 0, 1), out);
+  const s = Math.max(0, out.y) / Math.max(.01, f.height), bend = s * s;
+  return out.set(f.base.x + out.x + (f.center.x - f.base.x) * bend, f.base.y + out.y + (f.center.y - f.base.y - f.height) * bend, f.base.z + out.z + (f.center.z - f.base.z) * bend);
+}
+const stalkAhead = new THREE.Vector3();
+/** The stalk's direction at u, pointing up toward the head. */
+export function stalkTangent(f: Flower, u: number, out: THREE.Vector3): THREE.Vector3 {
+  stalkPoint(f, Math.max(0, u - .02), out); stalkPoint(f, Math.min(1, u + .02), stalkAhead);
+  return out.subVectors(stalkAhead, out).normalize();
+}
+function stalkGeometry(species: Species, height: number, phase: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const curve = stalkCurve(height, phase);
   parts.push(painted(new THREE.TubeGeometry(curve, 9, species === 'poppy' ? 0.032 : 0.026, 5, false), C(species === 'cornflower' ? 0x75926b : 0x668442)));
   const leaves = species === 'cornflower' ? 5 : 3;
   for (let i = 0; i < leaves; i++) {
@@ -482,7 +500,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     stalkShape.setAttribute('stemShape', new THREE.BufferAttribute(shapeData, 2));
     stalkShape.boundingSphere!.radius += height * .32;
     const stalk = new THREE.Mesh(stalkShape, plantMaterial); stalk.position.copy(base); stalk.receiveShadow = true; stalk.customDepthMaterial = stemDepthMaterial; root.add(stalk);
-    const flower: Flower = { id, species, base, center, height, velocity: new THREE.Vector3(), radius, group, pollen, pollenFraction: 1, visited: false, pollenMatch: false, rotation: new THREE.Quaternion() };
+    const flower: Flower = { id, species, base, center, height, stalk: stalkCurve(height, id * 1.728), velocity: new THREE.Vector3(), radius, group, pollen, pollenFraction: 1, visited: false, pollenMatch: false, rotation: new THREE.Quaternion() };
     flowers.push(flower); updatePollen(flower, 0);
     stems.push(stalk); heights.push(height); twists.push(random() * TAU); headDetail.push(0);
   }

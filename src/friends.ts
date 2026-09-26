@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { meadowGroundHeight, rng } from './world';
+import { meadowGroundHeight, rng, stalkPoint, stalkTangent } from './world';
 import { leafPlanarDistance, leafSurfaceHeight, type LeafShelter } from './shelters';
 import type { Flower } from './types';
 import { countSpecies, friendCounts } from './meadow-plan';
@@ -118,24 +118,60 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
     g.deleteAttribute('uv');
     g.setAttribute('aPart', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(value), 1));
+    // Legs are tagged with their number (1–6, 0 for the rest) and hip, so the
+    // shader can swing them from the hip as the ladybird walks.
+    g.setAttribute('aLeg', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count), 1));
+    g.setAttribute('aHip', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3), 3));
     return g;
+  };
+  const legSegment = (from: THREE.Vector3, to: THREE.Vector3, radius: number, leg: number, hip: THREE.Vector3) => {
+    const length = from.distanceTo(to);
+    const g = new THREE.CylinderGeometry(radius * .8, radius, length, 4).translate(0, length / 2, 0);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize()));
+    const p = part(g.translate(from.x, from.y, from.z), 1);
+    (p.attributes.aLeg.array as Float32Array).fill(leg);
+    const hips = p.attributes.aHip.array as Float32Array;
+    for (let i = 0; i < hips.length; i += 3) hips.set([hip.x, hip.y, hip.z], i);
+    return p;
   };
   const pieces: THREE.BufferGeometry[] = [
     part(new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2).scale(SHELL.x, SHELL.y, SHELL.z), 0),
     part(new THREE.CircleGeometry(1, 18).rotateX(Math.PI / 2).scale(SHELL.x * .96, 1, SHELL.z * .96).translate(0, .002, 0), 1),
     part(new THREE.SphereGeometry(.0135, 10, 6).scale(1.15, .8, 1).translate(0, .007, SHELL.z * .98), 1),
   ];
-  for (const side of [-1, 1]) for (const along of [-.55, 0, .55]) {
-    // Short legs angled down and slightly forward/back, mostly tucked under the shell.
-    const leg = new THREE.CylinderGeometry(.002, .0015, .019, 3).rotateX(along * .5).rotateZ(side * .75).translate(side * SHELL.x * .92, -.003, along * SHELL.z * .9);
-    pieces.push(part(leg, 1));
-  }
+  [-1, 1].forEach((side, sideIndex) => [-.55, 0, .55].forEach((along, alongIndex) => {
+    // Jointed legs: out from under the shell to a raised knee, then down to the
+    // surface, splayed forward at the front and back at the rear.
+    const hip = new THREE.Vector3(side * SHELL.x * .55, .004, along * SHELL.z * .7);
+    const knee = new THREE.Vector3(side * SHELL.x * 1.08, .009, along * SHELL.z * .78 + along * .006);
+    const foot = new THREE.Vector3(side * SHELL.x * 1.3, -.001, along * SHELL.z * .92 + along * .014);
+    const leg = sideIndex * 3 + alongIndex + 1;
+    pieces.push(legSegment(hip, knee, .0021, leg, hip), legSegment(knee, foot, .0015, leg, hip));
+  }));
   const bodyGeometry = mergeGeometries(pieces, false)!;
   for (const piece of pieces) piece.dispose();
   const bodyMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .26, metalness: 0 });
+  const walkUniforms = { uLadyTime: { value: 0 } };
+  const walking = new Float32Array(Math.max(1, birds.length));
+  const walkAttribute = new THREE.InstancedBufferAttribute(walking, 1);
+  bodyGeometry.setAttribute('aWalk', walkAttribute);
   bodyMaterial.onBeforeCompile = shader => {
-    shader.vertexShader = `attribute float aPart; varying float vPart; varying vec3 vShell;\n` + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      vPart = aPart; vShell = position / vec3(${SHELL.x}, ${SHELL.y}, ${SHELL.z});`);
+    Object.assign(shader.uniforms, walkUniforms);
+    shader.vertexShader = `attribute float aPart; attribute float aLeg; attribute vec3 aHip; attribute float aWalk; uniform float uLadyTime; varying float vPart; varying vec3 vShell;\n` + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      vPart = aPart; vShell = position / vec3(${SHELL.x}, ${SHELL.y}, ${SHELL.z});
+      if (aLeg > .5 && aWalk > .01) {
+        // Tripod gait: front and back legs on one side step with the middle leg
+        // on the other; each leg swings from its hip and lifts its foot as it
+        // swings forward.
+        float id = aLeg - 1., side = floor(id / 3.), along = mod(id, 3.);
+        float phase = uLadyTime * 14. + mod(side + along, 2.) * 3.14159;
+        float swing = sin(phase) * .42 * aWalk * (side > .5 ? -1. : 1.);
+        vec3 d = transformed - aHip;
+        float c = cos(swing), s = sin(swing);
+        d.xz = vec2(c * d.x - s * d.z, s * d.x + c * d.z);
+        d.y += max(0., cos(phase)) * .006 * aWalk * clamp(length(d.xz) / .03, 0., 1.);
+        transformed = aHip + d;
+      }`);
     shader.fragmentShader = `varying float vPart; varying vec3 vShell;
       float ladySpot(vec2 p, vec2 c, float r) { return 1. - smoothstep(r - .035, r + .01, length(p - c)); }
       ` + shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
@@ -160,7 +196,7 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
         diffuseColor.rgb = shell;
       }`);
   };
-  bodyMaterial.customProgramCacheKey = () => 'bee-ladybird-v1';
+  bodyMaterial.customProgramCacheKey = () => 'bee-ladybird-v2';
   const bodies = new THREE.InstancedMesh(bodyGeometry, bodyMaterial, Math.max(1, birds.length));
   bodies.name = 'ladybirds'; bodies.frustumCulled = false; bodies.castShadow = false;
   scene.add(bodies);
@@ -192,15 +228,15 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
   let lastTime = 0, flutterTimer = 25;
   const aphidMatrix = new THREE.Matrix4(), aphidScale = new THREE.Vector3();
 
-  const stemPoint = (f: Flower, u: number, out: THREE.Vector3) =>
-    out.set(f.base.x + (f.center.x - f.base.x) * u * u, f.base.y + (f.center.y - f.base.y) * u, f.base.z + (f.center.z - f.base.z) * u * u);
+  // The real stalk curve (and its wind bend), so ladybirds and aphids sit on the stem.
+  const stemPoint = stalkPoint;
 
   /** Places a bird and writes its body matrix: up is the surface normal, forward its heading. */
   function pose(bird: Bird, time: number): void {
     if (bird.perch === 'stem' && bird.flower) {
-      const f = bird.flower, h = f.center.y - f.base.y;
+      const f = bird.flower;
       stemPoint(f, bird.u, bird.position);
-      tangent.set((f.center.x - f.base.x) * 2 * bird.u, h, (f.center.z - f.base.z) * 2 * bird.u).normalize();
+      stalkTangent(f, bird.u, tangent);
       radial.set(Math.cos(bird.angle), 0, Math.sin(bird.angle));
       radial.addScaledVector(tangent, -radial.dot(tangent)).normalize();
       bird.position.addScaledVector(radial, STEM_RADIUS);
@@ -258,6 +294,7 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
     /** Moves and places the ladybirds near the camera. */
     update(time: number, bee: THREE.Vector3, camera: THREE.Vector3, reducedMotion: boolean): void {
       const dt = Math.min(.1, Math.max(0, time - lastTime)); lastTime = time;
+      walkUniforms.uLadyTime.value = time;
       flutterTimer -= dt;
       let flying = 0;
       for (const cluster of clusters) if (dt > 0 && !reducedMotion) cluster.population = Math.min(1, cluster.population + dt * APHID_REGROW_RATE);
@@ -305,6 +342,8 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
         if (!near) { bodies.setMatrixAt(bird.id, hidden); continue; }
         pose(bird, time);
         bodies.setMatrixAt(bird.id, matrix);
+        // Legs move while it walks (slowly while eating), and rest when it pauses.
+        walking[bird.id] = !reducedMotion && dt > 0 && bird.perch !== 'flying' && !shy && bird.pause <= 0 ? (bird.eating ? .35 : 1) : 0;
         if (bird.perch === 'flying' && flying < MAX_FLYING) {
           const flap = .55 + .45 * Math.abs(Math.sin(time * 90));
           wings.setMatrixAt(flying++, matrix.clone().multiply(new THREE.Matrix4().makeScale(flap, 1, 1)));
@@ -312,12 +351,13 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
       }
       if (flutterTimer <= 0) flutterTimer = 10;
       bodies.instanceMatrix.needsUpdate = true;
+      walkAttribute.needsUpdate = true;
       for (const cluster of clusters) {
-        const f = cluster.flower, h = f.center.y - f.base.y;
+        const f = cluster.flower;
         const near = Math.hypot(f.base.x - camera.x, f.base.z - camera.z) < VISIBLE_RANGE;
         const shown = Math.round(cluster.population * APHIDS_PER_CLUSTER);
         stemPoint(f, cluster.u, cluster.position);
-        tangent.set((f.center.x - f.base.x) * 2 * cluster.u, h, (f.center.z - f.base.z) * 2 * cluster.u).normalize();
+        stalkTangent(f, cluster.u, tangent);
         cluster.facing.set(Math.cos(cluster.angle), 0, Math.sin(cluster.angle)).addScaledVector(tangent, -Math.cos(cluster.angle) * tangent.x - Math.sin(cluster.angle) * tangent.z).normalize();
         cluster.position.addScaledVector(cluster.facing, STEM_RADIUS);
         cluster.aphids.forEach((aphid, i) => {
@@ -325,7 +365,7 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
           if (!near || i >= shown) { aphidMesh.setMatrixAt(index, hidden); return; }
           const u = cluster.u + aphid.du;
           stemPoint(f, u, local);
-          tangent.set((f.center.x - f.base.x) * 2 * u, h, (f.center.z - f.base.z) * 2 * u).normalize();
+          stalkTangent(f, u, tangent);
           radial.set(Math.cos(cluster.angle + aphid.da), 0, Math.sin(cluster.angle + aphid.da));
           radial.addScaledVector(tangent, -radial.dot(tangent)).normalize();
           local.addScaledVector(radial, STEM_RADIUS * .72);

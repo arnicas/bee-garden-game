@@ -1,6 +1,6 @@
 # Snails: a design
 
-A proposal for adding snails as the next meadow friend, written 2026-09-26. Nothing here is built yet. Open questions for Lynn are at the end.
+A proposal for adding snails as the next meadow friend, written 2026-09-26. Steps 1–6 are built (`src/snails.ts`), with one change: snails live mostly up on the plants (broad leaves and flower stems) rather than on the ground, because the ground cover hides anything that small. Decisions are at the end.
 
 ## Why snails
 

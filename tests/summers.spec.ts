@@ -61,7 +61,7 @@ test('seedlings grow around the flowers that set seed, blow across the meadow, a
 });
 
 test('aphids and ladybirds follow the flowers', () => {
-  expect(friendCounts(counts(24, 24, 24))).toEqual({ aphidClusters: 14, ladybirds: 18, butterflies: 8 });
+  expect(friendCounts(counts(24, 24, 24))).toEqual({ aphidClusters: 14, ladybirds: 18, butterflies: 8, snails: 12 });
   const thin = friendCounts(counts(18, 9, 4));
   expect(thin.aphidClusters).toBeLessThan(6);
   expect(thin.ladybirds).toBeLessThan(11);

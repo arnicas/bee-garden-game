@@ -1,4 +1,4 @@
-import type { Group, InstancedMesh, Quaternion, Vector3 } from 'three';
+import type { Curve, Group, InstancedMesh, Quaternion, Vector3 } from 'three';
 
 export type Species = 'daisy' | 'poppy' | 'cornflower';
 export type CarriedPollen = Readonly<Partial<Record<Species, number>>>;
@@ -17,6 +17,8 @@ export interface Flower {
   pollenFraction: number;
   visited: boolean;
   pollenMatch: boolean;
+  /** The stalk's resting curve in local space (base at the origin, head at (0, height, 0)). */
+  stalk: Curve<Vector3>;
 }
 export interface Meadow {
   flowers: Flower[];
@@ -48,6 +50,8 @@ export interface SummerStart {
   ladybirdsAfter: number;
   butterfliesBefore: number;
   butterfliesAfter: number;
+  snailsBefore: number;
+  snailsAfter: number;
 }
 export interface ViewState {
   phase: Phase;
@@ -103,6 +107,8 @@ export interface ViewState {
   friendsFound: number;
   /** Distinct butterflies met today. */
   butterfliesFound: number;
+  /** Distinct snails met today. */
+  snailsFound: number;
   /** Chose to fly home before the harvest goal. */
   headingHome: boolean;
   /** Carries enough nectar for the flight home. */
