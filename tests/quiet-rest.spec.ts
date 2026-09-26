@@ -56,7 +56,8 @@ test('the meadow view rises, orbits with workers, pauses and returns to the same
   expect(wide.phase).toBe('landed');
   expect(wide.localPosition).toEqual(before.localPosition);
   expect(wide.supplies).toEqual(before.supplies);
-  expect(wide.ending.workers).toBe(48);
+  expect(wide.ending.workers).toBe(36);
+  expect(wide.ending.butterflies).toBe(8);
   expect(wide.ending.perchedBee).toBe(true);
   expect(wide.ending.active).toBe(false);
   expect(wide.diagnostics.renderer.triangles).toBeLessThan(650000);

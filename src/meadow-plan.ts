@@ -14,7 +14,8 @@ import type { DayTier } from './day-report';
  *   summers in a row with no pollination, down to a single flower.
  * - Oxeye daisies are perennials. They keep their places and change slowly.
  * - Aphids live on poppy and cornflower stems; ladybirds follow the aphids and
- *   use daisies as backup food, so both follow the flowers.
+ *   use daisies as backup food, so both follow the flowers. Butterflies follow
+ *   the nectar flowers (daisies and cornflowers).
  * The six hand-placed opening flowers never change.
  */
 export type SpeciesCounts = Record<Species, number>;
@@ -107,14 +108,17 @@ export function nextCounts(seeded: SpeciesCounts, pollinated: SpeciesCounts, bad
   return out;
 }
 
-/** Aphid clusters and ladybirds for a meadow with these flower counts (opening
- * flowers included). A normal meadow has 14 clusters and 18 ladybirds. */
-export function friendCounts(all: SpeciesCounts): { aphidClusters: number; ladybirds: number } {
+/** Aphid clusters, ladybirds and butterflies for a meadow with these flower
+ * counts (opening flowers included). A normal meadow has 14 clusters, 18
+ * ladybirds and 8 butterflies. Butterflies want nectar only, so they follow the
+ * daisies and cornflowers and leave a poppy-heavy meadow. */
+export function friendCounts(all: SpeciesCounts): { aphidClusters: number; ladybirds: number; butterflies: number } {
   const normal = MEADOW_PLAN.normalEach + MEADOW_PLAN.fixedEach;
   const hosts = (all.poppy ?? 0) + (all.cornflower ?? 0);
   const aphidClusters = clamp(Math.round(14 * hosts / (2 * normal)), 2, 22);
   const ladybirds = clamp(Math.round(18 * (.65 * aphidClusters / 14 + .35 * (all.daisy ?? 0) / normal)), 4, 26);
-  return { aphidClusters, ladybirds };
+  const butterflies = clamp(Math.round(8 * ((all.daisy ?? 0) + (all.cornflower ?? 0)) / (2 * normal)), 1, 14);
+  return { aphidClusters, ladybirds, butterflies };
 }
 
 export interface SummerPlan {

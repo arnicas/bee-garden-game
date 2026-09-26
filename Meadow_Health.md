@@ -25,3 +25,13 @@ Ants are highly adaptable, but a shift in the floral balance will radically chan
 * **Lost Farms:** Ants actively farm aphids, protecting them from predators in exchange for sweet "honeydew" excretions. They often build these farms on the sturdy stems of cornflowers and daisies. If those plants disappear, the ants lose their primary carbohydrate source.
 * **Nectar Robbing:** Desperate for sugar, ants will climb the surviving flowers to steal nectar directly. Because they don't fly, they often access the nectar by chewing a hole at the base of the flower, bypassing the pollen completely.
 * **Heightened Aggression:** A starving ant colony becomes highly territorial. They will swarm the stems of the few remaining flowers, actively attacking exhausted bees that try to land and threatening the player's ability to forage safely.
+
+## Butterflies
+
+Because butterflies only want nectar, their relationship with the meadow's three plants is heavily skewed:
+
+Daisies (The Perfect Helipad): Butterflies cannot hover efficiently while feeding; they need to land. The flat, wide face of a daisy is the perfect landing pad. They will spend a long time on a single daisy, using their incredibly long proboscis to sip every drop of nectar, leaving it totally dry for the next bee that lands.
+
+Cornflowers (The Deep Well): Cornflowers have deep, tubular shapes. A bee might have to shove her entire head inside to reach the nectar, but a butterfly's proboscis is much longer. A butterfly can effortlessly stand on the edge of a cornflower and drain it completely.
+
+Poppies (Ignored): As mentioned earlier, poppies produce massive amounts of pollen but zero nectar. Butterflies will completely ignore poppies. If your meadow becomes poppy-heavy, the butterflies will migrate away, leaving the area entirely to the bees.

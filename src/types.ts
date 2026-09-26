@@ -34,7 +34,10 @@ export interface SummerPreview {
 /** The start page of a new summer: how the meadow changed since the last one. */
 export interface SummerStart {
   summer: number;
-  line: string;
+  /** What last summer's pollination did to the flowers (a lesson, not just a count). */
+  flowersLine: string;
+  /** Flowers pollinated last summer. */
+  pollinated: Record<Species, number>;
   before: Record<Species, number>;
   after: Record<Species, number>;
   /** The knock-on effect for aphids and ladybirds. */
@@ -43,6 +46,8 @@ export interface SummerStart {
   aphidsAfter: number;
   ladybirdsBefore: number;
   ladybirdsAfter: number;
+  butterfliesBefore: number;
+  butterfliesAfter: number;
 }
 export interface ViewState {
   phase: Phase;
@@ -96,6 +101,8 @@ export interface ViewState {
   harvestReady: boolean;
   /** Distinct ladybirds met today. */
   friendsFound: number;
+  /** Distinct butterflies met today. */
+  butterfliesFound: number;
   /** Chose to fly home before the harvest goal. */
   headingHome: boolean;
   /** Carries enough nectar for the flight home. */

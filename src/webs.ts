@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { meadowGroundHeight, rng } from './world';
+import { windGLSL, windUniforms } from './wind';
 import type { LeafShelter } from './shelters';
 import type { Flower } from './types';
 
@@ -8,6 +9,8 @@ import type { Flower } from './types';
  * walking through one catches the bee until it pulls free (see Garden). The
  * webs are faint in sunshine and sparkle with dew in the morning and with drops
  * after rain. One line draw and one instanced bead draw for the whole meadow.
+ * They sway with the grass they hang from (the same bend as the waving grass)
+ * and billow a little on top, on the GPU. Catching uses the resting plane.
  */
 export interface SpiderWeb {
   id: number;
@@ -45,7 +48,14 @@ export function createWebs(scene: THREE.Scene, seed: number, flowers: readonly F
   }
 
   // ---- threads
-  const positions: number[] = [], webIds: number[] = [], keeps: number[] = [];
+  const positions: number[] = [], webIds: number[] = [], keeps: number[] = [], sways: number[] = [], lifts: number[] = [];
+  const planar = new THREE.Vector3();
+  const heightAboveGround = (p: THREE.Vector3) => Math.max(0, p.y - meadowGroundHeight(p.x, p.z));
+  /** How freely a point on the web moves: 1 at the hub, 0 at the frame and beyond. */
+  const swayWeight = (web: SpiderWeb, p: THREE.Vector3) => {
+    planar.subVectors(p, web.center); planar.addScaledVector(web.normal, -planar.dot(web.normal));
+    return THREE.MathUtils.clamp(1 - (planar.length() / (web.radius * 1.1)) ** 2, 0, 1);
+  };
   const beadPoints: { web: number; point: THREE.Vector3; keep: number; size: number; threshold: number }[] = [];
   const right = new THREE.Vector3(), up = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), m = new THREE.Vector3();
   // 0 fresh and taut, 1 old, loose and patchy. Set per web below.
@@ -59,6 +69,9 @@ export function createWebs(scene: THREE.Scene, seed: number, flowers: readonly F
   };
   const segment = (web: SpiderWeb, p: THREE.Vector3, q: THREE.Vector3, keep: number) => {
     positions.push(p.x, p.y, p.z, q.x, q.y, q.z); webIds.push(web.id, web.id); keeps.push(keep, keep);
+    const n = web.normal;
+    sways.push(n.x, n.y, n.z, swayWeight(web, p), n.x, n.y, n.z, swayWeight(web, q));
+    lifts.push(web.center.x, web.center.z, heightAboveGround(p), web.center.x, web.center.z, heightAboveGround(q));
   };
   /** A thread that droops in the middle: two segments with a lowered midpoint. */
   const sagging = (web: SpiderWeb, p: THREE.Vector3, q: THREE.Vector3, sag: number, keep: number) => {
@@ -136,16 +149,38 @@ export function createWebs(scene: THREE.Scene, seed: number, flowers: readonly F
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('aWeb', new THREE.Float32BufferAttribute(webIds, 1));
   geometry.setAttribute('aKeep', new THREE.Float32BufferAttribute(keeps, 1));
+  geometry.setAttribute('aSway', new THREE.Float32BufferAttribute(sways, 4));
+  geometry.setAttribute('aLift', new THREE.Float32BufferAttribute(lifts, 3));
   const uniforms = {
     uTorn: { value: new Array<number>(MAX_WEBS).fill(0) },
     uWebAlpha: { value: .3 },
     uWebFar: { value: 20 },
+    uWebTime: { value: 0 },
   };
+  // A web moves with the grass it is strung from: every point takes exactly the
+  // bend a grass blade rooted at the web would have at that height (the same
+  // formula as the waving grass in world.ts), so the anchors travel with the
+  // blades and the thread to the ground stays put. On top of that the web
+  // itself billows a little along its normal, most at the hub.
+  const swayGLSL = windGLSL + `
+    uniform float uWebTime;
+    vec3 webSway(vec4 sway, vec3 lift, float id) {
+      vec2 root = lift.xy; float h = lift.z;
+      vec2 gust = meadowWind(root, uWebTime);
+      float wave = sin(root.x * 0.36 + root.y * 0.26 - uWebTime * 1.45);
+      float flutter = sin(uWebTime * 2.7 + root.x * 1.7 + root.y * 1.3);
+      vec2 bend = gust * (0.075 + wave * 0.045) + vec2(0.014, -0.009) * flutter;
+      vec3 withGrass = vec3(bend.x * h * h, -min(h * 0.12, dot(bend, bend) * h * h * h * 0.45), bend.y * h * h);
+      float across = dot(gust, sway.xz);
+      float breath = sin(uWebTime * 1.9 + id * 2.3) * .35 + sin(uWebTime * 3.1 + id * 1.1) * .15;
+      return withGrass + sway.xyz * (across * .4 + breath * (.3 + .5 * length(gust))) * .04 * sway.w;
+    }\n`;
   const material = new THREE.LineBasicMaterial({ color: '#f6f2e4', transparent: true, depthWrite: false });
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = `attribute float aWeb; attribute float aKeep; uniform float uTorn[${MAX_WEBS}]; uniform float uWebFar;
-      varying float vWebHide; varying float vWebFade;\n` + shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+    Object.assign(shader.uniforms, uniforms, windUniforms);
+    shader.vertexShader = `attribute float aWeb; attribute float aKeep; attribute vec4 aSway; attribute vec3 aLift; uniform float uTorn[${MAX_WEBS}]; uniform float uWebFar;
+      varying float vWebHide; varying float vWebFade;\n` + swayGLSL + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      transformed += webSway(aSway, aLift, aWeb);`).replace('#include <project_vertex>', `#include <project_vertex>
       vWebHide = uTorn[int(aWeb + .5)] * step(${TORN_KEEP.toFixed(2)}, aKeep);
       // Fine threads only read up close; fading them out avoids distant shimmer.
       vWebFade = 1. - smoothstep(uWebFar * .4, uWebFar, -mvPosition.z);`);
@@ -153,7 +188,7 @@ export function createWebs(scene: THREE.Scene, seed: number, flowers: readonly F
       if (vWebHide > .5 || vWebFade <= 0.) discard;
       diffuseColor.a *= uWebAlpha * vWebFade;`);
   };
-  material.customProgramCacheKey = () => 'bee-spider-web-v3';
+  material.customProgramCacheKey = () => 'bee-spider-web-v5';
   const lines = new THREE.LineSegments(geometry, material);
   lines.name = 'spider webs'; lines.frustumCulled = false; lines.renderOrder = 2;
   scene.add(lines);
@@ -164,6 +199,12 @@ export function createWebs(scene: THREE.Scene, seed: number, flowers: readonly F
   // window-like highlight, like the drops on petals and leaves.
   const beadMaterial = new THREE.MeshStandardMaterial({ color: '#d6e8ea', roughness: .05, metalness: 0, transparent: true, depthWrite: false });
   beadMaterial.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, windUniforms, { uWebTime: uniforms.uWebTime });
+    shader.vertexShader = 'attribute vec4 aSway; attribute vec3 aBeadLift; attribute float aBeadWeb;\n' + swayGLSL + shader.vertexShader.replace('#include <project_vertex>', `
+      vec4 mvPosition = instanceMatrix * vec4(transformed, 1.);
+      mvPosition.xyz += webSway(aSway, aBeadLift, aBeadWeb);
+      mvPosition = modelViewMatrix * mvPosition;
+      gl_Position = projectionMatrix * mvPosition;`);
     shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
       float dropFacing = clamp(dot(normal, normalize(vViewPosition)), 0., 1.);
       float dropRim = pow(1. - dropFacing, 2.);
@@ -174,9 +215,18 @@ export function createWebs(scene: THREE.Scene, seed: number, flowers: readonly F
       diffuseColor.a = max(diffuseColor.a, dropGlint);
       #include <opaque_fragment>`);
   };
-  beadMaterial.customProgramCacheKey = () => 'bee-web-dew-v2';
+  beadMaterial.customProgramCacheKey = () => 'bee-web-dew-v4';
   const beads = new THREE.InstancedMesh(beadGeometry, beadMaterial, Math.max(1, beadPoints.length));
   beads.name = 'web dew beads'; beads.frustumCulled = false; beads.count = beadPoints.length; beads.visible = false;
+  const beadSway = new Float32Array(Math.max(1, beadPoints.length) * 4), beadWeb = new Float32Array(Math.max(1, beadPoints.length)), beadLift = new Float32Array(Math.max(1, beadPoints.length) * 3);
+  beadPoints.forEach((bead, i) => {
+    const web = webs[bead.web];
+    beadSway.set([web.normal.x, web.normal.y, web.normal.z, swayWeight(web, bead.point)], i * 4); beadWeb[i] = bead.web;
+    beadLift.set([web.center.x, web.center.z, heightAboveGround(bead.point)], i * 3);
+  });
+  beadGeometry.setAttribute('aSway', new THREE.InstancedBufferAttribute(beadSway, 4));
+  beadGeometry.setAttribute('aBeadWeb', new THREE.InstancedBufferAttribute(beadWeb, 1));
+  beadGeometry.setAttribute('aBeadLift', new THREE.InstancedBufferAttribute(beadLift, 3));
   scene.add(beads);
   const matrix = new THREE.Matrix4(), scale = new THREE.Vector3(), identity = new THREE.Quaternion();
   let lastBeadLevel = -1, beadsDirty = true;
@@ -194,9 +244,11 @@ export function createWebs(scene: THREE.Scene, seed: number, flowers: readonly F
     webs,
     /**
      * dew: 0–1 morning dew or rain wetness; sun: 0–1 sunshine. Wet webs sparkle
-     * and read clearly; dry ones stay faint silver threads.
+     * and read clearly; dry ones stay faint silver threads. time drives the
+     * sway (pass 0 for reduced motion).
      */
-    update(dew: number, sun: number, beeVision = false): void {
+    update(dew: number, sun: number, beeVision = false, time = 0): void {
+      uniforms.uWebTime.value = time;
       // Silk reflects ultraviolet, so Bee Vision picks the webs out a little more clearly.
       uniforms.uWebAlpha.value = beeVision ? .55 : THREE.MathUtils.clamp(.32 + sun * .1 + dew * .3, 0, .75);
       uniforms.uWebFar.value = beeVision ? 26 : 20;

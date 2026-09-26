@@ -270,7 +270,9 @@ round, home or not, grows the next meadow from what was pollinated
 - Oxeye daisies are perennials: they keep their places and change about ±12%
   a summer.
 - Aphid clusters follow the poppies and cornflowers; ladybirds follow the
-  aphids and daisies. The six opening flowers never change.
+  aphids and daisies; butterflies follow the daisies and cornflowers (they want
+  nectar only) and sip a little from the flowers they sit on. The six opening
+  flowers never change.
 
 Summers are counted through the session (restarting a round doesn't count, and
 keeps its meadow); each new one resets supplies, cargo and pollination and rolls

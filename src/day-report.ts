@@ -1,5 +1,5 @@
 import type { Species, SummerPreview } from './types';
-import { friendCounts, SPECIES_ORDER, trend, type SpeciesCounts } from './meadow-plan';
+import { ANNUAL, friendCounts, SPECIES_ORDER, trend, type SpeciesCounts } from './meadow-plan';
 
 /**
  * How a day at the hive is judged. Two ratings, delivery and pollination, pick
@@ -188,4 +188,31 @@ export function friendsChangeLine(before: SpeciesCounts, after: SpeciesCounts): 
   if (aphids === 'fewer') return 'Fewer poppies and cornflowers meant fewer aphids for the ladybirds.';
   if (aphids === 'more') return 'More poppies and cornflowers brought more aphids for the ladybirds.';
   return daisies === 'fewer' ? 'The ladybirds have fewer daisies to fall back on.' : '';
+}
+
+/** What last summer's pollination did to this summer's flowers: the cause, so
+ * the counts read as a lesson. One or two sentences. */
+export function flowerLessonLine(pollinated: SpeciesCounts, before: SpeciesCounts, after: SpeciesCounts): string {
+  const n = (s: Species) => pollinated[s] ?? 0;
+  const kind = (s: Species, count: number) => count === 1 ? ONE[s] : MANY[s];
+  const annuals = SPECIES_ORDER.filter(s => ANNUAL[s]);
+  const grew = annuals.filter(s => n(s) > 0 && after[s] > before[s]).sort((a, b) => n(b) - n(a));
+  const thinned = annuals.filter(s => after[s] < before[s]);
+  const unhelped = thinned.filter(s => n(s) === 0), few = thinned.filter(s => n(s) > 0);
+  const parts: string[] = [];
+  if (grew.length) parts.push(`You pollinated ${n(grew[0])} ${kind(grew[0], n(grew[0]))}, so more grew from their seed.`);
+  if (unhelped.length) parts.push(`No ${list(unhelped.map(s => MANY[s]))} were pollinated, so fewer came back.`);
+  else if (few.length) parts.push(`Only ${n(few[0])} ${kind(few[0], n(few[0]))} ${n(few[0]) === 1 ? 'was' : 'were'} pollinated, so fewer came back.`);
+  if (parts.length) return parts.join(' ');
+  return SPECIES_ORDER.every(s => n(s) === 0) ? 'Nothing was pollinated, so only old seed in the soil came up.' : 'Your pollination kept the flowers about as they were.';
+}
+
+/** How the butterflies changed with the nectar flowers, or ''. */
+export function butterflyChangeLine(before: SpeciesCounts, after: SpeciesCounts): string {
+  const change = trend(friendCounts(before).butterflies, friendCounts(after).butterflies);
+  if (change === 'fewer') return after.poppy > after.daisy + after.cornflower
+    ? 'Poppies have no nectar, so in a poppy meadow the butterflies moved on.'
+    : 'With fewer daisies and cornflowers, fewer butterflies came to sip.';
+  if (change === 'more') return 'More daisies and cornflowers drew more butterflies, which sip nectar too.';
+  return '';
 }

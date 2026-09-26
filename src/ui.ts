@@ -2,7 +2,6 @@ import type { GameUI, UIActions, ViewState } from './types';
 import { dayReport, nextSummerLine } from './day-report';
 import { cargoArt, energyWedge } from './cargo-art';
 import { coveragePetals, happyMeadowArt, pollinationFlowers } from './meadow-art';
-import { trend } from './meadow-plan';
 import { beeFacts, beeFactsMarkup } from './bee-facts';
 import { dayArt } from './day-art';
 
@@ -51,6 +50,7 @@ const resultArt = (source: string, prefix: string) => {
 const share = (value: number, max: number) => Math.floor(Math.max(0, Math.min(1, value / max)) * 100 + 1e-6);
 const ladybirdArt = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="10.5" r="5" fill="#2e2824"/><ellipse cx="20" cy="23" rx="12" ry="13" fill="#c9482f"/><path d="M20 10.5v25.5" stroke="#2e2824" stroke-width="1.5"/><circle cx="14" cy="19.5" r="2.4" fill="#2e2824"/><circle cx="26" cy="19.5" r="2.4" fill="#2e2824"/><circle cx="15" cy="28.5" r="2" fill="#2e2824"/><circle cx="25" cy="28.5" r="2" fill="#2e2824"/></svg>`;
 const aphidArt = `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 6v28" stroke="#7d8f55" stroke-width="3" stroke-linecap="round"/><g fill="#8fb35a"><ellipse cx="15" cy="13" rx="3.2" ry="4.4"/><ellipse cx="25" cy="17" rx="3" ry="4.2"/><ellipse cx="15.5" cy="22.5" rx="3.3" ry="4.5"/><ellipse cx="24.5" cy="27" rx="2.8" ry="3.9"/></g></svg>`;
+const butterflyArt = `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="#86a3e2" stroke="#5f77ae" stroke-width=".8"><path d="M19 19C15 9 6 6 5 12s5 9 14 8z"/><path d="M21 19c4-10 13-13 14-7s-5 9-14 8z"/><path d="M19 21c-7 1-11 5-9 9s7 1 9-7z"/><path d="M21 21c7 1 11 5 9 9s-7 1-9-7z"/></g><path d="M20 13v16" stroke="#35302b" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 const summerKinds = [['poppy', 'Poppies'], ['daisy', 'Daisies'], ['cornflower', 'Cornflowers']] as const;
 const flowerTypes = [ ['poppy', 'Poppy'], ['daisy', 'Daisy'], ['cornflower', 'Cornflower'] ] as const;
 const controls = [
@@ -170,15 +170,16 @@ export function createUI(actions: UIActions): GameUI {
         <div class="learning-flower">${pollinationFlowers.daisy}</div>
         <h2 id="learning-title" tabindex="-1">Your day begins on a flower.</h2>
         <section class="learning-summer" aria-label="How the meadow changed since last summer" hidden>
-          <p class="learning-summer-line" data-text="summer-line"></p>
-          <div class="learning-summer-counts">
-            ${summerKinds.map(([species, name]) => `<div data-summer-kind="${species}"><span class="summer-art">${pollinationFlowers[species]}</span><b data-text="summer-count-${species}"></b><span class="summer-name">${name}</span><span class="summer-trend" data-text="summer-trend-${species}"></span></div>`).join('')}
-            <div data-summer-kind="aphid"><span class="summer-art">${aphidArt}</span><b data-text="summer-count-aphid"></b><span class="summer-name">Aphid clusters</span><span class="summer-trend" data-text="summer-trend-aphid"></span></div>
-            <div data-summer-kind="ladybird"><span class="summer-art">${ladybirdArt}</span><b data-text="summer-count-ladybird"></b><span class="summer-name">Ladybirds</span><span class="summer-trend" data-text="summer-trend-ladybird"></span></div>
-          </div>
-          <p class="learning-summer-friends" data-text="summer-friends-line"></p>
+          <div class="summer-group"><h3>Flowers <span>last summer → this summer</span></h3>
+            <div class="learning-summer-counts">${summerKinds.map(([species, name]) => `<div data-summer-kind="${species}"><span class="summer-art">${pollinationFlowers[species]}</span><span class="summer-name">${name}</span><span class="summer-change"><span data-text="summer-was-${species}"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-${species}"></b></span><span class="summer-delta" data-text="summer-delta-${species}"></span></div>`).join('')}</div>
+            <p class="summer-lesson" data-text="summer-flowers-line"></p></div>
+          <div class="summer-group"><h3>Meadow friends</h3>
+            <div class="learning-summer-counts"><div data-summer-kind="aphid"><span class="summer-art">${aphidArt}</span><span class="summer-name">Aphid clusters</span><span class="summer-change"><span data-text="summer-was-aphid"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-aphid"></b></span><span class="summer-delta" data-text="summer-delta-aphid"></span></div><div data-summer-kind="ladybird"><span class="summer-art">${ladybirdArt}</span><span class="summer-name">Ladybirds</span><span class="summer-change"><span data-text="summer-was-ladybird"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-ladybird"></b></span><span class="summer-delta" data-text="summer-delta-ladybird"></span></div><div data-summer-kind="butterfly"><span class="summer-art">${butterflyArt}</span><span class="summer-name">Butterflies</span><span class="summer-change"><span data-text="summer-was-butterfly"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-butterfly"></b></span><span class="summer-delta" data-text="summer-delta-butterfly"></span></div></div>
+            <p class="summer-lesson" data-text="summer-friends-line"></p></div>
         </section>
         <p id="learning-goals">Fly between flowers, gathering nectar for energy and the hive.<br>Carry pollen to matching flowers and help the meadow bloom.</p>
+        <details class="learning-controls" open>
+          <summary>Keyboard controls</summary>
         <div class="learning-movement">
           <div>${keyboardCluster()}<strong>Fly & walk</strong><p>W goes where you look</p></div>
           <div>${keyboardCluster(true)}<strong>Look around</strong><p>Up, down & turn</p></div>
@@ -186,8 +187,10 @@ export function createUI(actions: UIActions): GameUI {
         <div class="learning-actions">
           <div>${learningKey('E', 'KeyE')}<strong>Land & rest</strong></div>
           <div>${learningKey('Space', 'Space')}<strong>Take off & rise</strong></div>
+          <div>${learningKey('Ctrl', 'ControlLeft')}<strong>Go down</strong></div>
           <div>${learningKey('F / left mouse', 'KeyF')}<strong>Hold to sip nectar</strong></div>
         </div>
+        </details>
         <button class="primary-button learning-start" data-action="explore"><span>Explore the meadow</span>${icons.arrow}</button>
       </div>
     </section>
@@ -317,6 +320,9 @@ export function createUI(actions: UIActions): GameUI {
   const learningOverlay = el('.learning-overlay');
   const learningTitle = el('#learning-title');
   const learningSummer = el('.learning-summer');
+  const learningControls = el<HTMLDetailsElement>('.learning-controls');
+  const learningGoals = el('#learning-goals');
+  let controlsFoldedFor = -1;
   const learningButton = el<HTMLButtonElement>('[data-action="explore"]');
   const learningKeys = Array.from(root.querySelectorAll<HTMLElement>('[data-learn-key]'));
   const learningHeldKeys = new Set<string>();
@@ -589,8 +595,8 @@ export function createUI(actions: UIActions): GameUI {
     const fade = String(returning || state.phase === 'won' && state.endingStage === 'fade' ? percent(state.endingFade, 1) : 0);
     endingFade.style.opacity = fade;
     transition.style.setProperty('--ending-fade', failing ? String(percent((loss - .72) / .28, 1)) : fade);
-    const meadowEnding = state.endingStage === 'meadow';
-    text('ending-eyebrow', failing ? state.lossFromNight ? 'NIGHT FALLS ON THE MEADOW' : 'THE MEADOW FALLS QUIET' : meadowEnding ? '' : 'A LITTLE HARVEST, BROUGHT HOME');
+    // The flight home needs no heading; only the endings where the bee doesn't make it have one.
+    text('ending-eyebrow', failing ? state.lossFromNight ? 'NIGHT FALLS ON THE MEADOW' : 'THE MEADOW FALLS QUIET' : '');
     text('ending-caption', failing ? state.lossFromNight ? 'The last light slips away…' : 'Wings growing still…' : 'Heading home…');
     text('closing-action', failing ? 'Continue' : 'Skip to totals');
     attribute(transition, 'aria-label', failing ? state.lossFromNight ? 'Nightfall in the meadow' : 'The end of a little life' : "The day's journey home");
@@ -599,22 +605,26 @@ export function createUI(actions: UIActions): GameUI {
     const visitedInVision = state.uv && state.flowerVisited && !state.shelterTarget && !state.leafTopTarget && state.phase === 'flying';
     const highlightLanding = state.canLand && !visitedInVision;
     if (state.phase === 'learning') {
-      // From the second summer, the start page shows how the meadow changed.
+      // From the second summer, the start page shows how the meadow changed and
+      // why; the keyboard controls fold away (still one click to open).
       const start = state.summerStart;
       show(learningSummer, !!start);
+      show(learningGoals, !start);
       const title = start ? `Summer ${start.summer} begins on a flower.` : 'Your day begins on a flower.';
       if (learningTitle.textContent !== title) learningTitle.textContent = title;
+      const summer = start?.summer ?? 1;
+      if (controlsFoldedFor !== summer) { controlsFoldedFor = summer; learningControls.open = !start; }
       if (start) {
-        text('summer-line', start.line || 'The meadow looks much as it did last summer.');
-        text('summer-friends-line', start.friendsLine);
-        show(el('[data-text="summer-friends-line"]'), !!start.friendsLine);
-        const rows: [string, number, number][] = [...summerKinds.map(([s]) => [s, start.before[s], start.after[s]] as [string, number, number]), ['aphid', start.aphidsBefore, start.aphidsAfter], ['ladybird', start.ladybirdsBefore, start.ladybirdsAfter]];
+        text('summer-flowers-line', start.flowersLine);
+        text('summer-friends-line', start.friendsLine || 'The aphids and ladybirds are much as they were.');
+        const rows: [string, number, number][] = [...summerKinds.map(([s]) => [s, start.before[s], start.after[s]] as [string, number, number]), ['aphid', start.aphidsBefore, start.aphidsAfter], ['ladybird', start.ladybirdsBefore, start.ladybirdsAfter], ['butterfly', start.butterfliesBefore, start.butterfliesAfter]];
         for (const [kind, before, after] of rows) {
-          const change = trend(before, after);
+          const change = after - before;
+          text(`summer-was-${kind}`, String(before));
           text(`summer-count-${kind}`, String(after));
-          text(`summer-trend-${kind}`, change === 'same' ? 'about the same' : `${change === 'more' ? '↑' : '↓'} from ${before}`);
-          const cell = el(`[data-summer-kind="${kind}"]`);
-          if (cell.dataset.trend !== change) cell.dataset.trend = change;
+          text(`summer-delta-${kind}`, change === 0 ? 'no change' : `${change > 0 ? '+' : '−'}${Math.abs(change)}`);
+          const cell = el(`[data-summer-kind="${kind}"]`), sign = change > 0 ? 'more' : change < 0 ? 'fewer' : 'same';
+          if (cell.dataset.trend !== sign) cell.dataset.trend = sign;
         }
       }
     }
@@ -705,7 +715,7 @@ export function createUI(actions: UIActions): GameUI {
     // (cornflower nectar, poppy pollen) fills the bar, so differences show.
     supplyBar(nectarBar, state.flowerNectar / state.flowerNectarMax, `Nectar here: ${Math.ceil(state.flowerNectar / state.nectarCapacity * 100 - 1e-6)}% of a jar`);
     supplyBar(pollenBar, state.flowerPollen / state.flowerPollenMax, `Pollen here: ${Math.ceil(state.flowerPollen / state.pollenGoal * 100 - 1e-6)}% of a pouch`);
-    const guidance = cooling ? 'Cooling in the shade. Nectar restores energy.' : overheated ? (shelterBeneath ? 'Hot sun falls here. E tucks into shade.' : 'Open to the hot sun. Leaves or dense grass offer shade.') : onGround ? (grassSheltered ? (state.chilled ? 'Your wings are warming. Nectar restores energy.' : 'Sheltered by the grass. Nectar restores energy.') : exposedToRain ? 'Rain reaches this patch. Denser grass offers shelter.' : 'A quiet place to rest. Stored nectar restores energy.') : underLeaf ? (state.chilled ? 'Shelter beneath a leaf. Your wings are warming.' : 'Shelter beneath a leaf') : onLeaf ? (shelterBeneath ? (state.rain > .05 ? 'Rain falls here. Tuck beneath to get dry.' : 'Hot sun falls here. E tucks into shade.') : 'A quiet perch. Stored nectar restores energy.') : exposedFlower ? 'Open to cold rain. Leaves or dense grass offer shelter.' : '';
+    const guidance = cooling ? 'Cooling in the shade. Nectar restores energy.' : overheated ? (shelterBeneath ? 'Hot sun falls here. E tucks into shade.' : 'Open to the hot sun. Leaves or dense grass offer shade.') : onGround ? (grassSheltered ? (state.chilled ? 'Your wings are warming. Nectar restores energy.' : 'Sheltered by the grass. Nectar restores energy.') : exposedToRain ? 'Rain reaches this patch. Denser grass offers shelter.' : 'A quiet place to rest. Stored nectar restores energy.') : underLeaf ? (state.chilled ? 'Shelter beneath a leaf. Your wings are warming.' : 'Shelter beneath a leaf. Look up with ↑: ladybirds sometimes walk the underside.') : onLeaf ? (shelterBeneath ? (state.rain > .05 ? 'Rain falls here. Tuck beneath to get dry.' : 'Hot sun falls here. E tucks into shade.') : 'A quiet perch. Stored nectar restores energy.') : exposedFlower ? 'Open to cold rain. Leaves or dense grass offer shelter.' : '';
     text('flower-guidance', guidance);
     show(flowerGuidance, !!guidance);
     keyText('hint', state.hint);
@@ -756,7 +766,8 @@ export function createUI(actions: UIActions): GameUI {
       const preview = state.summerPreview;
       const living = preview ? ` of ${preview.ladybirds}` : '';
       const lastSummer = preview?.lastSummerLadybirds ? ` (${preview.lastSummerLadybirds} last summer)` : '';
-      text('result-friends', state.friendsFound === 0 ? `None met${preview ? ` · ${preview.ladybirds} ladybirds here` : ''}${lastSummer}` : `${state.friendsFound}${living} ladybird${state.friendsFound === 1 && !living ? '' : 's'}${lastSummer}`);
+      const ladybirdsMet = state.friendsFound === 0 ? `None met${preview ? ` · ${preview.ladybirds} ladybirds here` : ''}${lastSummer}` : `${state.friendsFound}${living} ladybird${state.friendsFound === 1 && !living ? '' : 's'}${lastSummer}`;
+      text('result-friends', state.butterfliesFound ? `${ladybirdsMet} · ${state.butterfliesFound} butterfl${state.butterfliesFound === 1 ? 'y' : 'ies'}` : ladybirdsMet);
       text('result-next', preview ? nextSummerLine(preview) : '');
       show(el('[data-text="result-next"]'), !!preview);
       text('result-pollinated', String(state.pollinated));

@@ -81,17 +81,25 @@ h1 em { font-weight: 400; font-size: .93em; }
 .learning-flower svg { width: 38px; height: 38px; }
 .learning-page h2 { margin: 3px 0 12px; font: 29px/1.15 var(--serif); font-weight: 400; outline: none; }
 #learning-goals { font: 16px/1.5 var(--serif); color: #57664b; }
-.learning-summer { margin: 12px auto 4px; padding: 12px 0 4px; border-top: 1px solid #a99a703b; border-bottom: 1px solid #a99a703b; }
-.learning-summer-line { margin: 0 0 11px; font: italic 15px/1.4 var(--serif); color: var(--rust); }
-.learning-summer-counts { display: flex; justify-content: center; gap: 16px; }
-.learning-summer-friends { margin: 10px auto 0; max-width: 460px; font: italic 13px/1.4 var(--serif); color: #57664b; }
-.learning-summer-counts > div { display: grid; justify-items: center; gap: 2px; min-width: 72px; }
+.learning-summer { margin: 10px auto 2px; padding: 10px 0 2px; border-top: 1px solid #a99a703b; }
+.summer-group { margin-bottom: 12px; }
+.summer-group h3 { margin: 0 0 8px; font: 500 11px/1.2 inherit; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+.summer-group h3 span { margin-left: 6px; letter-spacing: .3px; text-transform: none; font-weight: 400; opacity: .8; }
+.learning-summer-counts { display: flex; justify-content: center; gap: 22px; }
+.learning-summer-counts > div { display: grid; justify-items: center; gap: 2px; min-width: 80px; }
 .summer-art svg { width: 28px; height: 28px; }
-.learning-summer-counts b { font: 21px/1.1 var(--serif); font-weight: 400; }
 .summer-name { font-size: 11px; letter-spacing: .4px; }
-.summer-trend { font-size: 11px; color: var(--muted); }
-[data-trend="more"] > .summer-trend { color: #52703c; }
-[data-trend="fewer"] > .summer-trend { color: var(--rust); }
+.summer-change { display: flex; align-items: baseline; gap: 5px; font: 15px/1.2 var(--serif); color: var(--muted); }
+.summer-change b { font: 21px/1.1 var(--serif); font-weight: 400; color: var(--ink, #3d4a36); }
+.summer-arrow { font-size: 12px; }
+.summer-delta { font-size: 11px; font-weight: 600; color: var(--muted); }
+[data-trend="more"] > .summer-delta { color: #52703c; }
+[data-trend="fewer"] > .summer-delta { color: var(--rust); }
+.summer-lesson { margin: 8px auto 0; max-width: 470px; font: italic 14px/1.4 var(--serif); color: #57664b; }
+.learning-controls { margin-top: 6px; }
+.learning-controls > summary { width: max-content; margin: 0 auto; padding: 4px 10px; cursor: pointer; font-size: 12px; color: var(--muted); border-radius: 8px; }
+.learning-controls > summary:hover, .learning-controls > summary:focus-visible { color: inherit; background: #efe6c9; }
+.learning-controls:not([open]) { margin-bottom: -6px; }
 .learning-movement { display: flex; justify-content: center; gap: 70px; margin: 24px 0 21px; }
 .learning-keys { display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(2, 38px); gap: 5px; width: max-content; margin: 0 auto 12px; }
 .learning-keys > :first-child { grid-column: 2; }
@@ -103,7 +111,8 @@ h1 em { font-weight: 400; font-size: .93em; }
 .learning-actions { display: flex; justify-content: center; gap: 30px; padding-top: 19px; border-top: 1px solid #a99a703b; }
 .learning-actions > div { flex: 1; }
 .learning-actions kbd { width: max-content; margin: 0 auto 10px; }
-.learning-actions :is([data-learn-key="Space"], [data-learn-key="KeyF"]) { min-width: 92px; font-size: 14px; }
+.learning-actions :is([data-learn-key="Space"], [data-learn-key="ControlLeft"], [data-learn-key="KeyF"]) { min-width: 92px; font-size: 14px; }
+.learning-actions { gap: 22px; }
 .learning-start { margin: 24px auto 0; min-height: 44px; }
 .learning-start:hover { transform: none; }
 #ui[data-phase="learning"] .top-actions { visibility: hidden; }
@@ -516,6 +525,9 @@ h1 em { font-weight: 400; font-size: .93em; }
   .result-facts { margin-top: 11px; }
   .result-page .primary-button { margin-top: 14px; }
   .result-bee { display: none; }
+  .result-why, .result-tip, .result-next { margin-top: 3px; font-size: 12px; }
+  .result-voice + .result-voice { margin-top: 3px; }
+  .result-harvest .cargo-art { width: 80px; }
   .ending-caption { bottom: 74px; }
 }
 @media (max-width: 580px) {

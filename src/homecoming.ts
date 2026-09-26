@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Flower, ViewState } from './types';
+import { createButterflyMeshes } from './butterflies';
 
 const smooth = (x: number) => THREE.MathUtils.smoothstep(x, 0, 1);
 export const ENDING_DURATION = 11.8;
@@ -47,7 +48,7 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
   for (const z of [-.055,.055]) bodyParts.push(paint(new THREE.TorusGeometry(.099, .024, 4, 8).translate(0,0,z), '#59422c'));
   const bodyGeo = keep(mergeGeometries(bodyParts)!); bodyParts.forEach(g => g.dispose());
   const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .86 }); materials.add(bodyMat);
-  const count = 48, bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, count + 1); bodies.name = 'meadow workers'; root.add(bodies);
+  const count = 36, bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, count + 1); bodies.name = 'meadow workers'; root.add(bodies);
   const wingGeo = keep(new THREE.SphereGeometry(1, 6, 4).scale(.15,.009,.075));
   const wingMat = mat('#e6e4c6');
   const wings = new THREE.InstancedMesh(wingGeo, wingMat, (count + 1) * 2); wings.name = 'worker wings'; root.add(wings);
@@ -65,11 +66,39 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
   let stage: ViewState['endingStage'] = 'none', fade = 0, firstPerson = false, active = false;
   let visibleWorkers = 0, perchedBee = false;
   let hiveVisitors = 0, hiveLanded = 0;
+  // Butterflies share the overhead views: drawn larger than life, like the
+  // bees, and only on the nectar flowers (daisies and cornflowers).
+  const butterflyCount = 8, flutter = createButterflyMeshes(butterflyCount, 2.2);
+  root.add(flutter.wings, flutter.bodies);
+  for (let j = 0; j < butterflyCount; j++) flutter.setKind(j, j);
+  const nectarFlowers = flowers.filter(f => f.species !== 'poppy');
+  const flutterPosition = new THREE.Vector3(), flutterHeading = new THREE.Vector3(), flutterLook = new THREE.Matrix4(), flutterRotation = new THREE.Quaternion();
+  const UP = new THREE.Vector3(0, 1, 0), ORIGIN = new THREE.Vector3();
+  let visibleButterflies = 0;
+  function animateButterflies(time: number, reduced: boolean, shown: boolean) {
+    visibleButterflies = shown && nectarFlowers.length ? butterflyCount : 0;
+    for (let j = 0; j < visibleButterflies; j++) {
+      // Sit a while on one flower, then flutter on to the next.
+      const cycle = (reduced ? 0 : time * (.045 + j * .004)) + j * .37, leg = Math.floor(cycle), phase = cycle - leg;
+      const from = nectarFlowers[(j * 5 + leg * 3) % nectarFlowers.length], to = nectarFlowers[(j * 5 + (leg + 1) * 3) % nectarFlowers.length];
+      const travel = smooth((phase - .45) / .55), air = Math.sin(travel * Math.PI);
+      flutterPosition.copy(from.center).lerp(to.center, travel);
+      flutterPosition.y += .25 + air * (1.2 + (j % 3) * .5) + (reduced ? 0 : Math.sin(time * 5 + j) * .15 * air);
+      if (!reduced) { flutterPosition.x += Math.sin(time * 2.1 + j * 1.7) * .4 * air; flutterPosition.z += Math.cos(time * 1.7 + j) * .3 * air; }
+      flutterHeading.subVectors(to.center, from.center).setY(0);
+      if (flutterHeading.lengthSq() < 1e-6) flutterHeading.set(0, 0, 1);
+      flutterLook.lookAt(flutterHeading.normalize().negate(), ORIGIN, UP); flutterRotation.setFromRotationMatrix(flutterLook);
+      const open = reduced ? 1 : air < .05 ? 1.3 - Math.max(0, Math.sin(time * .5 + j)) ** 3 * 1.1 : .2 + (.5 + .5 * Math.sin(time * 30 + j));
+      flutter.pose(j, flutterPosition, flutterRotation, open);
+    }
+    flutter.commit(visibleButterflies);
+  }
   const visitorPositions = [new THREE.Vector3(), new THREE.Vector3()];
   function animateWorkers(time: number, reduced: boolean, perch?: THREE.Vector3, sunny = true, hiveAge?: number) {
     const workers = sunny ? count : 0, offset = perch ? 1 : 0;
     bodies.count = workers + offset; wings.count = bodies.count * 2;
     visibleWorkers = workers; perchedBee = !!perch;
+    animateButterflies(time, reduced, sunny);
     hiveVisitors = hiveAge === undefined ? 0 : 2; hiveLanded = 0;
     if (perch) {
       dummy.position.copy(perch); dummy.position.y -= .30;
@@ -122,7 +151,7 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
   }
   return {
     begin(camera: THREE.PerspectiveCamera) { start.copy(camera.position); startRotation.copy(camera.quaternion); active = true; },
-    reset() { active = false; root.visible = false; visibleWorkers = 0; hiveVisitors = 0; hiveLanded = 0; perchedBee = false; stage = 'none'; fade = 0; firstPerson = false; },
+    reset() { active = false; root.visible = false; visibleWorkers = 0; visibleButterflies = 0; hiveVisitors = 0; hiveLanded = 0; perchedBee = false; stage = 'none'; fade = 0; firstPerson = false; },
     pose(age: number, time: number, reduced: boolean, camera: THREE.PerspectiveCamera) {
       root.visible = active; hive.visible = true; if (!active) return;
       const switchAt = reduced ? 1.65 : 5.65, dissolve = reduced ? .30 : .45;
@@ -148,10 +177,10 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
     scenery(time: number, reduced: boolean, visible: boolean, sunny: boolean, perch?: THREE.Vector3) {
       root.visible = visible; hive.visible = false;
       if (visible) animateWorkers(time, reduced, perch, sunny);
-      else { visibleWorkers = 0; hiveVisitors = 0; hiveLanded = 0; perchedBee = false; }
+      else { visibleWorkers = 0; visibleButterflies = 0; hiveVisitors = 0; hiveLanded = 0; perchedBee = false; }
     },
     get stage() { return stage; }, get fade() { return fade; }, get firstPerson() { return firstPerson; },
-    diagnostics() { return { stage, fade, firstPerson, workers: root.visible ? visibleWorkers : 0, perchedBee: root.visible && perchedBee, hiveVisitors: root.visible ? hiveVisitors : 0, hiveLanded: root.visible ? hiveLanded : 0, visitorPositions: root.visible && hiveVisitors ? visitorPositions.map(p => p.toArray()) : [], workerDraws: 2, active }; },
-    dispose() { root.removeFromParent(); bodies.dispose(); wings.dispose(); geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); },
+    diagnostics() { return { stage, fade, firstPerson, workers: root.visible ? visibleWorkers : 0, butterflies: root.visible ? visibleButterflies : 0, perchedBee: root.visible && perchedBee, hiveVisitors: root.visible ? hiveVisitors : 0, hiveLanded: root.visible ? hiveLanded : 0, visitorPositions: root.visible && hiveVisitors ? visitorPositions.map(p => p.toArray()) : [], workerDraws: 2, active }; },
+    dispose() { root.removeFromParent(); bodies.dispose(); wings.dispose(); flutter.dispose(); geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); },
   };
 }

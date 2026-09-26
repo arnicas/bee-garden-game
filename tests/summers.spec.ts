@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { countSpecies, friendCounts, MEADOW_PLAN, nextCounts, planNextSummer, trend, type PastFlower } from '../src/meadow-plan';
-import { friendsChangeLine, meadowChangeLine, morningLine, nextSummerLine } from '../src/day-report';
+import { flowerLessonLine, friendsChangeLine, meadowChangeLine, morningLine, nextSummerLine } from '../src/day-report';
 import type { Species } from '../src/types';
 import { startFlyingFixture } from './support/start';
 
@@ -61,7 +61,7 @@ test('seedlings grow around the flowers that set seed, blow across the meadow, a
 });
 
 test('aphids and ladybirds follow the flowers', () => {
-  expect(friendCounts(counts(24, 24, 24))).toEqual({ aphidClusters: 14, ladybirds: 18 });
+  expect(friendCounts(counts(24, 24, 24))).toEqual({ aphidClusters: 14, ladybirds: 18, butterflies: 8 });
   const thin = friendCounts(counts(18, 9, 4));
   expect(thin.aphidClusters).toBeLessThan(6);
   expect(thin.ladybirds).toBeLessThan(11);
@@ -75,6 +75,10 @@ test('the words name how the meadow changed', () => {
   expect(meadowChangeLine(counts(24, 24, 24), counts(22, 35, 24))).toBe('Poppies have spread where you worked last summer.');
   expect(meadowChangeLine(counts(24, 24, 24), counts(24, 24, 9))).toBe('The cornflowers are sparse this year.');
   expect(meadowChangeLine(counts(24, 24, 24), counts(24, 35, 9))).toBe('Poppies have spread, and the cornflowers are sparse.');
+  expect(flowerLessonLine(counts(0, 6, 0), counts(24, 24, 24), counts(21, 35, 9))).toBe('You pollinated 6 poppies, so more grew from their seed. No cornflowers were pollinated, so fewer came back.');
+  expect(flowerLessonLine(counts(0, 0, 1), counts(24, 24, 24), counts(21, 9, 13))).toBe('No poppies were pollinated, so fewer came back.');
+  expect(flowerLessonLine(counts(0, 1, 1), counts(24, 24, 24), counts(21, 13, 13))).toBe('Only 1 poppy was pollinated, so fewer came back.');
+  expect(flowerLessonLine(counts(0, 0, 0), counts(9, 3, 3), counts(8, 3, 3))).toBe('Nothing was pollinated, so only old seed in the soil came up.');
   expect(friendsChangeLine(counts(24, 24, 24), counts(21, 9, 9))).toBe('Fewer poppies and cornflowers meant fewer aphids, so fewer ladybirds stayed.');
   expect(friendsChangeLine(counts(24, 24, 24), counts(24, 38, 38))).toBe('More poppies and cornflowers brought aphids, and more ladybirds came to eat them.');
   expect(friendsChangeLine(counts(24, 24, 24), counts(24, 24, 24))).toBe('');
@@ -104,6 +108,9 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   await page.getByRole('button', { name: 'Next summer' }).click();
   await expect(page.locator('#learning-title')).toHaveText(/^Summer 2 begins/);
   await expect(page.locator('.learning-summer')).toBeVisible();
+  await expect(page.locator('[data-text="summer-flowers-line"]')).not.toHaveText('');
+  // The keyboard controls fold away after the first summer.
+  await expect(page.locator('.learning-controls')).not.toHaveAttribute('open', '');
   await expect(page.locator('[data-text="summer-count-poppy"]')).not.toHaveText('');
   await expect(page.locator('[data-text="summer-count-ladybird"]')).not.toHaveText('');
   expect(errors).toEqual([]);
