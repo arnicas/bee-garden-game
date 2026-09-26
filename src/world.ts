@@ -73,10 +73,10 @@ function stemBetween(a: THREE.Vector3, b: THREE.Vector3, radius: number, color: 
 }
 
 interface PollenGrain { position: THREE.Vector3; scale: THREE.Vector3; color: THREE.Color; }
-interface FlowerHead { geometry: THREE.BufferGeometry; grains: PollenGrain[]; }
+interface FlowerHead { geometry: THREE.BufferGeometry; grains: PollenGrain[]; nectarSpots: THREE.Vector3[]; }
 function flowerHead(species: Species, variant: number, simple = false, medium = false): FlowerHead {
   const random = rng(331 + variant * 477 + SPECIES.indexOf(species) * 7121), parts: THREE.BufferGeometry[] = [];
-  const grains: PollenGrain[] = [];
+  const grains: PollenGrain[] = [], nectarSpots: THREE.Vector3[] = [];
   const grain = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: THREE.Color) => {
     grains.push({ position: new THREE.Vector3(x, y, z), scale: new THREE.Vector3(sx, sy, sz), color });
   };
@@ -127,41 +127,74 @@ function flowerHead(species: Species, variant: number, simple = false, medium = 
       grain(x, top, z, 0.014, 0.018, 0.021, C(0x493141).lerp(C(0xd5a545), random() * 0.65));
     }
   } else {
-    const count = simple ? 12 : 23;
-    for (let i = 0; i < count; i++) {
-      const theta = i * TAU / count + Math.sin(i * 15 + variant) * 0.026;
-      const length = 0.82 + random() * 0.18;
-      // A cornflower is a ring of five-fingered trumpet florets, not blue daisy petals.
-      const fingers = simple ? 3 : 5;
-      for (let finger = 0; finger < fingers; finger++) {
-        const spread = (finger / (fingers - 1) - 0.5);
-        parts.push(surface(simple ? 3 : medium ? 4 : 7, 2, (u, v) => {
-          const radial = 0.26 + 0.69 * u * length;
-          const angle = theta + spread * 0.22 * u;
-          const edge = (v * 2 - 1) * (0.012 + Math.sin(Math.PI * u) * (simple ? 0.023 : 0.019)) * (1 - u * 0.45);
-          const y = 0.035 + 0.075 * u + 0.13 * Math.sin(u * Math.PI) - 0.02 * spread;
-          const color = C(0x403778).lerp(C(0x739be8), Math.pow(u, 0.80)).lerp(C(0xcbd1fa), Math.pow(u, 4) * 0.55);
-          return { x: Math.cos(angle) * radial - Math.sin(angle) * edge, y, z: Math.sin(angle) * radial + Math.cos(angle) * edge, color, u: v, v: u + 4 };
-        }));
-      }
+    // A cornflower head: an outer ring of big sterile florets, each a funnel that
+    // flares into a toothed mouth, around a dense disc of small fertile florets.
+    // Two offset rings of funnels overlap, so the head looks full from above.
+    const rings: [number, number, number, number][] = simple ? [[8, 1, 0, 0]] : [[11, 1, 0, 0], [11, .86, .5, -.03]];
+    for (const [count, reach, offset, drop] of rings) for (let i = 0; i < count; i++) {
+      const theta = (i + offset) * TAU / count + Math.sin(i * 15 + variant + offset * 7) * 0.05;
+      const length = (0.86 + random() * 0.14) * reach;
+      const half = TAU / count * (simple ? 0.62 : 0.7), lobes = 5 + Math.floor(random() * 3), tilt = (random() - 0.5) * 0.04;
+      parts.push(surface(simple ? 3 : medium ? 5 : 8, simple ? 6 : medium ? 10 : 16, (u, v) => {
+        const across = v * 2 - 1;
+        // A narrow throat near the disc, widening into the mouth.
+        const open = THREE.MathUtils.smoothstep(u, 0.05, 0.72);
+        const angle = theta + across * half * (0.5 + 0.5 * open);
+        // Pointed lobes cut into the outer rim.
+        const notch = Math.abs(((v * lobes) % 1) - 0.5) * 2;
+        const rim = 1 - 0.15 * Math.pow(1 - notch, 1.4) * THREE.MathUtils.smoothstep(u, 0.8, 1);
+        const radial = (0.12 + 0.83 * length * u) * rim;
+        // The funnel: rising from the throat, its sides curling up into a shallow cup.
+        const y = drop + 0.03 + 0.06 * u + 0.12 * Math.sin(u * Math.PI * 0.9) + 0.045 * across * across * open + tilt * across;
+        const color = C(0x3a2f70).lerp(C(0x4f78dc), Math.pow(u, 0.7)).lerp(C(0xa8b8f4), Math.pow(u, 4) * 0.42);
+        return { x: Math.cos(angle) * radial, y, z: Math.sin(angle) * radial, color, u: v, v: u + 4 };
+      }));
     }
-    parts.push(ellipsoid(0, 0.015, 0, 0.205, 0.065, 0.205, C(0x302b52), 1));
-    const florets = simple ? 7 : medium ? 25 : 77;
+    // The involucre: a cup of green, dark-fringed bracts under the head.
+    parts.push(ellipsoid(0, -0.055, 0, 0.21, 0.1, 0.21, C(0x5d7244), 1));
+    parts.push(ellipsoid(0, 0.0, 0, 0.215, 0.03, 0.215, C(0x3f3a2c), 1));
+    // The disc: fertile florets, small purple-blue tubes. They open from the
+    // outside in, a ring at a time: inside the open ring are closed buds, and
+    // outside it florets that have finished. Nectar is in the open ring (the
+    // game draws its beads so they can be sipped dry one by one). Each head
+    // variant is at its own age, so the ring sits at its own radius.
+    parts.push(ellipsoid(0, 0.015, 0, 0.205, 0.065, 0.205, C(0x2c2650), 1));
+    // Young (ring near the edge), middle-aged or older (ring near the centre), with a little jitter.
+    const ring = [0.145, 0.11, 0.075][variant % 3] + (rng(911 + variant * 53)() - 0.5) * 0.02, ringWidth = 0.028;
+    const florets = simple ? 7 : medium ? 26 : 56;
+    const open: { angle: number; spot: THREE.Vector3 }[] = [];
     for (let i = 0; i < florets; i++) {
-      const r = Math.sqrt((i + 0.5) / florets) * 0.19, angle = i * 2.3999632297, x = Math.cos(angle) * r, z = Math.sin(angle) * r;
-      const top = 0.11 + random() * 0.12;
-      if (r < 0.071) continue; // Keep a clear, reachable nectar well at the center.
-      parts.push(stemBetween(new THREE.Vector3(x, 0.03, z), new THREE.Vector3(x * 1.15, top, z * 1.15), 0.009, C(0x403466), 4));
-      // Real anthers are deep purple; tint the collectible pollen to match our
-      // species-color cues, with enough violet variation to read while crawling.
-      const color = C(0x393268).lerp(C(0x68508b), (top - 0.11) / 0.12);
-      grain(x * 1.15, top, z * 1.15, 0.011, 0.021, 0.011, color);
+      const r = Math.sqrt((i + 0.5) / florets) * 0.18, angle = i * 2.3999632297, x = Math.cos(angle) * r, z = Math.sin(angle) * r;
+      const floor = 0.015 + 0.065 * Math.sqrt(Math.max(0, 1 - (r / 0.205) ** 2));
+      const bud = r < ring - ringWidth, opening = Math.abs(r - ring) <= ringWidth;
+      const height = bud ? 0.03 + random() * 0.012 : 0.07 + random() * 0.04;
+      const lean = new THREE.Vector3(x * 2.2, 1, z * 2.2).normalize();
+      const base = new THREE.Vector3(x, floor - 0.01, z), mouth = base.clone().addScaledVector(lean, height);
+      const tube = bud ? C(0x33295f).lerp(C(0x4a3f8e), random() * 0.5) : C(0x4a3f8e).lerp(C(0x6a62b8), random() * 0.6);
+      parts.push(stemBetween(base, mouth, bud ? 0.015 : 0.017, tube, simple ? 4 : 6));
+      let tip: THREE.Vector3;
+      if (bud) {
+        // A closed bud: a rounded tip, no mouth or anthers yet.
+        if (!simple) parts.push(ellipsoid(mouth.x, mouth.y, mouth.z, 0.016, 0.02, 0.016, tube.clone().lerp(C(0x241a3c), 0.3), 0));
+        tip = mouth.clone().addScaledVector(lean, 0.016);
+      } else {
+        if (!simple) {
+          const flare = new THREE.CylinderGeometry(0.025, 0.014, 0.02, 8, 1, true);
+          flare.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, lean)).translate(mouth.x, mouth.y, mouth.z);
+          parts.push(painted(flare, tube.clone().lerp(C(0x8b86d6), 0.3)));
+        }
+        tip = mouth.clone().addScaledVector(lean, 0.03);
+        if (!simple) parts.push(stemBetween(mouth, tip, 0.0075, C(0x241a3c), 4));
+        if (opening && !simple && !medium) open.push({ angle: Math.atan2(z, x), spot: mouth.clone().addScaledVector(lean, 0.004) });
+      }
+      // Pollen grain at the anther tip; purple-violet like the anthers, matching the carried-pollen colour.
+      const color = C(0x393268).lerp(C(0x68508b), random());
+      grain(tip.x, tip.y + 0.004, tip.z, 0.011, 0.015, 0.011, color);
     }
-  }
-  if (species === 'cornflower') {
-    parts.push(ellipsoid(0, 0.086, 0, 0.056, 0.009, 0.056, C(0xe7ad65), 1));
-    const rim = new THREE.TorusGeometry(0.058, 0.007, 4, 18); rim.rotateX(Math.PI / 2); rim.translate(0, 0.087, 0);
-    parts.push(painted(rim, C(0x685080)));
+    // Seven nectar florets spread evenly around the open ring.
+    open.sort((a, b) => a.angle - b.angle);
+    const holding = Math.min(7, open.length);
+    for (let k = 0; k < holding; k++) nectarSpots.push(open[Math.floor(k * open.length / holding)].spot);
   }
   // A stable scattered order makes depletion leave natural gaps in every view.
   const shuffle = rng(971 + variant * 137 + SPECIES.indexOf(species) * 181);
@@ -169,7 +202,7 @@ function flowerHead(species: Species, variant: number, simple = false, medium = 
     const j = Math.floor(shuffle() * (i + 1));
     [grains[i], grains[j]] = [grains[j], grains[i]];
   }
-  return { geometry: combine(parts), grains };
+  return { geometry: combine(parts), grains, nectarSpots };
 }
 
 /** A flower's resting stalk: a gentle curve from the base to the head. */
@@ -500,7 +533,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     stalkShape.setAttribute('stemShape', new THREE.BufferAttribute(shapeData, 2));
     stalkShape.boundingSphere!.radius += height * .32;
     const stalk = new THREE.Mesh(stalkShape, plantMaterial); stalk.position.copy(base); stalk.receiveShadow = true; stalk.customDepthMaterial = stemDepthMaterial; root.add(stalk);
-    const flower: Flower = { id, species, base, center, height, stalk: stalkCurve(height, id * 1.728), velocity: new THREE.Vector3(), radius, group, pollen, pollenFraction: 1, visited: false, pollenMatch: false, rotation: new THREE.Quaternion() };
+    const flower: Flower = { id, species, base, center, height, stalk: stalkCurve(height, id * 1.728), velocity: new THREE.Vector3(), radius, group, pollen, pollenFraction: 1, visited: false, pollenMatch: false, rotation: new THREE.Quaternion(), nectarSpots: head.nectarSpots.map(p => p.clone().multiplyScalar(radius)) };
     flowers.push(flower); updatePollen(flower, 0);
     stems.push(stalk); heights.push(height); twists.push(random() * TAU); headDetail.push(0);
   }

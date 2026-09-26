@@ -6,6 +6,17 @@ test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
 const state = (page: Page) => page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Promise<Record<string, any>>;
 const freeze = (page: Page, value: boolean) => page.evaluate(value => window.__THREE_GAME_TEST_HOOKS__!.setPausedForScreenshot(value), value);
 const supply = (snapshot: Record<string, any>, id: number): number => snapshot.supplies.find(([flowerId]: [number]) => flowerId === id)[1].nectar;
+const florets = (snapshot: Record<string, any>, id: number): number[] => snapshot.supplies.find(([flowerId]: [number]) => flowerId === id)[1].florets;
+/** On a cornflower, step from floret to floret (F held) until done or all are dry. */
+async function sipFlorets(page: Page, id: number, done: (s: Record<string, any>) => boolean) {
+  const count = florets(await state(page), id).length;
+  for (let i = 0; i < count; i++) {
+    if (done(await state(page))) return;
+    if (florets(await state(page), id)[i] < .01) continue;
+    await page.evaluate(i => window.__BEE_TEST__!.walkToFloret(i), i);
+    await expect.poll(async () => { const s = await state(page); return done(s) || florets(s, id)[i] < .01; }).toBe(true);
+  }
+}
 
 async function perch(page: Page, id: number, nectar: number, energy: number) {
   await page.goto('/?test');
@@ -115,14 +126,18 @@ test('each nectar drop gives half the harvest while sipping still restores energ
 
 test('manual sipping fills storage and energy but an empty flower cannot supply extra nectar', async ({ page }) => {
   await perch(page, 2, 99, 65);
+  // A cornflower's nectar is in its florets: step onto the disc beside one.
+  await page.evaluate(() => window.__BEE_TEST__!.walkToFloret(0));
   await expect.poll(async () => (await state(page)).canDrink).toBe(true);
   await page.keyboard.down('f');
+  await sipFlorets(page, 2, s => s.nectar >= 100 && s.energy > 75);
   await expect.poll(async () => (await state(page)).nectar).toBe(100);
   await expect.poll(async () => (await state(page)).energy).toBeGreaterThan(75);
   await page.keyboard.up('f');
-  // Gather the remaining flower supply, then try the same action again.
+  // Gather the remaining flower supply, floret by floret, then try again.
   await page.evaluate(() => window.__BEE_TEST__!.setCargo(0, 100, 100));
   await page.keyboard.down('f');
+  await sipFlorets(page, 2, s => supply(s, 2) < .01);
   await expect.poll(async () => supply(await state(page), 2)).toBeLessThan(.01);
   await page.keyboard.up('f');
   await page.evaluate(() => window.__BEE_TEST__!.setCargo(90, 100, 60));
@@ -143,8 +158,10 @@ test('a full bee curls its tongue, stops sipping, and resumes when resources are
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await mkdir('artifacts/walking-forage-1/nectar', { recursive: true });
-  await perch(page, 2, 85, 95);
+  // Nearly full, so one cornflower floret tops the bee up.
+  await perch(page, 2, 97, 95);
   await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.setReducedMotion(false));
+  await page.evaluate(() => window.__BEE_TEST__!.walkToFloret(0));
   await expect.poll(async () => (await state(page)).canDrink).toBe(true);
   await page.keyboard.down('f');
   await expect.poll(async () => (await state(page)).tongue.extension).toBeGreaterThan(.95);

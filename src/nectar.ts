@@ -41,11 +41,12 @@ export function createNectarDrop(scene: THREE.Scene) {
       };
       material.customProgramCacheKey = () => 'tongue-in-nectar-v1';
     },
-    pose(id: number, center: THREE.Vector3, rotation: THREE.Quaternion, time: number, visible: boolean, uv: boolean) {
+    /** size scales the drop (1 for a daisy's pool; smaller in a cornflower floret). */
+    pose(id: number, center: THREE.Vector3, rotation: THREE.Quaternion, time: number, visible: boolean, uv: boolean, size = 1) {
       if (id !== flowerId) { flowerId = id; pressure = 0; touching = false; age = 10; changed = true; }
       mesh.visible = visible;
       mesh.position.copy(center); mesh.quaternion.copy(rotation);
-      const radius = .046 * (.85 + Math.sin(time * 3) * .08);
+      const radius = .046 * size * (.85 + Math.sin(time * 3) * .08);
       mesh.scale.set(radius, radius * .5, radius);
       material.emissiveIntensity = uv ? .45 : .12;
       mesh.updateMatrixWorld(true);
@@ -94,5 +95,35 @@ export function createNectarDrop(scene: THREE.Scene) {
     },
     diagnostics() { return { visible: mesh.visible, touching, pressure, tipRadius, contactCount, flowerId }; },
     dispose() { mesh.removeFromParent(); geometry.dispose(); material.dispose(); },
+  };
+}
+
+/** The nectar still in a cornflower's florets: small beads in the floret mouths
+ * that shrink as they are sipped and vanish when empty. */
+export function createNectarBeads(scene: THREE.Scene, capacity = 8) {
+  const geometry = new THREE.SphereGeometry(1, 14, 8);
+  const material = new THREE.MeshPhysicalMaterial({ color: '#e9b53e', roughness: .18, metalness: .05, clearcoat: 1, clearcoatRoughness: .12, emissive: '#b57516', emissiveIntensity: .12 });
+  const mesh = new THREE.InstancedMesh(geometry, material, capacity);
+  mesh.name = 'nectar beads'; mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(mesh);
+  const matrix = new THREE.Matrix4(), at = new THREE.Vector3(), size = new THREE.Vector3();
+  return {
+    /** amounts per floret, full = a full floret's amount; skip = the floret shown as the live drop. */
+    pose(spots: readonly THREE.Vector3[], center: THREE.Vector3, rotation: THREE.Quaternion, amounts: readonly number[], full: number, skip: number, uv: boolean) {
+      let n = 0;
+      for (let i = 0; i < spots.length && n < capacity; i++) {
+        const fill = amounts[i] / full;
+        if (i === skip || fill <= .02) continue;
+        const r = .021 * (.45 + .55 * Math.min(1, fill));
+        at.copy(spots[i]).applyQuaternion(rotation).add(center);
+        matrix.compose(at, rotation, size.set(r, r * .6, r));
+        mesh.setMatrixAt(n++, matrix);
+      }
+      mesh.count = n; mesh.visible = n > 0; mesh.instanceMatrix.needsUpdate = true;
+      material.emissiveIntensity = uv ? .45 : .12;
+    },
+    hide() { mesh.count = 0; mesh.visible = false; },
+    diagnostics() { return { count: mesh.visible ? mesh.count : 0 }; },
+    dispose() { mesh.removeFromParent(); geometry.dispose(); material.dispose(); mesh.dispose(); },
   };
 }

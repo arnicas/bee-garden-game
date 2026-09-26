@@ -4,7 +4,7 @@ import { countSpecies, friendCounts, meadowDryness, nextBadSummers, nextCounts, 
 import { butterflyChangeLine, snailChangeLine, dayReport, flowerLessonLine, friendsChangeLine, morningLine, type DayReport } from './day-report';
 import { createUI } from './ui';
 import { createBeeRig } from './bee';
-import { createNectarDrop } from './nectar';
+import { createNectarBeads, createNectarDrop } from './nectar';
 import { createAtmosphere } from './atmosphere';
 import { createHomecoming, ENDING_DURATION, QUIET_ENDING_DURATION } from './homecoming';
 import { createRestView, QUIET_AFTER, SCENIC_AFTER } from './rest-view';
@@ -59,11 +59,20 @@ const POLLEN_YIELD = .5, NECTAR_YIELD = .5;
 // and height above the petal surface. (Previously 2.25 and 3.2.)
 const FLOWER_LANDING_REACH = 1.85;
 const FLOWER_LANDING_CLEARANCE = 2.8;
-interface FlowerSupply { nectar: number; pollen: number; visited: boolean; pollinated: boolean; }
+interface FlowerSupply {
+  nectar: number; pollen: number; visited: boolean; pollinated: boolean;
+  /** Cornflowers: nectar left in each nectar-holding floret (sums to nectar). */
+  florets: number[];
+}
+/** Cornflower florets: how far the tongue reaches from the bee's feet to a floret
+ * mouth (it has to walk onto the disc), and how fast one drains. */
+const FLORET_REACH = .26, FLORET_SIP_RATE = 4;
 interface TestControl {
   snapshot(): Record<string, unknown>;
   setPose(position: [number, number, number], yaw?: number, pitch?: number, velocity?: [number, number, number]): void;
   approachFlower(id: number): void;
+  /** Landed on a cornflower: steps to just behind floret i, facing it. */
+  walkToFloret(index: number): void;
   setCargo(nectar: number, pollen: number, energy?: number): void;
   flowers(): { id: number; species: Species; center: number[]; base: number[]; rotation: number[]; velocity: number[]; height: number; radius: number; pollenFraction: number; visiblePollen: number; pollenMatch: boolean }[];
   setDayProgress(value: number): void;
@@ -116,7 +125,7 @@ export class Garden {
   /** What butterflies can see of the meadow: nectar left, and the bee's flower. */
   private butterflyWorld: ButterflyWorld = {
     nectar: id => this.supplies.get(id)?.nectar ?? 0,
-    sip: (id, amount) => { const supply = this.supplies.get(id); if (supply && this.butterfliesSip) supply.nectar = Math.max(0, supply.nectar - amount); },
+    sip: (id, amount) => { const supply = this.supplies.get(id); if (supply && this.butterfliesSip) this.takeNectar(supply, amount); },
     beeFlower: -1,
     rain: 0,
     sun: 1,
@@ -239,6 +248,10 @@ export class Garden {
   private autoFeeding = false;
   private satiated = false;
   private drinkChime = 0;
+  /** The cornflower floret the tongue can reach now (-1 for none). */
+  private nectarFloret = -1;
+  private floretDirection = new THREE.Vector3();
+  private nectarBeads: ReturnType<typeof createNectarBeads>;
   private pollenChime = 0;
   private notice = '';
   private noticeUntil = 0;
@@ -315,6 +328,7 @@ export class Garden {
     this.windFX = createWindEffects(this.scene);
     this.nectarDrop = createNectarDrop(this.scene);
     this.nectarDrop.clipTongue(this.bee.tongueTipMaterial);
+    this.nectarBeads = createNectarBeads(this.scene);
     this.fillLight = new THREE.PointLight('#fcdfa2', .08, 2.5, 2); this.camera.add(this.fillLight);
     this.ui = createUI({ start: () => this.begin(), explore: () => this.explore(), restart: () => this.begin(), resume: () => this.resume(), pause: () => this.pause(), toggleSound: () => this.audio.toggle(), toggleUV: () => { this.uv = !this.uv; }, returnHome: () => this.returnHome(), skipReturn: () => this.skipClosing(), toggleRest: () => this.toggleRest() });
     this.resetSupply(); this.bindInput(); this.resize(); this.updateWorld(0); this.updateView(0); this.installHooks();
@@ -329,7 +343,7 @@ export class Garden {
     for (const f of this.meadow.flowers) {
       f.pollenFraction = 1;
       f.visited = false;
-      this.supplies.set(f.id, { nectar: NECTAR_SUPPLY[f.species], pollen: POLLEN_SUPPLY[f.species], visited: false, pollinated: false });
+      this.supplies.set(f.id, { nectar: NECTAR_SUPPLY[f.species], pollen: POLLEN_SUPPLY[f.species], visited: false, pollinated: false, florets: f.nectarSpots.map(() => NECTAR_SUPPLY[f.species] / f.nectarSpots.length) });
     }
   }
   private notify(message: string, duration = 4): void { this.notice = message; this.noticeUntil = this.time + duration; }
@@ -989,22 +1003,28 @@ export class Garden {
       this.pollenChime += amount;
       if (this.pollenChime > 8) { this.audio.chime('pollen'); this.pollenChime = 0; }
     }
-    this.updateNectarTarget(f);
     this.camera.getWorldDirection(this.forward);
+    // Cornflower nectar hides in the disc florets: the tongue reaches the one
+    // nearest the bee's feet, and moves on to the next as each runs dry.
+    const florets = supply.florets;
+    if (florets.length) this.chooseFloret(f, supply); else this.nectarFloret = -1;
+    this.updateNectarTarget(f);
     this.temp.subVectors(this.nectarTarget, this.position);
     const reach = this.temp.length();
-    this.canDrink = !this.satiated && f.species !== 'poppy' && supply.nectar > .01 && reach < f.radius * .95 + .20 && this.temp.normalize().dot(this.forward) > .92;
+    this.canDrink = !this.satiated && f.species !== 'poppy' && supply.nectar > .01
+      && (florets.length ? this.nectarFloret >= 0 : reach < f.radius * .95 + .20 && this.temp.normalize().dot(this.forward) > .92);
     if (this.canDrink && (this.keys.has('KeyF') || this.mouseDown) && this.landingAge > .3) {
       this.drinking = true;
       // Some of the sip feeds the bee; the remainder is stored for the hive.
       // Full cargo must not block feeding or waste the flower's unused nectar.
       const appetite = Math.min(100 - this.energy, dt * SIP_ENERGY_RATE) / ENERGY_PER_NECTAR;
-      const amount = Math.min(supply.nectar, dt * 9, (NECTAR_CAPACITY - this.nectar + appetite) / NECTAR_YIELD);
+      const available = florets.length ? florets[this.nectarFloret] : supply.nectar;
+      const amount = Math.min(available, dt * (florets.length ? FLORET_SIP_RATE : 9), (NECTAR_CAPACITY - this.nectar + appetite) / NECTAR_YIELD);
       const harvest = amount * NECTAR_YIELD;
       const eaten = Math.min(harvest, appetite);
       this.energy = Math.min(100, this.energy + eaten * ENERGY_PER_NECTAR);
       this.nectar = Math.min(NECTAR_CAPACITY, this.nectar + (harvest - eaten));
-      supply.nectar = Math.max(0, supply.nectar - amount);
+      this.takeNectar(supply, amount, florets.length ? this.nectarFloret : -1);
       this.updateAppetite();
       if (this.satiated) { this.drinking = false; this.canDrink = false; }
       this.drinkChime += amount;
@@ -1053,7 +1073,7 @@ export class Garden {
     this.clearShelter();
     this.stopRest();
     this.landingAssist = null;
-    this.landed = f; this.phase = 'landed'; this.landingAge = 0;
+    this.landed = f; this.phase = 'landed'; this.landingAge = 0; this.nectarFloret = -1;
     this.temp.subVectors(this.position, f.center).applyQuaternion(f.rotation.clone().invert()); this.temp.y = 0;
     if (this.temp.lengthSq() < .01) this.temp.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     this.temp.normalize().multiplyScalar(f.radius * .57); this.localPosition.copy(this.temp);
@@ -1077,7 +1097,7 @@ export class Garden {
       this.notify('Pollen delivered. A little life carried onward.', 3);
     } else {
       this.audio.chime('land');
-      this.notify(this.satiated ? 'All topped up. Walk through the center for pollen.' : f.species === 'poppy' ? 'A pollen feast. Crawl toward the dark anthers; poppies offer almost no nectar.' : 'Your feet have found a petal. Crawl with WASD; aim at the golden nectar and hold F.', 6);
+      this.notify(this.satiated ? 'All topped up. Walk through the center for pollen.' : f.species === 'poppy' ? 'A pollen feast. Crawl toward the dark anthers; poppies offer almost no nectar.' : f.species === 'cornflower' ? 'A cornflower. Its nectar hides deep in the small florets at the centre: walk to a gold bead and hold F.' : 'Your feet have found a petal. Crawl with WASD; aim at the golden nectar and hold F.', 6);
     }
     this.previousFlowerBySpecies[f.species] = f.id;
   }
@@ -1221,7 +1241,53 @@ export class Garden {
     this.sampleWeather();
     this.atmosphere.update(time, elevated ? this.camera.position : this.position, this.uv, this.dayProgress(), this.weather.cloudiness);
   }
-  private updateNectarTarget(f: Flower): void { this.nectarTarget.set(0, .15, 0).applyQuaternion(f.rotation).add(f.center); }
+  private updateNectarTarget(f: Flower): void {
+    // A cornflower's target is the floret in reach, else the nearest that still has nectar.
+    const supply = f.nectarSpots.length ? this.supplies.get(f.id) : undefined;
+    let floret = this.nectarFloret;
+    if (supply && floret < 0) {
+      let best = Infinity;
+      supply.florets.forEach((amount, i) => {
+        const s = f.nectarSpots[i], d = Math.hypot(s.x - this.localPosition.x, s.z - this.localPosition.z);
+        if (amount > .01 && d < best) { best = d; floret = i; }
+      });
+    }
+    if (supply && floret >= 0) this.nectarTarget.copy(f.nectarSpots[floret]).applyQuaternion(f.rotation).add(f.center);
+    else this.nectarTarget.set(0, .15, 0).applyQuaternion(f.rotation).add(f.center);
+  }
+  /** Cornflowers: keeps the floret being sipped while it lasts and stays in reach,
+   * else picks the nearest one in reach, roughly ahead, that still holds nectar. */
+  private chooseFloret(f: Flower, supply: FlowerSupply): void {
+    const spots = f.nectarSpots, florets = supply.florets;
+    const reachable = (i: number, reach: number) => {
+      if (!(florets[i] > .01)) return false;
+      if (Math.hypot(spots[i].x - this.localPosition.x, spots[i].z - this.localPosition.z) > reach) return false;
+      this.floretDirection.copy(spots[i]).applyQuaternion(f.rotation).add(f.center).sub(this.position).normalize();
+      return this.floretDirection.dot(this.forward) > .2;
+    };
+    if (this.nectarFloret >= 0 && this.nectarFloret < spots.length && reachable(this.nectarFloret, FLORET_REACH + .06)) return;
+    let best = -1, bestDistance = Infinity;
+    for (let i = 0; i < spots.length; i++) {
+      if (!reachable(i, FLORET_REACH)) continue;
+      const d = Math.hypot(spots[i].x - this.localPosition.x, spots[i].z - this.localPosition.z);
+      if (d < bestDistance) { bestDistance = d; best = i; }
+    }
+    this.nectarFloret = best;
+  }
+  /** Takes nectar from a flower: from one cornflower floret, or (a butterfly's
+   * long tongue) from the emptiest floret that still has some, then the next. */
+  private takeNectar(supply: FlowerSupply, amount: number, floret = -1): void {
+    const florets = supply.florets;
+    if (!florets.length) { supply.nectar = Math.max(0, supply.nectar - amount); return; }
+    if (floret >= 0) florets[floret] = Math.max(0, florets[floret] - amount);
+    else for (let left = amount; left > 1e-9;) {
+      let pick = -1;
+      florets.forEach((a, i) => { if (a > 1e-9 && (pick < 0 || a < florets[pick])) pick = i; });
+      if (pick < 0) break;
+      const taken = Math.min(left, florets[pick]); florets[pick] -= taken; left -= taken;
+    }
+    supply.nectar = florets.reduce((sum, a) => sum + a, 0);
+  }
   private updateView(dt: number): void {
     const cinematic = this.phase === 'returning' || this.phase === 'won' || this.phase === 'paused' && this.resumePhase === 'returning';
     const closing = this.phase === 'failing' || this.phase === 'lost' || this.phase === 'paused' && this.resumePhase === 'failing';
@@ -1258,8 +1324,17 @@ export class Garden {
     this.updateTarget();
     const target = this.landed || this.target;
     if (this.landed) this.updateNectarTarget(this.landed);
-    const hasNectar = !!this.landed && this.landed.species !== 'poppy' && this.supplies.get(this.landed.id)!.nectar > .01;
-    this.nectarDrop.pose(this.landed?.id ?? -1, this.nectarTarget, this.landed?.rotation ?? this.scene.quaternion, this.reducedMotion ? 0 : this.time, hasNectar, this.uv);
+    const landedSupply = this.landed ? this.supplies.get(this.landed.id)! : null;
+    const floretMode = !!landedSupply && landedSupply.florets.length > 0;
+    const fullFloret = NECTAR_SUPPLY.cornflower / Math.max(1, landedSupply?.florets.length ?? 1);
+    // On a cornflower the live drop is the floret in reach; the rest show as beads.
+    const hasNectar = !!landedSupply && this.landed!.species !== 'poppy' && landedSupply.nectar > .01 && (!floretMode || this.nectarFloret >= 0);
+    const floretFill = floretMode && this.nectarFloret >= 0 ? Math.min(1, landedSupply!.florets[this.nectarFloret] / fullFloret) : 1;
+    this.nectarDrop.pose(this.landed?.id ?? -1, this.nectarTarget, this.landed?.rotation ?? this.scene.quaternion, this.reducedMotion ? 0 : this.time, hasNectar, this.uv, floretMode ? .6 * (.5 + .5 * floretFill) : 1);
+    const beadFlower = this.landed ?? (this.target && this.position.distanceTo(this.target.center) < 4 ? this.target : null);
+    const beadSupply = beadFlower ? this.supplies.get(beadFlower.id) : undefined;
+    if (beadFlower && beadSupply?.florets.length && !cinematic) this.nectarBeads.pose(beadFlower.nectarSpots, beadFlower.center, beadFlower.rotation, beadSupply.florets, NECTAR_SUPPLY.cornflower / beadSupply.florets.length, beadFlower === this.landed && hasNectar ? this.nectarFloret : -1, this.uv);
+    else this.nectarBeads.hide();
     const active = this.phase === 'flying' || this.phase === 'landed';
     const nightClose = closing && this.lossFromNight ? Math.max(.0001, this.lossProgress()) : 0;
     this.energyWash.update(!cinematic && (active || closing || this.phase === 'paused') ? Math.max(this.coldVignette(), THREE.MathUtils.smoothstep(this.heat, .08, .9) * .9) : 0, this.camera.aspect, THREE.MathUtils.smoothstep(this.heat - this.chill, 0, .08), nightClose);
@@ -1306,7 +1381,7 @@ export class Garden {
     const edgeGust = edgeExposureAt(this.position.x, this.position.z) > .25;
     let hint = this.flightMode === 'steady' ? 'Holding against the wind · Release Shift to drift' : 'Arrow keys look · W flies where you look · Space rises';
     if (this.phase === 'landed') {
-      hint = this.satiated ? 'Energy and nectar full · Walk through pollen, or Space to fly' : this.drinking ? (this.energy < 99.5 ? 'Sipping nectar · Restoring energy…' : 'Sipping nectar…') : target?.species === 'poppy' ? 'Walk through the anthers to collect pollen · Space take off' : supply && supply.nectar < .1 ? 'Nectar gathered · Walk through pollen, or Space to fly' : this.canDrink ? (this.energy < 99.5 ? 'Hold F to restore energy · Walk through the center for pollen' : 'Hold F to sip nectar · Walk through the center for pollen') : 'Walk toward the center for pollen · Aim at the golden nectar to sip';
+      hint = this.satiated ? 'Energy and nectar full · Walk through pollen, or Space to fly' : this.drinking ? (target?.nectarSpots.length ? 'Sipping a floret · Keep F held and walk on to the next gold bead' : this.energy < 99.5 ? 'Sipping nectar · Restoring energy…' : 'Sipping nectar…') : target?.species === 'poppy' ? 'Walk through the anthers to collect pollen · Space take off' : supply && supply.nectar < .1 ? 'Nectar gathered · Walk through pollen, or Space to fly' : this.canDrink ? (this.energy < 99.5 ? 'Hold F to restore energy · Walk through the center for pollen' : 'Hold F to sip nectar · Walk through the center for pollen') : target?.nectarSpots.length ? 'Nectar hides in the small central florets · Walk to a gold bead and hold F' : 'Walk toward the center for pollen · Aim at the golden nectar to sip';
     } else if (this.canLand) hint = this.shelterTarget ? (!this.needsLeafShelter() ? 'E · Land on the broad leaf' : 'E · Tuck beneath the broad leaf') : this.uv && supply?.visited ? 'Already visited · E to revisit' : `E · Land on ${NAMES[this.target!.species].toLowerCase()}`;
     else if (this.target && this.position.distanceTo(this.target.center) < 3.5) hint = this.landingHint;
     if (edgeGust && this.phase === 'flying') hint = 'An outer gust is carrying you back toward the flowers';
@@ -1443,8 +1518,20 @@ export class Garden {
       hideDebugUi: (_value: boolean) => { /* No debug panels in the player interface. */ },
     };
     window.__BEE_TEST__ = {
-      snapshot: () => ({ butterflies: this.butterflies.diagnostics(), snails: this.snails.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), nectarSurface: this.nectarDrop.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
+      snapshot: () => ({ butterflies: this.butterflies.diagnostics(), snails: this.snails.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
       setPose: (p, yaw = 0, pitch = -.35, velocity = [0, 0, 0]) => { this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.fromArray(p); this.previousPosition.copy(this.position); this.yaw = yaw; this.pitch = pitch; this.velocity.fromArray(velocity); },
+      walkToFloret: (index: number) => {
+        const f = this.landed, spot = f?.nectarSpots[index];
+        if (!f || !spot) throw new Error('Not on a cornflower floret');
+        // Just outside the floret, on the side away from the centre, facing it.
+        const r = Math.hypot(spot.x, spot.z), out = r > .02 ? .1 / r : 0;
+        this.localPosition.set(spot.x * (1 + out) + (r > .02 ? 0 : .1), 0, spot.z * (1 + out));
+        this.localPosition.y = surfaceHeight(f.species, this.localPosition.x, this.localPosition.z, f.radius) + .29;
+        this.position.copy(this.localPosition).applyQuaternion(f.rotation).add(f.center); this.previousPosition.copy(this.position);
+        this.temp.copy(spot).applyQuaternion(f.rotation).add(f.center);
+        this.yaw = Math.atan2(this.position.x - this.temp.x, this.position.z - this.temp.z); this.pitch = -.55;
+        this.nectarFloret = -1;
+      },
       approachFlower: (id: number) => { const f = this.meadow.flowers.find(f => f.id === id); if (!f) throw new Error('Unknown flower'); this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.copy(f.center).add(new THREE.Vector3(0, .55, f.radius + .5)); this.previousPosition.copy(this.position); this.yaw = 0; this.pitch = -.32; this.velocity.set(0,0,0); this.takeoffCooldown = 0; },
       shelters: () => this.leafShelters.shelters.map(leaf => ({ id: leaf.id, center: leaf.center.toArray(), perch: leaf.perch.toArray(), topPerch: leaf.topPerch.toArray(), rotation: leaf.rotation.toArray(), root: leaf.root.toArray(), radius: leaf.radius })),
       approachShelter: id => { const leaf = this.leafShelters.shelters.find(leaf => leaf.id === id); if (!leaf) throw new Error('Unknown shelter'); this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.copy(leaf.perch).add(new THREE.Vector3(0, -.1, leaf.radius + 1.1)); this.previousPosition.copy(this.position); this.yaw = 0; this.pitch = .03; this.velocity.set(0, 0, 0); this.takeoffCooldown = 0; },
@@ -1553,7 +1640,7 @@ export class Garden {
 
   dispose(): void {
     cancelAnimationFrame(this.raf); this.abort.abort(); this.ui.dispose(); this.audio.dispose(); this.bee.dispose(); this.pollenFX.dispose(); this.pollinationFX.dispose(); this.windFX.dispose(); this.atmosphere.dispose(); this.meadow.dispose();
-    this.nectarDrop.dispose(); this.energyWash.dispose(); this.renderer.dispose();
+    this.nectarDrop.dispose(); this.nectarBeads.dispose(); this.energyWash.dispose(); this.renderer.dispose();
     this.homecoming.dispose();
     this.leafShelters.dispose(); this.rainFX.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.ladybirds.dispose(); this.butterflies.dispose(); this.snails.dispose();
     delete window.__BEE_TEST__; delete window.beeGarden; delete window.__THREE_GAME_TEST_HOOKS__; delete window.__THREE_GAME_DIAGNOSTICS__;

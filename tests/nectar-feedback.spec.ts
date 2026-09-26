@@ -47,10 +47,18 @@ for (const [id, species] of [[0, 'daisy'], [2, 'cornflower']] as const) {
     await startFlyingFixture(page);
     await expect(page.locator('.title-screen')).toHaveCSS('opacity', '0');
     await land(page, id);
-    // Aim into the well with a real look input, leaving headroom for flower sway.
-    await page.keyboard.down('ArrowUp');
-    await page.waitForTimeout(180);
-    await page.keyboard.up('ArrowUp');
+    if (species === 'cornflower') {
+      // Cornflower nectar hides in the central florets: walk in onto the disc.
+      expect((await state(page)).canDrink).toBe(false);
+      await page.keyboard.down('w');
+      await expect.poll(async () => (await state(page)).canDrink, { intervals: [30] }).toBe(true);
+      await page.keyboard.up('w');
+    } else {
+      // Aim into the well with a real look input, leaving headroom for flower sway.
+      await page.keyboard.down('ArrowUp');
+      await page.waitForTimeout(180);
+      await page.keyboard.up('ArrowUp');
+    }
     await expect.poll(async () => (await state(page)).canDrink).toBe(true);
     const ready = await state(page);
     expect(ready.audio.context).toBe('running');
@@ -87,6 +95,11 @@ for (const [id, species] of [[0, 'daisy'], [2, 'cornflower']] as const) {
     const recording = await page.evaluate(() => (window as any).__nectarCapture.stop()) as string;
     await writeFile(`artifacts/nectar-feedback-1/${species}-sipping-audio.webm`, Buffer.from(recording, 'base64'));
 
+    if (species === 'cornflower') {
+      // Each floret holds only a little: step to a full one for the next sip.
+      const left = (await state(page)).supplies.find(([flowerId]: [number]) => flowerId === id)[1].florets as number[];
+      await page.evaluate(i => window.__BEE_TEST__!.walkToFloret(i), left.indexOf(Math.max(...left)));
+    }
     await page.keyboard.press('m');
     await page.keyboard.down('f');
     await expect.poll(async () => (await state(page)).audio.touches).toBe(2);

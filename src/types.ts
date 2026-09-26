@@ -19,6 +19,9 @@ export interface Flower {
   pollenMatch: boolean;
   /** The stalk's resting curve in local space (base at the origin, head at (0, height, 0)). */
   stalk: Curve<Vector3>;
+  /** Cornflowers: the mouths of the disc florets that hold nectar, in the head's
+   * local frame (scaled to the flower). Empty for daisies and poppies. */
+  nectarSpots: Vector3[];
 }
 export interface Meadow {
   flowers: Flower[];
