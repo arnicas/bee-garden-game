@@ -41,6 +41,8 @@ export interface SnailWeather {
 
 /** How far the shell reaches out from the snail's middle, for keeping it clear of a curling leaf. */
 const SHELL_REACH = .06;
+/** How far a snail's middle keeps from the middle of a mushroom clump. */
+const CLUMP_CLEARANCE = .34;
 const SPEED = .03;          // units (10 cm) per second on the ground: about 3 mm/s
 const CLIMB_SPEED = .04;
 const STEM_RADIUS = .03;
@@ -251,7 +253,7 @@ interface Mollusc extends Snail {
   matrix: THREE.Matrix4;
 }
 
-export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[], count: number, puddles: readonly PuddleSpot[] = []) {
+export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[], count: number, puddles: readonly PuddleSpot[] = [], clumps: readonly { x: number; z: number }[] = []) {
   const random = rng((seed ^ 0x5a11) >>> 0 || 5);
   const meshes = createSnailMeshes(count);
   scene.add(meshes.shells, meshes.bodies, meshes.lids);
@@ -363,6 +365,11 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
       up.copy(normal).applyQuaternion(leaf.rotation);
       forward.set(Math.sin(s.heading), 0, Math.cos(s.heading)).applyQuaternion(leaf.rotation);
     } else {
+      // Around a mushroom clump, not through its stalks.
+      for (const c of clumps) {
+        const dx = s.x - c.x, dz = s.z - c.z, d = Math.hypot(dx, dz);
+        if (d < CLUMP_CLEARANCE && d > 1e-4) { s.x = c.x + dx / d * CLUMP_CLEARANCE; s.z = c.z + dz / d * CLUMP_CLEARANCE; }
+      }
       s.position.set(s.x, meadowGroundHeight(s.x, s.z) + .004, s.z);
       const e = .1, y = s.position.y;
       up.set(-(meadowGroundHeight(s.x + e, s.z) - y) / e, 1, -(meadowGroundHeight(s.x, s.z + e) - y) / e).normalize();

@@ -155,7 +155,7 @@ export function createUI(actions: UIActions): GameUI {
     <div class="target-marker" hidden aria-hidden="true"><kbd>E</kbd></div>
     <div class="aim play-only" aria-hidden="true"><i></i><span></span></div>
     <div class="center-note play-only"><span class="interaction-label" data-text="interaction"></span><p data-text="hint"></p></div>
-    <div class="message-toast" role="status" aria-live="polite" hidden><span class="toast-mark">✳</span><span data-text="message"></span></div>
+    <div class="message-toast" role="status" aria-live="polite" hidden><span class="toast-mark">✳</span><span data-text="message"><b class="message-lead" data-text="message-lead"></b><span data-text="message-body"></span></span></div>
     <div class="pollination-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
       ${flowerTypes.map(([species]) => `<span class="pollination-bloom" data-pollinated-species="${species}" hidden>${pollinationFlowers[species]}</span>`).join('')}
       <span class="pollination-plus" aria-hidden="true">+1</span>
@@ -734,7 +734,7 @@ export function createUI(actions: UIActions): GameUI {
     keyText('interaction', redundantCue(interaction, state.hint) ? '' : interaction);
     aim.classList.toggle('can-land', highlightLanding);
     aim.classList.toggle('is-sipping', state.drinking);
-    text('message', state.message);
+    text('message-lead', state.messageLead); text('message-body', state.message);
     show(messageToast, playing && !!state.message && !state.pollinationSpecies);
     show(target, playing && state.phase === 'flying' && state.targetVisible && highlightLanding);
     if (state.targetVisible) {

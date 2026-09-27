@@ -381,6 +381,10 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
     markSeen(id: number): void { const colony = colonies[id]; if (colony) colony.seen = true; },
     seenCount(): number { return colonies.filter(c => c.seen).length; },
     reset(): void { for (const colony of colonies) colony.seen = false; },
+    /** After rain in the night the ants start the day indoors and come out over a while. */
+    stayIn(seconds: number): void {
+      for (const colony of colonies) for (const ant of colony.ants) { ant.inside = true; ant.s = 0; ant.dir = 1; ant.carry = false; ant.wait = ant.random() * seconds; }
+    },
     /** Ant positions of one colony that are out on the trail (for tests). */
     antsOf(id: number): { position: number[]; onStem: boolean; detour: boolean }[] {
       const colony = colonies[id];

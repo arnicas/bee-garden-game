@@ -11,11 +11,13 @@ export interface MeadowWeather {
 
 /** A shower window in day seconds: clouds gather, rain falls, then the sky clears. */
 export interface Shower { start: number; length: number; }
-/** One day's weather: one or two showers and a hot spell, never overlapping. */
-export interface WeatherPlan { showers: Shower[]; heatStart: number; heatEnd: number; gales: Shower[]; }
+/** What the night before left behind: rain, an ordinary dewy night, or a dry, warm one. */
+export type NightWeather = 'wet' | 'dewy' | 'dry';
+/** One day's weather: the night before, none to two showers and a hot spell, never overlapping. */
+export interface WeatherPlan { night: NightWeather; showers: Shower[]; heatStart: number; heatEnd: number; gales: Shower[]; }
 
 /** The original fixed day: one late-morning shower, then a hot spell. Test pages pin this plan. */
-export const FIXED_WEATHER_PLAN: WeatherPlan = { showers: [{ start: 150, length: 120 }], heatStart: 270, heatEnd: 465, gales: [] };
+export const FIXED_WEATHER_PLAN: WeatherPlan = { night: 'dewy', showers: [{ start: 150, length: 120 }], heatStart: 270, heatEnd: 465, gales: [] };
 
 const SHOWER_RAMP = 30; // seconds for clouds to gather at the start and clear at the end
 const PLAN_START = 60, PLAN_END = 525; // a clear first minute; weather settles before dusk (540)
@@ -33,24 +35,30 @@ export function heatLikelihood(centre: number): number {
  * spell. Candidate days are drawn until one's hot spell passes the time-of-day
  * likelihood, so the plan stays reproducible for a given seed. */
 export function planWeather(random: () => number): WeatherPlan {
-  const plan = placeHeat(random);
+  // The night first: about a third of mornings follow rain, a fifth a dry night.
+  const roll = random(), night: NightWeather = roll < .3 ? 'wet' : roll < .8 ? 'dewy' : 'dry';
+  const plan = placeHeat(random, night);
   plan.gales = planGales(random);
+  plan.night = night;
   return plan;
 }
 
 /** Draws candidate days until one's hot spell passes the time-of-day likelihood. */
-function placeHeat(random: () => number): WeatherPlan {
-  let plan = arrangeWeather(random);
+function placeHeat(random: () => number, night: NightWeather): WeatherPlan {
+  let plan = arrangeWeather(random, night);
   for (let attempt = 0; attempt < 24; attempt++) {
     if (random() < heatLikelihood((plan.heatStart + plan.heatEnd) / 2)) return plan;
-    plan = arrangeWeather(random);
+    plan = arrangeWeather(random, night);
   }
   return plan;
 }
 
 /** One candidate day: showers and a hot spell in a random order with random gaps. */
-function arrangeWeather(random: () => number): WeatherPlan {
-  const count = random() < .5 ? 1 : 2;
+function arrangeWeather(random: () => number, night: NightWeather): WeatherPlan {
+  // Some days stay dry, some have two showers; a dry night makes a dry day
+  // likelier, and unsettled weather after a wet one.
+  const [none, one] = night === 'wet' ? [.1, .55] : night === 'dry' ? [.35, .8] : [.15, .65];
+  const r = random(), count = r < none ? 0 : r < one ? 1 : 2;
   const items: { kind: 'shower' | 'heat'; length: number }[] = [];
   for (let i = 0; i < count; i++) items.push({ kind: 'shower', length: count === 1 ? 105 + random() * 45 : 90 + random() * 30 });
   items.push({ kind: 'heat', length: 150 + random() * 45 });
@@ -60,7 +68,7 @@ function arrangeWeather(random: () => number): WeatherPlan {
   const free = Math.max(0, PLAN_END - PLAN_START - total * scale);
   const gaps = items.map(() => random()).concat(random()); // before each event, plus after the last
   const gapTotal = gaps.reduce((sum, gap) => sum + gap, 0) || 1;
-  const plan: WeatherPlan = { showers: [], heatStart: 0, heatEnd: 0, gales: [] };
+  const plan: WeatherPlan = { night, showers: [], heatStart: 0, heatEnd: 0, gales: [] };
   let t = PLAN_START;
   items.forEach((item, i) => {
     t += free * gaps[i] / gapTotal;

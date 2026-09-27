@@ -45,14 +45,22 @@ function capProfile(): THREE.BufferGeometry {
     const dome = .42 * CAP_RADIUS * (1 - t * t) + .12 * CAP_RADIUS * Math.exp(-t * t * 18);
     top.push(new THREE.Vector2(Math.max(1e-4, r), dome - .06 * CAP_RADIUS * t ** 6));
   }
-  const cap = new THREE.LatheGeometry(top.reverse(), 18);
-  const tan = new THREE.Color('#c79a63'), pale = new THREE.Color('#e7d2a8'), rim = new THREE.Color('#d9bb87'), colour = new THREE.Color();
+  const cap = new THREE.LatheGeometry(top.reverse(), 24);
+  const tan = new THREE.Color('#c79a63'), pale = new THREE.Color('#e7d2a8'), rim = new THREE.Color('#8f6a40'), colour = new THREE.Color();
   const pos = cap.attributes.position, colours: number[] = [];
   for (let i = 0; i < pos.count; i++) {
-    const r = Math.hypot(pos.getX(i), pos.getZ(i)) / CAP_RADIUS;
-    colour.copy(tan).lerp(pale, THREE.MathUtils.smoothstep(r, .15, .75)).lerp(rim, THREE.MathUtils.smoothstep(r, .85, 1) * .6);
+    const x = pos.getX(i), z = pos.getZ(i), r = Math.hypot(x, z) / CAP_RADIUS, angle = Math.atan2(z, x);
+    // A slightly wavy, uneven margin: pushed in and out, and dipping here and there.
+    const edge = THREE.MathUtils.smoothstep(r, .55, 1);
+    const wave = .06 * Math.sin(angle * 3 + 1.3) + .035 * Math.sin(angle * 5 + .4) + .02 * Math.sin(angle * 8);
+    pos.setX(i, x * (1 + wave * edge)); pos.setZ(i, z * (1 + wave * edge));
+    pos.setY(i, pos.getY(i) - Math.max(0, wave) * edge * CAP_RADIUS * .25);
+    colour.copy(tan).lerp(pale, THREE.MathUtils.smoothstep(r, .15, .7));
+    // A darker margin, unevenly wide.
+    colour.lerp(rim, THREE.MathUtils.smoothstep(r, .8 - wave * 1.5, .97) * .75);
     colours.push(colour.r, colour.g, colour.b);
   }
+  cap.computeVertexNormals();
   cap.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
   // The underside: widely spaced cream gills, as alternating pale and shaded
   // wedges on a shallow cone.
@@ -108,11 +116,16 @@ export function createMushrooms(scene: THREE.Scene, seed: number, spots: readonl
     }
   });
   const capGeometry = capProfile();
-  const stemGeometry = new THREE.CylinderGeometry(STEM_RADIUS * .8, STEM_RADIUS, 1, 6, 2, true).translate(0, .5, 0).toNonIndexed();
+  const stemGeometry = new THREE.CylinderGeometry(STEM_RADIUS * .8, STEM_RADIUS * 1.05, 1, 10, 3, true).translate(0, .5, 0).toNonIndexed();
   stemGeometry.deleteAttribute('uv');
   const stemCream = new THREE.Color('#e3d4b2'), stemBase = new THREE.Color('#bda57b'), sc: number[] = [], colour = new THREE.Color();
+  const fibre = new THREE.Color('#b8a27a');
   for (let i = 0; i < stemGeometry.attributes.position.count; i++) {
-    colour.copy(stemBase).lerp(stemCream, THREE.MathUtils.smoothstep(stemGeometry.attributes.position.getY(i), 0, .5));
+    const at = stemGeometry.attributes.position, y = at.getY(i), angle = Math.atan2(at.getZ(i), at.getX(i));
+    colour.copy(stemBase).lerp(stemCream, THREE.MathUtils.smoothstep(y, 0, .45));
+    // Fine lengthwise fibres: faint darker streaks round the stalk.
+    const streak = Math.max(0, Math.sin(angle * 5 + y * 2)) * .5 + Math.max(0, Math.sin(angle * 9 + 1.7)) * .3;
+    colour.lerp(fibre, streak * .55 * THREE.MathUtils.smoothstep(y, .1, .4));
     sc.push(colour.r, colour.g, colour.b);
   }
   stemGeometry.setAttribute('color', new THREE.Float32BufferAttribute(sc, 3));
@@ -187,6 +200,8 @@ export function createMushrooms(scene: THREE.Scene, seed: number, spots: readonl
     },
     markSeen(id: number): void { const ring = rings[id]; if (ring) ring.seen = true; },
     seenCount(kind?: 'ring' | 'patch'): number { return rings.filter(r => r.seen && (!kind || r.kind === kind)).length; },
+    /** After rain in the night: the ground is soaked and the mushrooms are already up. */
+    presoak(): void { soak = 1; sinceSoak = 1e3; for (const m of mushrooms) { m.grown = 1; m.dry = 0; } pose(); },
     /** A new day: the ground is dry again, and the rings are still to be found. */
     reset(): void { soak = 0; sinceSoak = 0; for (const m of mushrooms) { m.grown = 0; m.dry = 0; } for (const r of rings) r.seen = false; pose(); },
     diagnostics() {

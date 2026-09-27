@@ -179,6 +179,8 @@ export interface ViewState {
   flowerTotal: number;
   elapsed: number;
   message: string;
+  /** Bold at the front of the message: the name of something just discovered. */
+  messageLead: string;
   hint: string;
   resultScore: number;
 }

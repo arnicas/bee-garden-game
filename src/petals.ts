@@ -32,28 +32,37 @@ interface Petal extends FallenPetal {
 
 const VISIBLE_RANGE = 12;
 /** Poppy petals are 3–5 cm; daisy rays about 1.3 cm. */
-const POPPY_LENGTH = .4, DAISY_LENGTH = .13;
+const POPPY_LENGTH = .4, DAISY_LENGTH = .15;
 
 function petalGeometry(kind: PetalKind): THREE.BufferGeometry {
-  const rows = 7, cols = 5;
+  const daisy = kind === 'daisy';
+  const rows = daisy ? 10 : 7, cols = daisy ? 6 : 5;
   const length = kind === 'poppy' ? POPPY_LENGTH : DAISY_LENGTH;
+  const vein = new THREE.Color('#d8cfae'), base = new THREE.Color('#dcd59c');
   const positions: number[] = [], colours: number[] = [], index: number[] = [];
   const colour = new THREE.Color();
   const red = new THREE.Color('#e44739'), paleRed = new THREE.Color('#f7765e'), blotch = new THREE.Color('#502d43');
-  const white = new THREE.Color('#fff9e2'), cream = new THREE.Color('#f1dfb0');
+  const white = new THREE.Color('#fff9e2');
   for (let i = 0; i <= rows; i++) for (let j = 0; j <= cols; j++) {
     const u = i / rows, v = j / cols * 2 - 1;
     // Poppies: a broad fan from a narrow claw; daisies: a long, narrow strap.
+    // Daisies: a flat strap (a ray floret) from a narrow base, its tip ending
+    // in three small teeth.
     const half = kind === 'poppy'
       ? length * .52 * Math.pow(Math.sin(Math.min(1, u * 1.08 + .06) * Math.PI * .62), .75)
-      : length * .12 * (u < .9 ? Math.min(1, u * 6 + .35) : 1 - (u - .9) * 5);
-    const x = v * half, z = u * length;
+      : length * .15 * Math.min(1, .35 + u * 5) * (u > .9 ? 1 - (u - .9) * 2.5 : 1);
+    const teeth = daisy && i === rows ? -length * .045 * Math.abs(Math.sin(v * Math.PI * 1.5)) : 0;
+    const x = v * half, z = u * length + teeth;
     // Crumpled a little: soft ripples, edges curling up, the tip lifted.
-    const crumple = kind === 'poppy' ? .014 * Math.sin(v * 3.3 + u * 7) + .01 * Math.sin(u * 13 + v * 2) : .002 * Math.sin(u * 9);
-    const y = Math.max(0, crumple + (kind === 'poppy' ? .028 : .006) * v * v + (kind === 'poppy' ? .02 : .006) * u * u) + .002;
+    const crumple = kind === 'poppy' ? .014 * Math.sin(v * 3.3 + u * 7) + .01 * Math.sin(u * 13 + v * 2) : .0015 * Math.sin(u * 7 + v);
+    // Poppies curl at the edges; a daisy ray is a shallow gutter, lifting a little toward the tip.
+    const y = Math.max(0, crumple + (kind === 'poppy' ? .028 : .005) * v * v + (kind === 'poppy' ? .02 : .008) * u * u) + .002;
     positions.push(x, y, z);
     if (kind === 'poppy') colour.copy(red).lerp(paleRed, u * .5 + Math.abs(v) * .12).lerp(blotch, Math.pow(Math.max(0, 1 - u / .2), 1.5) * .9);
-    else colour.copy(white).lerp(cream, Math.max(0, 1 - u / .2) * .6);
+    else {
+      // Fine lengthwise veins, and a pale green-yellow base where it joined the flower head.
+      colour.copy(white).lerp(vein, j % 2 === 1 && u > .1 && u < .95 ? .75 : 0).lerp(base, Math.max(0, 1 - u / .14) * .8);
+    }
     colours.push(colour.r, colour.g, colour.b);
   }
   for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {

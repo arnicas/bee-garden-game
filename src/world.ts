@@ -639,7 +639,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   const mushroomPatches: MushroomPatchSpot[] = [];
   for (const p of puddles) {
     if (ringRandom() > .45) continue;
-    const a = ringRandom() * TAU, d = p.radius * 1.3 + .12 + ringRandom() * .2;
+    const a = ringRandom() * TAU, d = p.radius * 1.12 + .45 + ringRandom() * .15;
     const x = p.x + Math.cos(a) * d, z = p.z + Math.sin(a) * d;
     if (flowers.some(f => Math.hypot(f.base.x - x, f.base.z - z) < .35)) continue;
     if (antNests.some(n => Math.hypot(n.x - x, n.z - z) < .6)) continue;
