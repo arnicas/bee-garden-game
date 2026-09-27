@@ -53,14 +53,21 @@ test('illustrated notes have accessible topics, readable sources and a bounded l
   await openFacts(page);
   const dialog = page.getByRole('dialog', { name: 'Small wonders.' });
   const tabs = dialog.getByRole('tab');
-  await expect(tabs).toHaveCount(8);
+  await expect(tabs).toHaveCount(14);
+  // Two sections: the bee herself, then the meadow and its friends.
+  await expect(dialog.locator('.facts-group')).toHaveText(['Bee facts', 'The meadow']);
+  await expect(dialog.getByRole('tab', { name: 'Banded snails', exact: true })).toBeVisible();
+  // Meadow friends say where to look for them.
+  await dialog.getByRole('tab', { name: 'Banded snails', exact: true }).click();
+  await expect(dialog.getByRole('tabpanel').getByRole('heading', { name: 'Where to look', exact: true })).toBeVisible();
+  await tabs.first().click();
   await tabs.first().focus();
   await page.keyboard.press('ArrowDown');
   await expect(dialog.getByRole('tab', { name: 'Two kinds of food', exact: true })).toBeFocused();
   await expect(dialog.getByRole('tabpanel')).toContainText('Honeybees & other bees');
   await page.keyboard.press('End');
   await expect(tabs.last()).toHaveAttribute('aria-selected', 'true');
-  await expect(dialog.getByRole('tabpanel')).toContainText('One outing stands for a whole day');
+  await expect(dialog.getByRole('tabpanel')).toContainText('Many keep to the damp rims');
   await page.keyboard.press('Home');
   await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
   const sources = await dialog.locator('.fact-sources a').evaluateAll(links => links.map(link => ({
@@ -75,7 +82,7 @@ test('illustrated notes have accessible topics, readable sources and a bounded l
   const layouts: unknown[] = [];
   for (const size of [{ width: 1280, height: 720 }, { width: 1024, height: 600 }]) {
     await page.setViewportSize(size);
-    for (const topic of ['A different light', 'Shelter from Rain', 'Sun & shade', 'One flower to another']) {
+    for (const topic of ['A different light', 'Shelter from Rain', 'Sun & shade', 'One flower to another', 'A sip of water', 'Three meadow flowers', 'Butterflies', 'Banded snails']) {
       await dialog.getByRole('tab', { name: topic, exact: true }).click();
       const panel = dialog.getByRole('tabpanel');
       await expect(panel.getByRole('heading', { name: 'In nature', exact: true })).toBeVisible();

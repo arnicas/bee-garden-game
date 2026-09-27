@@ -99,7 +99,8 @@ export function createUI(actions: UIActions): GameUI {
       <p class="objective" hidden><span class="shelter-guide" role="img" aria-label="A dry leaf nearby" hidden>${icons.energy}<span data-text="shelter-label">A dry leaf</span><span class="shelter-arrow" aria-hidden="true">↑</span><span data-text="shelter-distance"></span></span></p>
       <div class="pollination-summary" role="group" aria-label="Meadow happiness from pollination">
         <div class="meadow-heading"><span class="meadow-label" data-text="meadow-label">HAPPY MEADOW</span><span class="meadow-visits"><b data-text="visited-count">0</b>/<span data-text="flower-total">0</span> flowers visited</span></div>
-        <div class="meadow-overview">${happyMeadowArt}<div class="meadow-counter"><div class="meadow-tally"><b data-text="pollination-count">0</b> <span data-text="pollination-count-label">flowers pollinated</span></div></div></div>
+        <div class="meadow-overview" hidden>${happyMeadowArt}<div class="meadow-counter" hidden><div class="meadow-tally"><b data-text="pollination-count">0</b> <span data-text="pollination-count-label">flowers pollinated</span></div></div></div>
+        <p class="meadow-caption" aria-hidden="true">Flowers pollinated</p>
         <div class="meadow-coverage" role="group" aria-label="Flower types pollinated: 0 of 3">
           ${flowerTypes.map(([species, name]) => `<div class="species-petal" data-species="${species}" role="img" aria-label="${name}: 0 flowers pollinated"><span class="petal-tally">${coveragePetals[species]}<b data-text="coverage-${species}">0</b></span><span class="petal-name">${name}</span></div>`).join('')}
         </div>
@@ -218,7 +219,7 @@ export function createUI(actions: UIActions): GameUI {
           <p>Click the meadow to capture the mouse for looking and sipping. Esc releases it.</p>
         </details>
         <div class="pause-footer">
-          <button class="facts-invitation" data-action="facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts"><span><strong>Bee Facts</strong><small>Bee facts, weather & life in the meadow</small></span><span aria-hidden="true">↗</span></button>
+          <button class="facts-invitation" data-action="facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts"><span><strong>Bee and Meadow Facts</strong><small>Bees, weather, flowers & meadow friends</small></span><span aria-hidden="true">↗</span></button>
           <button class="text-button" data-action="restart">Start the day again ${icons.arrow}</button>
         </div>
       </div>
@@ -238,7 +239,7 @@ export function createUI(actions: UIActions): GameUI {
         <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Meadow friends</dt><dd data-text="result-friends"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl></div>
         <div class="result-actions">
           <button class="primary-button" data-action="restart"><span data-text="restart-label">Next summer</span><span class="button-arrow">${icons.arrow}</span></button>
-          <button class="result-info" data-action="result-facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts">About bees ${icons.arrow}</button>
+          <button class="result-info" data-action="result-facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts">Bee and Meadow Facts ${icons.arrow}</button>
         </div>
       </div>
     </section>
