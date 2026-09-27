@@ -27,10 +27,19 @@ export interface Flower {
 export interface PuddleSpot { x: number; z: number; radius: number }
 /** A small ant mound in the grass, with a trail to one flower's stem. */
 export interface AntNestSpot { x: number; z: number; flowerId: number }
+/** Where a fallen petal lies under a flower; a spare one is a poppy's next to fall. */
+export interface PetalSpot { flowerId: number; kind: 'poppy' | 'daisy'; x: number; z: number; spare: boolean }
+/** A few mushrooms together at the damp edge of a rain pool. */
+export interface MushroomPatchSpot { x: number; z: number; count: number }
+/** A ring of fairy ring mushrooms in the open grass. */
+export interface FairyRingSpot { x: number; z: number; radius: number }
 export interface Meadow {
   flowers: Flower[];
   puddles: PuddleSpot[];
   antNests: AntNestSpot[];
+  fairyRings: FairyRingSpot[];
+  mushroomPatches: MushroomPatchSpot[];
+  petalSpots: PetalSpot[];
   update(time: number, cameraPosition: Vector3, uv: boolean, carriedPollen?: CarriedPollen): void;
   dispose(): void;
 }
@@ -120,6 +129,8 @@ export interface ViewState {
   snailsFound: number;
   /** Distinct ant trails found today. */
   antTrailsFound: number;
+  /** Small finds today: fairy rings, mushroom clumps, fallen petals, caterpillars. */
+  finds: { rings: number; mushrooms: number; petals: number; caterpillars: number };
   /** Seconds spent sipping water today (dew, raindrops, puddles). */
   waterSips: number;
   /** Chose to fly home before the harvest goal. */

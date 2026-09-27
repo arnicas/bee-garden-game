@@ -53,7 +53,7 @@ test('illustrated notes have accessible topics, readable sources and a bounded l
   await openFacts(page);
   const dialog = page.getByRole('dialog', { name: 'Bees & the Meadow' });
   const tabs = dialog.getByRole('tab');
-  await expect(tabs).toHaveCount(15);
+  await expect(tabs).toHaveCount(17);
   // Two sections: the bee herself, then the meadow and its friends.
   await expect(dialog.locator('.facts-group')).toHaveText(['Bee facts', 'The meadow']);
   await expect(dialog.getByRole('tab', { name: 'Banded snails', exact: true })).toBeVisible();

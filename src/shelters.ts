@@ -54,6 +54,14 @@ function leafRadius(angle: number): number {
   return Math.min(2.175, 1.585 + rightShoulder + leftShoulder + tip + basalLobes + scallop);
 }
 
+/** The leaf's edge at an angle around the blade (0 at the tip), in the leaf's
+ * local frame, on its upper surface. */
+export function leafEdge(angle: number, out: THREE.Vector3): THREE.Vector3 {
+  const radius = leafRadius(angle);
+  const x = Math.sin(angle) * radius * LEAF_SIZE * LEAF_WIDTH_RATIO, z = -Math.cos(angle) * radius * LEAF_SIZE;
+  return out.set(x, leafSurfaceHeight(x, z), z);
+}
+
 export function leafSurfaceHeight(x: number, z: number): number {
   return authoredLeafHeight(x / (LEAF_SIZE * LEAF_WIDTH_RATIO), z / LEAF_SIZE);
 }
@@ -143,7 +151,9 @@ function canopyGeometry(): THREE.BufferGeometry {
 
 // Shared by every leaf: 0 dry, 1 freshly rained on. Garden eases it up with the
 // rain and lets it dry slowly afterwards.
-export const leafUniforms = { uLeafWet: { value: 0 } };
+// Caterpillar bites: three per leaf (leaf-local x, z, radius, a seed for the
+// ragged edge); a radius of 0 is no bite.
+export const leafUniforms = { uLeafWet: { value: 0 }, uLeafBites: { value: Array.from({ length: 16 * 3 }, () => new THREE.Vector4()) } };
 
 function leafMaterial(): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({
@@ -152,14 +162,30 @@ function leafMaterial(): THREE.MeshStandardMaterial {
   });
   material.onBeforeCompile = shader => {
     shader.uniforms.uLeafWet = leafUniforms.uLeafWet;
-    shader.vertexShader = 'varying vec3 vLeafPoint;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvLeafPoint = position;');
+    shader.uniforms.uLeafBites = leafUniforms.uLeafBites;
+    shader.vertexShader = 'varying vec3 vLeafPoint;\nvarying float vLeafId;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvLeafPoint = position;\n#ifdef USE_INSTANCING\nvLeafId = float(gl_InstanceID);\n#else\nvLeafId = 0.;\n#endif');
     shader.fragmentShader = `varying vec3 vLeafPoint;
+      varying float vLeafId;
       uniform float uLeafWet;
+      uniform vec4 uLeafBites[48];
       #define LEAF_TOP_ROUGHNESS 0.46
       float leafHash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
       float leafNoise(vec2 p) { vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
         return mix(mix(leafHash(i),leafHash(i+vec2(1,0)),f.x),mix(leafHash(i+vec2(0,1)),leafHash(i+1.),f.x),f.y); }
       ` + shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      // Caterpillar bites: cut out, with a thin browned rim.
+      float biteRim = 0.;
+      int biteBase = int(vLeafId + .5) * 3;
+      for (int b = 0; b < 3; b++) {
+        vec4 bite = uLeafBites[biteBase + b];
+        if (bite.z > 0.) {
+          vec2 toBite = vLeafPoint.xz - bite.xy;
+          float ragged = bite.z * (1. + .1 * sin(atan(toBite.y, toBite.x) * 9. + bite.w) + .05 * sin(atan(toBite.y, toBite.x) * 23. + bite.w * 3.));
+          float fromBite = length(toBite);
+          if (fromBite < ragged) discard;
+          biteRim = max(biteRim, 1. - smoothstep(0., .014, fromBite - ragged));
+        }
+      }
       // Low-frequency, lengthwise washes avoid isolated camouflage-like spots.
       vec2 paint = vLeafPoint.xz;
       float wash = leafNoise(paint * vec2(.85,.42) + vec2(2.7,5.1));
@@ -182,6 +208,7 @@ function leafMaterial(): THREE.MeshStandardMaterial {
       if (!gl_FrontFacing) diffuseColor.rgb *= vec3(1.035,1.065,1.025);
       // Rain darkens and deepens the green a little.
       diffuseColor.rgb *= 1. - .11*uLeafWet;
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.52,.44,.24), biteRim * .7);
       `).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
       // Waxy upper cuticle: a soft sun glint that drifts with the painted washes.
       // Undersides stay matte. The glint follows sun intensity, so it fades in cloud.
@@ -211,7 +238,7 @@ function leafMaterial(): THREE.MeshStandardMaterial {
       #endif
       #include <opaque_fragment>`);
   };
-  material.customProgramCacheKey = () => 'bee-leaf-shelter-pigment-v6';
+  material.customProgramCacheKey = () => 'bee-leaf-shelter-pigment-v7';
   return material;
 }
 

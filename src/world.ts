@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { AntNestSpot, CarriedPollen, Flower, Meadow, PuddleSpot, Species } from './types';
+import type { AntNestSpot, CarriedPollen, FairyRingSpot, MushroomPatchSpot, PetalSpot, Flower, Meadow, PuddleSpot, Species } from './types';
 import { flowerFlex, flowerSwayAt, flowerSwayGLSL, windGLSL, windUniforms } from './wind';
 import { createGroundPaint } from './ground-paint';
 import { EVEN_MIX, type FlowerSpot, type SpeciesMix } from './meadow-plan';
@@ -597,6 +597,59 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       antNests.push({ x, z, flowerId: f.id }); break;
     }
   }
+  // Fairy rings: three rings of mushrooms in the open grass, the first near the
+  // start. The grass grows short and dark in a band along each ring.
+  const fairyRings: FairyRingSpot[] = [];
+  const ringRandom = rng(seed ^ 0xfa1e7);
+  // Only one full ring: they're a rare find. Most mushrooms come up as a few
+  // together at the damp edge of a rain pool (below).
+  for (let attempt = 0; fairyRings.length < 1 && attempt < 600; attempt++) {
+    const first = false;
+    const a = ringRandom() * TAU, r = first ? 3.5 + ringRandom() * 3.5 : 5 + Math.sqrt(ringRandom()) * 14, radius = .7 + ringRandom() * .6;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r - (first ? 0 : 3);
+    if (Math.abs(x) < 1.5 + radius && z > -4 - radius && z < 5.5 + radius) continue;
+    if (flowers.some(f => Math.hypot(f.base.x - x, f.base.z - z) < f.radius + radius + .5)) continue;
+    if (puddles.some(p => Math.hypot(p.x - x, p.z - z) < p.radius * 2.2 + radius + .3)) continue;
+    if (antNests.some(n => Math.hypot(n.x - x, n.z - z) < radius + .8)) continue;
+    if (fairyRings.some(q => Math.hypot(q.x - x, q.z - z) < 5)) continue;
+    fairyRings.push({ x, z, radius });
+  }
+  // Fallen petals under the flowers: poppy petals and daisy rays from earlier
+  // days, and a spare spot under each poppy for the petal it drops once
+  // pollinated. The low leafy cover is kept off these spots so they show.
+  const petalSpots: PetalSpot[] = [];
+  const petalRandom = rng(seed ^ 0x9e7a1);
+  const petalSpot = (f: Flower, kind: 'poppy' | 'daisy', spare: boolean) => {
+    const a = petalRandom() * TAU, d = .18 + f.radius * (.25 + petalRandom() * .75);
+    petalSpots.push({ flowerId: f.id, kind, x: f.base.x + Math.cos(a) * d, z: f.base.z + Math.sin(a) * d, spare });
+  };
+  for (const f of flowers) {
+    if (f.id === 0) continue;
+    if (f.species === 'poppy') {
+      const count = petalRandom() < .45 ? 0 : petalRandom() < .7 ? 1 : 2;
+      for (let i = 0; i < count; i++) petalSpot(f, 'poppy', false);
+      petalSpot(f, 'poppy', true);
+    } else if (f.species === 'daisy' && petalRandom() < .4) {
+      const count = petalRandom() < .7 ? 1 : 2;
+      for (let i = 0; i < count; i++) petalSpot(f, 'daisy', false);
+    }
+  }
+  // Grass blades lean up to about .3 from their roots, so the patch is wider than a petal.
+  const onPetal = (x: number, z: number) => petalSpots.some(p => (x - p.x) ** 2 + (z - p.z) ** 2 < .55 ** 2);
+  const mushroomPatches: MushroomPatchSpot[] = [];
+  for (const p of puddles) {
+    if (ringRandom() > .45) continue;
+    const a = ringRandom() * TAU, d = p.radius * 1.3 + .12 + ringRandom() * .2;
+    const x = p.x + Math.cos(a) * d, z = p.z + Math.sin(a) * d;
+    if (flowers.some(f => Math.hypot(f.base.x - x, f.base.z - z) < .35)) continue;
+    if (antNests.some(n => Math.hypot(n.x - x, n.z - z) < .6)) continue;
+    mushroomPatches.push({ x, z, count: 3 + Math.floor(ringRandom() * 4) });
+  }
+  /** In the band of short grass along a fairy ring. */
+  const inFairyRing = (x: number, z: number, margin: number) => fairyRings.some(q => Math.abs(Math.hypot(x - q.x, z - q.z) - q.radius) < margin);
+  /** Where the low leafy cover is kept off a pool: its leaves reach up to about
+   * .75 from the plant's middle, so this clears the damp rim where snails crawl. */
+  const nearPoolRim = (x: number, z: number) => puddles.some(p => (x - p.x) ** 2 + (z - p.z) ** 2 < (p.radius * 1.35 + .75) ** 2);
   /** Near a nest mound or the line of its trail. */
   const onAntTrail = (x: number, z: number, margin: number) => antNests.some(n => {
     const b = flowers[n.flowerId].base, dx = b.x - n.x, dz = b.z - n.z, t = THREE.MathUtils.clamp(((x - n.x) * dx + (z - n.z) * dz) / (dx * dx + dz * dz), 0, 1);
@@ -623,8 +676,15 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       }
       // Puddle clearings: only short stubble around the water.
       if (inPuddleClearing(x, z, 2.1)) h = Math.min(h, .07);
+      // Fairy rings: short grass along the ring, so the mushrooms stand clear.
+      const ringBand = inFairyRing(x, z, .32);
+      if (ringBand) h = Math.min(h, .22);
+      // Fallen petals lie on a little bare patch, so no blade grows up through one.
+      if (onPetal(x, z)) h = Math.min(h, .005);
+      // Nor through an ant mound.
+      if (antNests.some(n => (x - n.x) ** 2 + (z - n.z) ** 2 < .5 ** 2)) h = Math.min(h, .005);
       dummy.position.set(x, heightAt(x, z), z); dummy.rotation.set(0, pageRandom() * TAU, 0); dummy.scale.set(0.6 + pageRandom() * 0.8, h, 0.6 + pageRandom() * 0.8); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
-      tint.set(0xffffff).lerp(C(0xc9d991), pageRandom() * 0.42); mesh.setColorAt(i, tint);
+      tint.set(0xffffff).lerp(C(0xc9d991), pageRandom() * 0.42); if (ringBand) tint.multiplyScalar(.78); mesh.setColorAt(i, tint);
     }
     mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere(); mesh.boundingSphere!.radius += 2.5; root.add(mesh); pages.push({ mesh, x: px, z: pz, range: 49 });
     grassPages.push({ mesh, x: px, z: pz, detailed: true });
@@ -635,7 +695,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       const cover = new THREE.InstancedMesh(coverGeometry,grassMaterial,coverCount); cover.name = `groundcover page ${gx}:${gz}`;
       for(let i=0;i<coverCount;i++) {
         const x=px+(coverRandom()-0.5)*9,z=pz+(coverRandom()-0.5)*9,scale=0.82+coverRandom()*0.75;
-        dummy.position.set(x,heightAt(x,z),z); dummy.rotation.set(0,coverRandom()*TAU,0); dummy.scale.set(scale,0.8+coverRandom()*0.7,scale);if(inPuddleClearing(x,z,1.5)||onAntTrail(x,z,.5))dummy.scale.multiplyScalar(.05);dummy.updateMatrix();cover.setMatrixAt(i,dummy.matrix);
+        dummy.position.set(x,heightAt(x,z),z); dummy.rotation.set(0,coverRandom()*TAU,0); dummy.scale.set(scale,0.8+coverRandom()*0.7,scale);if(nearPoolRim(x,z)||onAntTrail(x,z,.5)||inFairyRing(x,z,.55)||onPetal(x,z))dummy.scale.multiplyScalar(.05);dummy.updateMatrix();cover.setMatrixAt(i,dummy.matrix);
         tint.set(0xffffff).lerp(C(0xc6c6a0),coverRandom()*0.34);cover.setColorAt(i,tint);
       }
       cover.instanceMatrix.needsUpdate=true;cover.computeBoundingSphere();cover.boundingSphere!.radius+=0.5;root.add(cover);pages.push({mesh:cover,x:px,z:pz,range:40});
@@ -695,5 +755,5 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     }
   }
   update(0, new THREE.Vector3(0, 4.6, 3.5), false);
-  return { flowers, puddles, antNests, update, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
+  return { flowers, puddles, antNests, fairyRings, mushroomPatches, petalSpots, update, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
 }

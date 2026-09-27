@@ -17,7 +17,7 @@ test('ant trails run from a mound up a stem; finding one is counted, and walkers
   for (const colony of colonies) expect(aphids.some(a => a.flowerId === colony.flowerId)).toBe(true);
   const nest = colonies[0].nest;
   // Down in the grass beside the first mound.
-  await page.evaluate(n => window.__BEE_TEST__!.setPose([n[0] + .45, n[1] + .25, n[2]], -Math.PI / 2, -.5), nest);
+  await page.evaluate(n => window.__BEE_TEST__!.setPose([n[0] + .65, n[1] + .25, n[2]], Math.PI / 2, -.85), nest);
   await expect.poll(async () => (await state(page)).onGround, { timeout: 8000 }).toBe(true);
   await expect.poll(async () => (await state(page)).ants.seen).toBeGreaterThanOrEqual(1);
   await expect(page.locator('[data-text="message"]')).toContainText('ant trail');

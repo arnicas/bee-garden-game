@@ -103,6 +103,11 @@ test('real input flies, lands, gathers, takes off and delivers a balanced harves
   await page.keyboard.press('e');
   await expect.poll(async () => (await snapshot(page)).phase).toBe('landed');
   await page.keyboard.down('f');
+  // Cornflower nectar is in the ring of open florets: step from one to the next while sipping.
+  for (let i = 0; i < 7 && (await snapshot(page)).nectar <= 30; i++) {
+    await page.evaluate(floret => window.__BEE_TEST__!.walkToFloret(floret), i);
+    await page.waitForTimeout(1100);
+  }
   await expect.poll(async () => (await snapshot(page)).nectar, { timeout: 20_000 }).toBeGreaterThan(30); // daisy + cornflower (28 per visit), less what the bee eats
   await page.keyboard.up('f');
   await walkForPollen(page, s => s.pollen >= 16); // cornflowers now give 10 pollen per visit

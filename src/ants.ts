@@ -53,15 +53,23 @@ interface Colony extends AntColony {
 const ANTS_PER_COLONY = 36;
 /** A worker is about 4.5 mm long (black garden ants are 3.5–5 mm), true to size. */
 const ANT_SCALE = 1;
-const MOUND_RADIUS = .24, MOUND_HEIGHT = .07;
+const MOUND_RADIUS = .28, MOUND_HEIGHT = .08;
+/** The nest hole: its radius and depth, with a low crumbly lip around it. */
+const HOLE_RADIUS = .052, HOLE_DEPTH = .05;
 const STEM_RADIUS = .026;
 const LANE_WIDTH = .016;
-const VISIBLE_RANGE = 11;
+const VISIBLE_RANGE = 5;
 /** How close a walking bee's body comes; ants step around it. */
 const BEE_CLEARANCE = .085;
 
 /** Height of the mound above the ground at a distance r from its middle. */
-const moundHeight = (r: number) => r >= MOUND_RADIUS ? 0 : MOUND_HEIGHT * Math.pow(1 - (r / MOUND_RADIUS) ** 2, 1.4);
+const moundHeight = (r: number) => {
+  if (r >= MOUND_RADIUS) return 0;
+  const heap = MOUND_HEIGHT * Math.pow(1 - (r / MOUND_RADIUS) ** 2, 1.4);
+  const lip = .011 * Math.exp(-(((r - HOLE_RADIUS * 1.35) / (HOLE_RADIUS * .5)) ** 2));
+  const hole = HOLE_DEPTH * (1 - THREE.MathUtils.smoothstep(r, HOLE_RADIUS * .45, HOLE_RADIUS * 1.05));
+  return heap + lip - hole;
+};
 
 export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly Flower[], nests: readonly AntNestSpot[], aphids: readonly AphidCluster[]) {
   const random = rng((seed ^ 0xa27) >>> 0 || 5);
@@ -117,17 +125,17 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
   };
   const rod = (from: THREE.Vector3, to: THREE.Vector3, radius: number, leg: number, hip: THREE.Vector3 | null) => {
     const length = from.distanceTo(to);
-    const g = new THREE.CylinderGeometry(radius * .75, radius, length, 4, 1, true).translate(0, length / 2, 0);
+    const g = new THREE.CylinderGeometry(radius * .75, radius, length, 3, 1, true).translate(0, length / 2, 0);
     g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize()));
     return tag(g.translate(from.x, from.y, from.z), leg, hip);
   };
   const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
   const lift = .0055;
   const pieces: THREE.BufferGeometry[] = [
-    tag(new THREE.SphereGeometry(1, 10, 7).scale(.0048, .0042, .0052).translate(0, lift + .001, .0165), 0, null),
-    tag(new THREE.SphereGeometry(1, 9, 6).scale(.0032, .0033, .0068).translate(0, lift + .0008, .0065), 0, null),
-    tag(new THREE.SphereGeometry(1, 6, 4).scale(.0017, .0022, .0018).translate(0, lift + .0006, -.0012), 0, null),
-    tag(new THREE.SphereGeometry(1, 12, 8).scale(.0062, .0054, .0088).translate(0, lift + .0018, -.0105), 0, null),
+    tag(new THREE.SphereGeometry(1, 6, 4).scale(.0048, .0042, .0052).translate(0, lift + .001, .0165), 0, null),
+    tag(new THREE.SphereGeometry(1, 5, 3).scale(.0032, .0033, .0068).translate(0, lift + .0008, .0065), 0, null),
+    tag(new THREE.SphereGeometry(1, 3, 2).scale(.0017, .0022, .0018).translate(0, lift + .0006, -.0012), 0, null),
+    tag(new THREE.SphereGeometry(1, 7, 4).scale(.0062, .0054, .0088).translate(0, lift + .0018, -.0105), 0, null),
   ];
   // Antennae: a long scape out to the side, then the bent tip forward and down.
   for (const s of [-1, 1]) {
@@ -183,24 +191,34 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
   const soil = new THREE.Color('#8b6c49'), darkSoil = new THREE.Color('#5a4431'), paleSoil = new THREE.Color('#a88a62'), hole = new THREE.Color('#1c140f'), colour = new THREE.Color();
   colonies.forEach(colony => {
     const moundRandom = rng((seed ^ (colony.id + 1) * 0x5bd1) >>> 0 || 9);
-    const rings = 9, sides = 36;
+    // Rings bunch up toward the middle so the hole and its lip have real depth.
+    const rings = 13, sides = 56;
+    // Worn paths radiating down the slope, one along the trail itself.
+    const furrows = [colony.angle + Math.PI, ...Array.from({ length: 5 }, () => moundRandom() * Math.PI * 2)];
     const positions: number[] = [], colours: number[] = [], index: number[] = [];
     for (let r = 0; r <= rings; r++) for (let a = 0; a < sides; a++) {
-      const t = r / rings, angle = a / sides * Math.PI * 2;
+      const t = Math.pow(r / rings, 1.55), angle = a / sides * Math.PI * 2;
       const ragged = MOUND_RADIUS * (1 + .14 * Math.sin(angle * 3 + colony.id) + .08 * Math.sin(angle * 7 + colony.id * 2));
-      const radius = t * ragged;
+      const radius = t * ragged, rr = t * MOUND_RADIUS;
       const x = colony.nest.x + Math.cos(angle) * radius, z = colony.nest.z + Math.sin(angle) * radius;
-      const bump = (moundRandom() - .5) * .008 * (1 - t);
-      const crater = t < .14 ? -.01 * (1 - t / .14) : 0;
-      positions.push(x, meadowGroundHeight(x, z) + moundHeight(t * MOUND_RADIUS) + bump * (t < .98 ? 1 : 0) + crater + .003, z);
+      const bump = (moundRandom() - .5) * .009 * (1 - t) * (rr > HOLE_RADIUS ? 1 : .3);
+      let groove = 0;
+      if (rr > HOLE_RADIUS * 1.5) for (const f of furrows) {
+        const d = Math.atan2(Math.sin(angle - f), Math.cos(angle - f)) * rr;
+        groove = Math.max(groove, Math.exp(-((d / .016) ** 2)) * THREE.MathUtils.smoothstep(rr, HOLE_RADIUS * 1.5, HOLE_RADIUS * 2.4) * (1 - t * .6));
+      }
+      positions.push(x, meadowGroundHeight(x, z) + moundHeight(rr) + bump * (t < .98 ? 1 : 0) - groove * .006 + .003, z);
       colour.copy(soil).lerp(moundRandom() < .5 ? darkSoil : paleSoil, moundRandom() * .6);
-      if (t < .12) colour.copy(hole);
-      else if (t < .2) colour.lerp(darkSoil, .6);
+      // Dark down the hole, a pale dry lip, darker worn paths.
+      const inHole = 1 - THREE.MathUtils.smoothstep(rr, HOLE_RADIUS * .35, HOLE_RADIUS * 1.05);
+      colour.lerp(paleSoil, Math.exp(-(((rr - HOLE_RADIUS * 1.35) / (HOLE_RADIUS * .45)) ** 2)) * .45);
+      colour.lerp(darkSoil, groove * .55).lerp(hole, inHole);
       colours.push(colour.r, colour.g, colour.b);
     }
     for (let r = 0; r < rings; r++) for (let a = 0; a < sides; a++) {
       const i = r * sides + a, j = r * sides + (a + 1) % sides, k = i + sides, l = j + sides;
-      index.push(i, k, j, j, k, l);
+      // Wound to face up (the first version faced down and was culled from above).
+      index.push(i, j, k, j, l, k);
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -208,8 +226,8 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
     g.setIndex(index); g.computeVertexNormals();
     moundParts.push(g.toNonIndexed());
     // Loose grains carried out and dropped around the mound.
-    for (let i = 0; i < 26; i++) {
-      const a = moundRandom() * Math.PI * 2, r = MOUND_RADIUS * (.7 + moundRandom() * .9), size = .006 + moundRandom() * .007;
+    for (let i = 0; i < 34; i++) {
+      const a = moundRandom() * Math.PI * 2, r = i < 8 ? HOLE_RADIUS * (1.2 + moundRandom() * .5) : MOUND_RADIUS * (.7 + moundRandom() * .9), size = .006 + moundRandom() * .007;
       const x = colony.nest.x + Math.cos(a) * r, z = colony.nest.z + Math.sin(a) * r;
       const grain = new THREE.DodecahedronGeometry(size, 0).translate(x, meadowGroundHeight(x, z) + moundHeight(r) + size * .4, z);
       const count = grain.attributes.position.count;
@@ -226,7 +244,7 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
   mounds.name = 'ant mounds'; mounds.receiveShadow = true;
   scene.add(mounds);
 
-  const matrix = new THREE.Matrix4(), hidden = new THREE.Matrix4().makeScale(0, 0, 0), crumbMatrix = new THREE.Matrix4(), crumbOffset = new THREE.Vector3();
+  const matrix = new THREE.Matrix4(), crumbMatrix = new THREE.Matrix4(), crumbOffset = new THREE.Vector3();
   const up = new THREE.Vector3(), forward = new THREE.Vector3(), right = new THREE.Vector3(), tangent = new THREE.Vector3(), radial = new THREE.Vector3(), away = new THREE.Vector3();
   let lastTime = 0, recall = false, detouring = 0;
 
@@ -282,12 +300,12 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
       // Rain sends them home; they come out again once it has eased off.
       if (weather.rain > .3) recall = true; else if (weather.rain < .12) recall = false;
       const hurry = 1 + weather.heat * .45;
-      let crumbCount = 0; detouring = 0;
+      let crumbCount = 0, drawn = 0; detouring = 0;
       for (const colony of colonies) {
         const length = colony.groundLength + colony.stemLength;
         const near = Math.hypot(colony.nest.x - camera.x, colony.nest.z - camera.z) < VISIBLE_RANGE + length;
         for (let i = 0; i < colony.ants.length; i++) {
-          const ant = colony.ants[i], index = colony.id * ANTS_PER_COLONY + i;
+          const ant = colony.ants[i];
           if (dt > 0) {
             if (ant.cool > 0) ant.cool -= dt;
             if (ant.inside) {
@@ -308,7 +326,8 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
             }
             if (!recall && ant.inside && ant.wait > 1e8) ant.wait = ant.random() * 18;
           }
-          if (ant.inside || !near) { antMesh.setMatrixAt(index, hidden); walking[index] = 0; ant.detour = false; continue; }
+          if (ant.inside || !near) { ant.detour = false; continue; }
+          const index = drawn++;
           place(colony, ant);
           // Step around the bee's body when she is walking or resting in the grass.
           ant.detour = false;
@@ -344,18 +363,20 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
           }
         }
       }
-      antMesh.instanceMatrix.needsUpdate = true; walkAttribute.needsUpdate = true;
+      antMesh.count = drawn; antMesh.instanceMatrix.needsUpdate = true; walkAttribute.needsUpdate = true;
       crumbs.count = crumbCount; if (crumbCount) crumbs.instanceMatrix.needsUpdate = true;
     },
     /** The nearest colony to a point (its mound or any ant out on the trail). */
-    nearest(point: THREE.Vector3): { colony: AntColony; distance: number } | null {
+    nearest(point: THREE.Vector3): { colony: AntColony; distance: number; at: THREE.Vector3 } | null {
       let found: Colony | null = null, distance = Infinity;
+      const at = new THREE.Vector3();
       for (const colony of colonies) {
-        let d = colony.nest.distanceTo(point);
-        if (Math.hypot(colony.nest.x - point.x, colony.nest.z - point.z) < 6) for (const ant of colony.ants) if (!ant.inside) d = Math.min(d, ant.position.distanceTo(point));
-        if (d < distance) { distance = d; found = colony; }
+        if (colony.nest.distanceTo(point) < distance) { distance = colony.nest.distanceTo(point); found = colony; at.copy(colony.nest); }
+        if (Math.hypot(colony.nest.x - point.x, colony.nest.z - point.z) < 6) for (const ant of colony.ants) {
+          if (!ant.inside && ant.position.distanceTo(point) < distance) { distance = ant.position.distanceTo(point); found = colony; at.copy(ant.position); }
+        }
       }
-      return found ? { colony: found, distance } : null;
+      return found ? { colony: found, distance, at } : null;
     },
     markSeen(id: number): void { const colony = colonies[id]; if (colony) colony.seen = true; },
     seenCount(): number { return colonies.filter(c => c.seen).length; },

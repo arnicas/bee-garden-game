@@ -39,6 +39,8 @@ export interface SnailWeather {
   dryness: number;
 }
 
+/** How far the shell reaches out from the snail's middle, for keeping it clear of a curling leaf. */
+const SHELL_REACH = .06;
 const SPEED = .03;          // units (10 cm) per second on the ground: about 3 mm/s
 const CLIMB_SPEED = .04;
 const STEM_RADIUS = .03;
@@ -351,7 +353,12 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
       const leaf = s.leaf, e = .02, y = leafSurfaceHeight(s.x, s.z);
       normal.set(-(leafSurfaceHeight(s.x + e, s.z) - y) / e, 1, -(leafSurfaceHeight(s.x, s.z + e) - y) / e).normalize();
       if (s.underside) normal.negate();
-      local.set(s.x, y + (s.underside ? -.042 : .008), s.z);
+      let clear = y;
+      for (let k = 0; k < 8; k++) {
+        const a = k / 8 * Math.PI * 2, h = leafSurfaceHeight(s.x + Math.cos(a) * SHELL_REACH, s.z + Math.sin(a) * SHELL_REACH);
+        clear = s.underside ? Math.min(clear, h) : Math.max(clear, h);
+      }
+      local.set(s.x, clear + (s.underside ? -.042 : .008), s.z);
       s.position.copy(local).applyQuaternion(leaf.rotation).add(leaf.center);
       up.copy(normal).applyQuaternion(leaf.rotation);
       forward.set(Math.sin(s.heading), 0, Math.cos(s.heading)).applyQuaternion(leaf.rotation);
@@ -408,11 +415,12 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
           if (!snails.some(o => o.id < s.id && o.perch === 'leaf' && o.leaf === leaf && o.underside === s.underside && Math.hypot(o.x - s.x, o.z - s.z) < .17)) break;
         }
       } else if (r < stemShare && flower) {
-        s.perch = 'stem'; s.flower = flower; s.leaf = null; s.u = .1 + s.random() * .3; s.angle = s.random() * Math.PI * 2; s.dir = s.random() < .5 ? 1 : -1;
+        s.perch = 'stem'; s.flower = flower; s.leaf = null; s.u = .16 + s.random() * .26; // above the low leafy cover s.angle = s.random() * Math.PI * 2; s.dir = s.random() < .5 ? 1 : -1;
       } else {
         // On the ground: mostly at the rim of a low spot where rain pools, or in the grass near a flower's base.
         s.perch = 'ground'; s.leaf = null; s.flower = null;
-        const pool = puddles.length && s.random() < .8 ? puddles[Math.floor(s.random() * puddles.length)] : null;
+        s.random();
+        const pool = puddles.length ? puddles[Math.floor(s.random() * puddles.length)] : null;
         if (pool) {
           s.puddle = pool;
           const a = s.random() * Math.PI * 2, d = pool.radius * (1.05 + s.random() * .3);
@@ -477,7 +485,7 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
         if (s.perch === 'stem' && s.flower) {
           const h = Math.max(.3, s.flower.center.y - s.flower.base.y);
           s.u += s.dir * CLIMB_SPEED * .7 * dt / h;
-          if (s.u > .55 || s.u < .06) { s.u = THREE.MathUtils.clamp(s.u, .06, .55); s.dir = s.dir === 1 ? -1 : 1; s.pause = 2 + s.random() * 5; }
+          if (s.u > .55 || s.u < .15) { s.u = THREE.MathUtils.clamp(s.u, .15, .55); s.dir = s.dir === 1 ? -1 : 1; s.pause = 2 + s.random() * 5; }
         } else if (s.perch === 'leaf') {
           const px = s.x, pz = s.z;
           s.x += Math.sin(s.heading) * SPEED * .6 * dt; s.z += Math.cos(s.heading) * SPEED * .6 * dt;

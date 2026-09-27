@@ -238,7 +238,7 @@ export function createUI(actions: UIActions): GameUI {
             ${flowerTypes.map(([species, name]) => `<div class="result-species-petal" data-result-species="${species}" role="img" aria-label="${name}: 0 flowers pollinated"><span class="petal-tally">${coveragePetals[species]}<b data-text="result-coverage-${species}">0</b></span><span class="petal-name">${name}</span></div>`).join('')}
           </div>
         </section>
-        <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Meadow friends</dt><dd data-text="result-friends"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl></div>
+        <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Meadow friends</dt><dd data-text="result-friends"></dd></div><div data-result-finds hidden><dt>Found in the grass</dt><dd data-text="result-finds"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl></div>
         <div class="result-actions">
           <button class="primary-button" data-action="restart"><span data-text="restart-label">Next summer</span><span class="button-arrow">${icons.arrow}</span></button>
           <button class="result-info" data-action="result-facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts">Bee and Meadow Facts ${icons.arrow}</button>
@@ -781,6 +781,15 @@ export function createUI(actions: UIActions): GameUI {
       const withButterflies = state.butterfliesFound ? `${ladybirdsMet} · ${state.butterfliesFound} butterfl${state.butterfliesFound === 1 ? 'y' : 'ies'}` : ladybirdsMet;
       const withSnails = state.snailsFound ? `${withButterflies} · ${state.snailsFound} snail${state.snailsFound === 1 ? '' : 's'}` : withButterflies;
       text('result-friends', state.antTrailsFound ? `${withSnails} · ${state.antTrailsFound} ant trail${state.antTrailsFound === 1 ? '' : 's'}` : withSnails);
+      { const f = state.finds, parts = [
+          // A full fairy ring is a rare find, so it leads the line.
+          f.rings ? '✦ a fairy ring, a rare find' : '',
+          f.mushrooms ? `${f.mushrooms} mushroom clump${f.mushrooms === 1 ? '' : 's'}` : '',
+          f.petals ? `${f.petals} fallen petal${f.petals === 1 ? '' : 's'}` : '',
+          f.caterpillars ? `${f.caterpillars} caterpillar${f.caterpillars === 1 ? '' : 's'}` : '',
+        ].filter(Boolean);
+        text('result-finds', parts.join(' · '));
+        show(el('[data-result-finds]'), parts.length > 0); }
       const water = state.waterSips > 1.5 ? 'You carried water home to cool the hive. ' : '';
       text('result-next', preview ? water + nextSummerLine(preview) : water);
       show(el('[data-text="result-next"]'), !!preview || !!water);
