@@ -19,6 +19,12 @@ test('rain fills small pools on the ground; the bee sips from one to cool down, 
   const snails = await page.evaluate(() => window.__BEE_TEST__!.snails());
   const atRims = snails.filter(s => puddles.some(p => Math.hypot(s.position[0] - p.x, s.position[2] - p.z) < p.radius * 1.6));
   expect(atRims.length).toBeGreaterThan(0);
+  // From above, full pools glint so they can be found while flying.
+  await page.evaluate(() => window.__BEE_TEST__!.setPuddleFill(1));
+  const spot = puddles[1];
+  await page.evaluate(({ x, z }) => window.__BEE_TEST__!.setPose([x + 1.2, 7.5, z + 4.5], 0, -1.0), { x: spot.x, z: spot.z });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'artifacts/water-1/from-above.png' });
   // Down in the grass beside the first pool (by the opening corridor).
   const pool = puddles[0];
   await page.evaluate(({ x, z, r }) => { window.__BEE_TEST__!.setPuddleFill(1); window.__BEE_TEST__!.setHeat(.5); window.__BEE_TEST__!.setPose([x + r * .9, .3, z], Math.PI / 2, -.6); }, { x: pool.x, z: pool.z, r: pool.radius });

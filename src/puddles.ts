@@ -99,6 +99,46 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
         #include <colorspace_fragment>
       }`,
   });
+  // Glints seen from above: a small twinkling star over each pool with water,
+  // so pools can be spotted while flying. Depth-tested, so petals and leaves hide
+  // them and grass blades waving across the pool make them flicker.
+  const glintPositions = new Float32Array(n * 3), glintWet = new Float32Array(n), glintSeed = new Float32Array(n);
+  spots.forEach((spot, i) => { glintPositions.set([spot.x, meadowGroundHeight(spot.x, spot.z) + .06, spot.z], i * 3); glintSeed[i] = seedData[i]; });
+  const glintGeometry = new THREE.BufferGeometry();
+  glintGeometry.setAttribute('position', new THREE.BufferAttribute(glintPositions, 3));
+  const glintWetAttribute = new THREE.BufferAttribute(glintWet, 1).setUsage(THREE.DynamicDrawUsage);
+  glintGeometry.setAttribute('aWet', glintWetAttribute);
+  glintGeometry.setAttribute('aSeed', new THREE.BufferAttribute(glintSeed, 1));
+  const glintMaterial = new THREE.ShaderMaterial({
+    name: 'puddle-glints', transparent: true, depthWrite: false,
+    uniforms: { uTime: { value: 0 }, uSun: { value: 1 }, uScale: { value: 1 } },
+    vertexShader: `
+      attribute float aWet; attribute float aSeed; uniform float uTime, uSun, uScale;
+      varying float vAlpha;
+      void main() {
+        vec4 view = modelViewMatrix * vec4(position, 1.0);
+        // Only from above: fades in once the bee is well over the grass, twinkling.
+        float height = cameraPosition.y - position.y, distance = -view.z;
+        float above = smoothstep(1.4, 3.0, height) * (1.0 - smoothstep(18.0, 30.0, distance));
+        float twinkle = .55 + .45 * sin(uTime * (2.3 + aSeed * 1.7) + aSeed * 40.0);
+        vAlpha = aWet * above * twinkle * (.6 + .4 * uSun);
+        gl_PointSize = uScale * (24.0 + 18.0 * twinkle) * aWet * clamp(8.0 / distance, .7, 2.0);
+        gl_Position = projectionMatrix * view;
+      }`,
+    fragmentShader: `
+      varying float vAlpha;
+      void main() {
+        vec2 p = gl_PointCoord - .5;
+        float core = exp(-dot(p, p) * 45.0);
+        float rays = exp(-abs(p.x) * 26.0) * exp(-abs(p.y) * 5.0) + exp(-abs(p.y) * 26.0) * exp(-abs(p.x) * 5.0);
+        float a = (core * 1.2 + rays * .75 + exp(-dot(p, p) * 18.0) * .25) * vAlpha;
+        if (a < .01) discard;
+        gl_FragColor = vec4(vec3(1.0, .99, .94), min(1.0, a));
+      }`,
+  });
+  const glints = new THREE.Points(glintGeometry, glintMaterial);
+  glints.name = 'puddle glints'; glints.frustumCulled = false; glints.renderOrder = 3;
+  scene.add(glints);
   const mesh = new THREE.InstancedMesh(geometry, material, n);
   mesh.name = 'rain puddles'; mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.count = spots.length;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -115,10 +155,10 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
       at.set(spot.x, meadowGroundHeight(spot.x, spot.z) + .018, spot.z);
       turn.setFromAxisAngle(up, seedData[i] * 6.28);
       matrix.compose(at, turn, size.set(scale, 1, scale));
-      mesh.setMatrixAt(i, matrix); fillData[i] = fill[i];
+      mesh.setMatrixAt(i, matrix); fillData[i] = fill[i]; glintWet[i] = THREE.MathUtils.smoothstep(fill[i], .15, .5);
       if (scale > 0) visible++;
     });
-    mesh.instanceMatrix.needsUpdate = true; fillAttribute.needsUpdate = true;
+    mesh.instanceMatrix.needsUpdate = true; fillAttribute.needsUpdate = true; glintWetAttribute.needsUpdate = true;
     mesh.visible = visible > 0;
   }
   pose();
@@ -131,6 +171,8 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
         fill[i] = THREE.MathUtils.clamp(fill[i] + dt * (gain - loss), 0, 1);
       }
       material.uniforms.uTime.value = time; material.uniforms.uRain.value = rain;
+      glintMaterial.uniforms.uTime.value = time; glintMaterial.uniforms.uSun.value = THREE.MathUtils.clamp(1 - cloudiness, 0, 1);
+      glintMaterial.uniforms.uScale.value = Math.min(2, window.devicePixelRatio || 1);
       material.uniforms.uSky.value.lerpColors(clear, grey, THREE.MathUtils.clamp(cloudiness, 0, 1));
       material.uniforms.uSunStrength.value = THREE.MathUtils.clamp(1 - cloudiness * 1.2, 0, 1);
       pose();
@@ -151,6 +193,6 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
     drink(index: number, amount: number) { if (fill[index] !== undefined) fill[index] = Math.max(0, fill[index] - amount); },
     setFill(value: number) { fill.fill(THREE.MathUtils.clamp(value, 0, 1)); pose(); },
     diagnostics: () => ({ count: spots.length, visible: mesh.visible, wet: Array.from(fill).filter(f => f > .05).length, fill: Array.from(fill, f => Math.round(f * 100) / 100) }),
-    dispose() { scene.remove(mesh); geometry.dispose(); material.dispose(); mesh.dispose(); },
+    dispose() { scene.remove(mesh, glints); geometry.dispose(); material.dispose(); mesh.dispose(); glintGeometry.dispose(); glintMaterial.dispose(); },
   };
 }

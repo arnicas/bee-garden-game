@@ -566,6 +566,16 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     if (puddles.some(p => Math.hypot(p.x - x, p.z - z) < 3)) continue;
     puddles.push({ x, z, radius });
   }
+  // Rain also pools in the more open ground beside a flower's base, just out
+  // from under its head (the grass is kept short there already).
+  for (let i = 0, added = 0; i < flowers.length && added < 10; i++) {
+    const f = flowers[Math.floor(puddleRandom() * flowers.length)];
+    const a = puddleRandom() * TAU, radius = .3 + puddleRandom() * .15, d = f.radius * .9 + radius * .6;
+    const x = f.base.x + Math.cos(a) * d, z = f.base.z + Math.sin(a) * d;
+    if (flowers.some(g => g !== f && Math.hypot(g.base.x - x, g.base.z - z) < g.radius * .9 + radius + .3)) continue;
+    if (puddles.some(p => Math.hypot(p.x - x, p.z - z) < 1.8)) continue;
+    puddles.push({ x, z, radius }); added++;
+  }
   const inPuddleClearing = (x: number, z: number, margin: number) => puddles.some(p => (x - p.x) ** 2 + (z - p.z) ** 2 < (p.radius * margin) ** 2);
   const bladeGeometry = keep(grassBlade(3)), distantBladeGeometry = keep(grassBlade(2)), coverGeometry = keep(groundCover()), oatGeometry = keep(oatGrass()), dummy = new THREE.Object3D(), tint = new THREE.Color();
   const wavingMaterial = wavingGrassMaterial(clock); materials.add(wavingMaterial);
@@ -587,7 +597,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
         if (dx * dx + dz * dz < (f.radius + 0.6) ** 2) h = Math.min(h, (heights[j] - 0.65) / 1.1);
       }
       // Puddle clearings: only short stubble around the water.
-      if (inPuddleClearing(x, z, 1.6)) h = Math.min(h, .07);
+      if (inPuddleClearing(x, z, 2.1)) h = Math.min(h, .07);
       dummy.position.set(x, heightAt(x, z), z); dummy.rotation.set(0, pageRandom() * TAU, 0); dummy.scale.set(0.6 + pageRandom() * 0.8, h, 0.6 + pageRandom() * 0.8); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
       tint.set(0xffffff).lerp(C(0xc9d991), pageRandom() * 0.42); mesh.setColorAt(i, tint);
     }
