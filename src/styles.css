@@ -106,6 +106,8 @@ h1 em { font-weight: 400; font-size: .93em; }
 .learning-cycle-art { flex: 0 0 24px; display: grid; place-items: center; }
 .learning-cycle-art svg { width: 24px; height: 24px; }
 @media (max-height: 660px) { .learning-cycle { margin-top: 8px; gap: 2px; } .learning-cycle li { font-size: 12px; } .learning-cycle-art svg { width: 20px; height: 20px; } }
+/* Short laptop screens: keep the whole start page (with the Q / Esc line) on screen. */
+@media (max-height: 660px) { #ui .learning-movement { margin: 10px 0; } #ui .learning-keys { margin-bottom: 8px; } #ui .learning-actions { padding-top: 10px; } #ui .learning-actions kbd { margin-bottom: 7px; } #ui .learning-more { margin-top: 6px; } #ui .learning-start { margin-top: 12px; } }
 .learning-movement { display: flex; justify-content: center; gap: 70px; margin: 24px 0 21px; }
 .learning-keys { display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(2, 38px); gap: 5px; width: max-content; margin: 0 auto 12px; }
 .learning-keys > :first-child { grid-column: 2; }
@@ -116,6 +118,9 @@ h1 em { font-weight: 400; font-size: .93em; }
 .learning-movement p { margin-top: 5px; color: var(--muted); font-size: 11px; }
 .learning-actions { display: flex; justify-content: center; gap: 30px; padding-top: 19px; border-top: 1px solid #a99a703b; }
 .learning-actions > div { flex: 1; }
+.learning-more { margin-top: 10px; text-align: center; font-size: 12px; color: var(--muted); }
+.learning-more kbd { display: inline-block; width: auto; min-width: 0; height: auto; margin: 0 4px; padding: 1px 6px; font-size: 11px; line-height: 1.4; }
+.learning-more i { font-style: normal; padding: 0 8px; }
 .learning-actions kbd { width: max-content; margin: 0 auto 10px; }
 .learning-actions :is([data-learn-key="Space"], [data-learn-key="ControlLeft"], [data-learn-key="KeyF"]) { min-width: 92px; font-size: 14px; }
 .learning-actions { gap: 22px; }
@@ -203,6 +208,7 @@ h1 em { font-weight: 400; font-size: .93em; }
 .is-pollinated .petal-tally b { color: var(--ink); }
 .flower-note { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); max-width: 237px; }
 .flower-number { font-size: 8px; letter-spacing: 1.7px; color: var(--muted); }
+.flower-number:empty { display: none; }
 .flower-note h2 { font-family: var(--serif); font-size: 28px; font-weight: 400; margin-top: 5px; line-height: 1.2; }
 .flower-resources { display: flex; gap: 14px; margin-top: 9px; font-size: 10px; }
 .flower-resources .supply { display: flex; align-items: center; gap: 4px; }

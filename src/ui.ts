@@ -11,6 +11,7 @@ const icons = {
   sound: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 5-5 4H4v6h3l5 4V5Zm4 4c2 1.5 2 4.5 0 6m3-9c4 3 4 9 0 12" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>',
   muted: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 5-5 4H4v6h3l5 4V5Zm4 4 5 6m0-6-5 6" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 6v12m8-12v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  camera: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.4-2h5.8l1.4 2h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.3"/></svg>',
   eye: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12S6 5 12 5s10 7 10 7-4 7-10 7S2 12 2 12Z" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.3"/></svg>',
   hive: '<svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M7 21h14c3 0 3-4 0-4 3 0 3-4-1-4 2-1 1-4-2-4 1-4-9-4-8 0-3 0-4 3-2 4-4 0-4 4-1 4-3 0-3 4 0 4Zm0-4h14M8 13h12M10 9h8" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M12 21v-3a2 2 0 0 1 4 0v3" fill="currentColor"/></svg>',
   wind: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 8h12c5 0 5-6 1-6m-11 10h14c4 0 4 6 0 6M3 16h7c3 0 3 5 0 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
@@ -106,7 +107,7 @@ export function createUI(actions: UIActions): GameUI {
         </div>
       </div>
       <div class="flower-note" hidden>
-        <span class="flower-number" data-text="flower-number">ON THE FLOWER</span><h2 data-text="flower-name"></h2>
+        <span class="flower-number" data-text="flower-number"></span><h2 data-text="flower-name"></h2>
         <div class="flower-resources"><span class="supply supply-nectar">${icons.nectar}<span class="supply-bar" data-supply="nectar" role="img" aria-label="Nectar here"><i></i></span><small>nectar</small></span><span class="supply supply-pollen">${icons.pollen}<span class="supply-bar" data-supply="pollen" role="img" aria-label="Pollen here"><i></i></span><small>pollen</small></span></div>
         <p class="flower-guidance" data-text="flower-guidance" hidden></p>
         <p class="flower-forage" data-text="flower-forage" hidden></p>
@@ -120,8 +121,9 @@ export function createUI(actions: UIActions): GameUI {
     </div>
     <div class="top-actions">
       <button class="icon-button vision-button play-only" data-action="uv" aria-label="Toggle bee vision" title="Bee vision · Q" aria-pressed="false">${icons.eye}<span>Q</span></button>
+      <button class="icon-button play-only" data-action="photo" aria-label="Take a photo" title="Photo · P">${icons.camera}<span>P</span></button>
       <button class="icon-button" data-action="sound" aria-label="Mute sound" title="Mute sound · M" aria-pressed="false">${icons.sound}</button>
-      <button class="icon-button play-only" data-action="pause" aria-label="Pause game" title="Pause · Esc">${icons.pause}</button>
+      <button class="icon-button play-only" data-action="pause" aria-label="Pause game" title="Pause · Esc">${icons.pause}<span>Esc</span></button>
     </div>
     <aside class="status-sidebar play-only" aria-label="Bee and hive status">
     <section class="home-note" aria-label="Hive status">
@@ -159,14 +161,13 @@ export function createUI(actions: UIActions): GameUI {
       <span class="pollination-plus" aria-hidden="true">+1</span>
       <span class="pollination-announcement" data-text="pollination-announcement"></span>
     </div>
-    <div class="lower-right play-only"><span class="vision-label" hidden>THE WORLD THROUGH BEE EYES</span><span><kbd>Q</kbd> bee vision <i>·</i> <kbd>Esc</kbd> field guide</span></div>
+    <div class="lower-right play-only"><span class="vision-label" hidden>THE WORLD THROUGH BEE EYES</span></div>
     <section class="title-screen" aria-labelledby="game-title">
       <div class="title-bee">${icons.bee}</div>
       <h1 id="game-title">Bee<br><em>Garden</em><span class="title-star">✳</span></h1>
       <p class="title-subtitle">A summer in a day —<br>Feed the hive and the meadow, and shape the next summer day.</p>
       <button class="primary-button start-button" data-action="start"><span>Take flight</span><span class="button-arrow">${icons.arrow}</span></button>
     </section>
-    <div class="title-footer"><span>A MEADOW STUDY <i>—</i> No. 01</span></div>
     <section class="learning-overlay" hidden>
       <div class="learning-page" role="dialog" aria-modal="true" aria-labelledby="learning-title" aria-describedby="learning-goals">
         <div class="learning-flower">${pollinationFlowers.daisy}</div>
@@ -197,6 +198,7 @@ export function createUI(actions: UIActions): GameUI {
           <div>${learningKey('Ctrl', 'ControlLeft')}<strong>Go down</strong></div>
           <div>${learningKey('F / left mouse', 'KeyF')}<strong>Hold to sip nectar</strong></div>
         </div>
+        <p class="learning-more"><kbd>Q</kbd> Bee vision <i>·</i> <kbd>Esc</kbd> Pause, controls &amp; facts <i>·</i> <kbd>P</kbd> Photo</p>
         </details>
         <button class="primary-button learning-start" data-action="explore"><span>Explore the meadow</span>${icons.arrow}</button>
       </div>
@@ -472,7 +474,7 @@ export function createUI(actions: UIActions): GameUI {
       return;
     }
     if (button.dataset.action === 'facts-close') { closeFacts(); return; }
-    const callbacks: Record<string, () => void> = { start: actions.start, explore: actions.explore, resume: actions.resume, pause: actions.pause, restart: actions.restart, sound: actions.toggleSound, uv: actions.toggleUV, return: actions.returnHome, 'skip-return': actions.skipReturn, rest: actions.toggleRest };
+    const callbacks: Record<string, () => void> = { start: actions.start, explore: actions.explore, resume: actions.resume, pause: actions.pause, restart: actions.restart, sound: actions.toggleSound, uv: actions.toggleUV, photo: actions.photo, return: actions.returnHome, 'skip-return': actions.skipReturn, rest: actions.toggleRest };
     callbacks[button.dataset.action!]?.();
     button.blur();
   }, { signal: cleanup.signal });
@@ -718,7 +720,7 @@ export function createUI(actions: UIActions): GameUI {
     show(flowerResources, !leafPerch && !onGround);
     show(flowerForage, state.phase === 'landed' && !leafPerch && !onGround && !!state.flowerName);
     text('flower-forage', state.flowerSpecies === 'poppy' ? 'Move to collect pollen.' : 'Move to collect pollen, F for nectar.');
-    text('flower-number', onGround ? (grassSheltered ? 'A LITTLE SHELTER' : 'AT GROUND LEVEL') : underLeaf ? 'A LITTLE SHELTER' : onLeaf ? 'A LEAFY PERCH' : 'ON THE FLOWER');
+    text('flower-number', onGround ? (grassSheltered ? 'A LITTLE SHELTER' : 'AT GROUND LEVEL') : underLeaf ? 'A LITTLE SHELTER' : onLeaf ? 'A LEAFY PERCH' : '');
     text('flower-name', onGround ? 'Among the grass' : underLeaf ? 'Under a leaf' : onLeaf ? 'On a leaf' : state.flowerName);
     // What this flower still offers, on one scale per resource: the richest kind
     // (cornflower nectar, poppy pollen) fills the bar, so differences show.

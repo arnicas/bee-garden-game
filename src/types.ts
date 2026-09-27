@@ -174,6 +174,8 @@ export interface UIActions {
   restart(): void;
   toggleSound(): void;
   toggleUV(): void;
+  /** Saves a photo of the meadow view (P). */
+  photo(): void;
   returnHome(): void;
   skipReturn(): void;
   toggleRest(): void;

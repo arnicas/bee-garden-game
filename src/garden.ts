@@ -167,6 +167,9 @@ export class Garden {
   private waterPoint = new THREE.Vector3();
   private waterNoteShown = false;
   private slurpTimer = 0;
+  /** Carried pollen already shown as delivered: the view's dust counts only pollen picked up since. */
+  private dustCleared = 0;
+  private carriedPollenAmount(): number { return Object.values(this.loose).reduce((a, b) => a + (b || 0), 0); }
   /** The first rain pool found brings a note, once a session (test pages only with ?drops). */
   private poolNoteShown = false;
   private poolPoint = new THREE.Vector3();
@@ -379,7 +382,7 @@ export class Garden {
     this.nectarDrop.clipTongue(this.bee.tongueTipMaterial);
     this.nectarBeads = createNectarBeads(this.scene);
     this.fillLight = new THREE.PointLight('#fcdfa2', .08, 2.5, 2); this.camera.add(this.fillLight);
-    this.ui = createUI({ start: () => this.begin(), explore: () => this.explore(), restart: () => this.begin(), resume: () => this.resume(), pause: () => this.pause(), toggleSound: () => this.audio.toggle(), toggleUV: () => { this.uv = !this.uv; }, returnHome: () => this.returnHome(), skipReturn: () => this.skipClosing(), toggleRest: () => this.toggleRest() });
+    this.ui = createUI({ start: () => this.begin(), explore: () => this.explore(), restart: () => this.begin(), resume: () => this.resume(), pause: () => this.pause(), toggleSound: () => this.audio.toggle(), toggleUV: () => { this.uv = !this.uv; }, photo: () => this.saveScreenshot(), returnHome: () => this.returnHome(), skipReturn: () => this.skipClosing(), toggleRest: () => this.toggleRest() });
     this.resetSupply(); this.bindInput(); this.resize(); this.updateWorld(0); this.updateView(0); this.installHooks();
     window.beeGarden = { screenshot: () => this.saveScreenshot() };
     this.raf = requestAnimationFrame(this.tick);
@@ -478,7 +481,7 @@ export class Garden {
     this.elapsed = 0; this.time = 0; this.landed = null; this.landingAssist = null; this.drinking = false; this.autoFeeding = false; this.satiated = false; this.crawlDistance = 0; this.uv = false; this.resultScore = 0;
     this.dayElapsed = 0; this.stopRest(); this.clearShelter(); this.returnDayStart = 0; this.homecoming.reset();
     this.quietAge = 0; this.restView.reset(); this.quietHeldKeys.clear(); this.suppressQuietClick = false; this.quietUnlockExpected = false;
-    this.waterSips = 0; this.sippingWater = false; this.puddles?.setFill(0);
+    this.waterSips = 0; this.sippingWater = false; this.dustCleared = 0; this.puddles?.setFill(0);
     this.wetness = 0; this.dripTimer = 3; this.dropTimer = 1.5; this.dropStrikes = 0; this.dropJolt = 0; this.knockdown = 0; this.knockedDown = false; this.groom = 0; this.rainSplash?.clear();
     this.chill = 0; this.coldDrain = 0; this.heat = 0; this.heatExposure = 0; this.heatDrain = 0; this.shade = 0;
     this.lossAge = 0; this.lossFromRain = false; this.lossFromHeat = false; this.lossFromNight = false; this.nightfallChecked = false;
@@ -1248,6 +1251,8 @@ export class Garden {
     const prior = this.previousFlowerBySpecies[f.species];
     if (prior !== undefined && prior !== f.id && (this.loose[f.species] || 0) > .01) {
       this.loose[f.species] = 0;
+      // The pollen dust on the view clears with a delivery; only new pollen brings it back.
+      this.dustCleared = this.carriedPollenAmount();
       this.pollenOrder = this.pollenOrder.filter(species => species !== f.species);
       if (!supply.pollinated) {
         supply.pollinated = true; this.pollinated++; this.pollinatedBySpecies[f.species]++; this.audio.chime('pollinate');
@@ -1606,7 +1611,7 @@ export class Garden {
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
       flowerName: target ? NAMES[target.species] : '', flowerSpecies: target?.species ?? null, flowerNectar: (supply?.nectar ?? 0) * NECTAR_YIELD, flowerNectarMax: Math.max(...Object.values(NECTAR_SUPPLY)) * NECTAR_YIELD, flowerPollenMax: Math.max(...Object.values(POLLEN_SUPPLY)) * POLLEN_YIELD, flowerPollen: (supply?.pollen ?? 0) * POLLEN_YIELD,
       targetX: x, targetY: y, targetVisible, canLand: this.canLand, landing: !!(this.landingAssist || this.shelterAssist), canDrink: this.canDrink, drinking: this.drinking, satiated: this.satiated,
-      dust: Math.min(1, Object.values(this.loose).reduce((a, b) => a + (b || 0), 0) * .55), pollinated: this.pollinated, visited: this.visited, flowerTotal: this.supplies.size,
+      dust: Math.min(1, Math.max(0, this.carriedPollenAmount() - (this.dustCleared = Math.min(this.dustCleared, this.carriedPollenAmount()))) * .55), pollinated: this.pollinated, visited: this.visited, flowerTotal: this.supplies.size,
       pollinatedBySpecies: this.pollinatedBySpecies,
       carriedPollen: this.loose,
       flowerPollinated: supply?.pollinated ?? false, flowerVisited: supply?.visited ?? false, pollinationSpecies: this.time < this.pollinationUntil ? this.pollinationSpecies : null,
@@ -1768,6 +1773,7 @@ export class Garden {
       link.download = `bee-garden-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
       link.click();
       setTimeout(() => URL.revokeObjectURL(link.href), 2000);
+      this.notify('Photo saved to your downloads.', 2.5);
     }, 'image/png');
   }
 
