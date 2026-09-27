@@ -11,14 +11,14 @@ async function openFacts(page: Page): Promise<void> {
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await state(page)).phase).toBe('paused');
   await page.locator('[data-action="facts-open"]').click();
-  await expect(page.getByRole('dialog', { name: 'Small wonders.' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Bees & the Meadow' })).toBeVisible();
 }
 
 test('optional facts keep the meadow paused, contain keyboard focus and close before Escape resumes', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openFacts(page);
-  const dialog = page.getByRole('dialog', { name: 'Small wonders.' });
+  const dialog = page.getByRole('dialog', { name: 'Bees & the Meadow' });
   await expect(page.locator('#bee-facts-title')).toBeFocused();
   await expect(page.locator('.pause-page')).toBeHidden();
   await expect(page.locator('[data-action="facts-open"]')).toHaveAttribute('aria-expanded', 'true');
@@ -51,7 +51,7 @@ test('optional facts keep the meadow paused, contain keyboard focus and close be
 test('illustrated notes have accessible topics, readable sources and a bounded laptop layout', async ({ page }) => {
   await mkdir('artifacts/bee-facts-1', { recursive: true });
   await openFacts(page);
-  const dialog = page.getByRole('dialog', { name: 'Small wonders.' });
+  const dialog = page.getByRole('dialog', { name: 'Bees & the Meadow' });
   const tabs = dialog.getByRole('tab');
   await expect(tabs).toHaveCount(14);
   // Two sections: the bee herself, then the meadow and its friends.

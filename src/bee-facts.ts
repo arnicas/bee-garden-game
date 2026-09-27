@@ -171,7 +171,7 @@ function sourceLink(source: FactSource): string {
 
 export function beeFactsMarkup(): string {
   return `<section id="bee-facts" class="journal-page bee-facts-page" role="dialog" aria-modal="true" aria-labelledby="bee-facts-title" hidden>
-    <header class="facts-heading"><div><span class="eyebrow">NOTES FROM A SMALL WORLD</span><h2 id="bee-facts-title" tabindex="-1">Small wonders.</h2></div><button class="facts-back" data-action="facts-close">← <span data-facts-return>Field guide</span><kbd>Esc</kbd></button></header>
+    <header class="facts-heading"><div><span class="eyebrow">NOTES FROM A SMALL WORLD</span><h2 id="bee-facts-title" tabindex="-1">Bees &amp; the Meadow</h2></div><button class="facts-back" data-action="facts-close">← <span data-facts-return>Field guide</span><kbd>Esc</kbd></button></header>
     <p class="facts-intro">A bee works hard, even without considering predators and pesticides. Our game is inspired by real bee biology, and by the meadow she shares with flowers, snails, ladybirds and butterflies.</p>
     <div class="facts-spread">
       <div class="facts-index" role="tablist" aria-label="Bee and meadow topics" aria-orientation="vertical">${beeFacts.map((fact, index) => {

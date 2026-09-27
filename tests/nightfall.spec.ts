@@ -17,7 +17,7 @@ async function readFromResults(page: Page, phase: string) {
   const before = await state(page);
   const opener = page.getByRole('button', { name: 'Bee and Meadow Facts', exact: true });
   await opener.click();
-  const dialog = page.getByRole('dialog', { name: 'Small wonders.' });
+  const dialog = page.getByRole('dialog', { name: 'Bees & the Meadow' });
   await expect(dialog).toBeVisible();
   await expect(page.locator('.result-page')).toBeHidden();
   await expect(page.locator('.pause-page')).toBeHidden();
