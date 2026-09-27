@@ -1,16 +1,136 @@
 # Bee Garden
 
-A first-person watercolor meadow game built by me (arnicas) as critique/direction/director and GPT Astra Extra High as developer. Claude Opus 5.5 is now helping with UX fixes. (The text hasn't been scrubbed of AI twee yet, and not mobile ready.) 
+![Bee Garden title screen: a watercolor meadow of poppies, daisies and cornflowers](docs/images/title.jpg)
 
-Fly among poppies, daisies and
-cornflowers, land on their moving petals, collect nectar and pollen, shelter
-from weather, and carry a balanced harvest home before the light goes.
+A first-person watercolor meadow game. You are one honeybee, out for a single
+summer's day: fly among poppies, daisies and cornflowers, land on their moving
+petals, gather nectar and pollen, shelter from the weather, and get home before
+dark. Whatever you pollinate shapes the meadow you find the next summer.
 
-One outing represents one summer day. This is a desktop, single-player browser
-game built with TypeScript, Three.js and Vite. Art, animation, textures, icons
-and audio are generated locally in code; no Blender installation or downloaded
-art assets are required. There is no backend, account, API key or save system.
-Reloading starts a new session.
+**[Play it in your browser](https://arnicas.github.io/bee-garden-game/)**, on a
+desktop or laptop with a keyboard. It isn't set up for phones or tablets yet.
+
+Built by me (arnicas) as critique/direction/director and GPT Astra Extra High as
+developer. Claude Opus 5.5 is now helping with UX fixes. (The text hasn't been
+fully scrubbed of AI twee yet.)
+
+## Playing
+
+<p>
+  <img src="docs/images/flight.jpg" width="49%" alt="Flying low over the meadow toward a daisy, with the energy plate, nectar jar and pollen pouch on the right">
+  <img src="docs/images/poppy.jpg" width="49%" alt="Standing inside a poppy among its dark anthers, gathering pollen">
+</p>
+
+### Your day
+
+- **Start on a daisy.** Sip its nectar first (hold **F**): you begin the day
+  with 60% energy, and flying uses it up.
+- **Gather.** Nectar fills the jar and pollen the pouch. Walk through a
+  flower's centre to pick up pollen. Poppies are all pollen and no nectar,
+  cornflowers hide their nectar in the tiny florets at the centre (walk from
+  one gold bead to the next while holding F), and daisies offer some of each.
+- **Pollinate.** Pollen on your legs pollinates the next flower *of the same
+  kind* you land on. The flowers you pollinate are counted at the top left.
+- **Mind the weather.** Rain chills you and raindrops can knock you down, and
+  the hot spell overheats you. Tuck under a broad leaf or down into the grass.
+  Sip from dew, raindrops and rain pools to cool off.
+- **Go home.** Once the jar and pouch hold enough, a marker points to the
+  meadow edge nearest the hive. You can also head home early with **R**.
+  If you stay out past sunset, the day ends without you.
+
+The results screen tells you how the day went. It also shows how your
+pollination will change next summer's meadow: more of the flowers you helped,
+fewer of the ones you didn't, and the friends that depend on them.
+
+### Controls
+
+| Action | Keys |
+| --- | --- |
+| Fly or walk | **W** goes where you look; **S** back; **A**/**D** sideways |
+| Look | Arrow keys, or click the meadow to steer with the mouse |
+| Rise / take off | **Space** |
+| Land, shelter, rest | **E** when the E cue appears (on a flower, on or under a leaf, in the grass) |
+| Sip nectar or water | Hold **F** (or the left mouse button) |
+| Bee Vision | **Q** shows flowers you haven't visited, and the ones your pollen matches |
+| Head home early | **R** |
+| Photo | **P** saves the view as a picture |
+| Pause, controls and facts | **Esc** |
+| Sound | **M** |
+
+Esc opens a short field guide with the rest of the controls and some tips.
+
+### Weather and shelter
+
+![Perched on a broad leaf in the rain, with drops beading on it](docs/images/leaf-rain.jpg)
+
+Every day brings its own weather: none, one or two showers, a hot spell, and a
+windy spell or two. The night before matters too. After rain in the night the
+leaves are wet, the pools are full and mushrooms are up. After a dry night
+there is no dew. Blue watercolor edges mean you're cold or tired, orange means
+you're too hot. Broad leaves are the best shelter, and the grass will do,
+though drips still find you there. Resting (E) passes time and turns stored
+nectar into energy.
+
+### Things to find
+
+<p>
+  <img src="docs/images/ant-mound.jpg" width="32%" alt="An ant mound with a dark nest hole, and ants on their trail">
+  <img src="docs/images/fairy-ring.jpg" width="32%" alt="Inside a fairy ring of pale tan mushrooms">
+  <img src="docs/images/caterpillar.jpg" width="32%" alt="A green caterpillar eating a notch out of a leaf edge">
+</p>
+
+The meadow is full of small lives, best found by flying low or walking in the
+grass. Each one is counted when you get a good look at it:
+
+- **Ladybirds** on the stems, eating aphids
+- **Butterflies** sipping at daisies and cornflowers, sheltering under leaves in rain
+- **Snails** out in the damp, at the edges of the pools and on the leaves
+- **Ant trails** from a soil mound up a stem to the aphids
+- **Mushrooms** by the water after rain, and one rare **fairy ring**
+- **Fallen petals** under the flowers (a pollinated poppy soon drops one)
+- **Caterpillars** eating their way in from the leaf edges
+
+No spiders are shown, but their webs hang low in the grass. Fly into one and
+you'll need to tug free (tap Space or W).
+
+### Summer after summer
+
+<p>
+  <img src="docs/images/results.jpg" width="49%" alt="The results screen: an okay day, with nectar and pollen brought home and flowers pollinated">
+  <img src="docs/images/summer-start.jpg" width="49%" alt="The start of summer 2, showing how the flowers and meadow friends changed">
+</p>
+
+Each round is one day that stands for a whole summer. Poppies and cornflowers
+are annuals: the ones you pollinate set seed, and next summer there are more
+of them, while unpollinated kinds thin out. Daisies are perennials and change
+slowly. The meadow's friends follow the flowers: aphids and ladybirds follow the
+poppies and cornflowers, butterflies want the nectar flowers, and snails stay
+where the meadow is full and damp.
+
+### Bees and the meadow
+
+![Bee and Meadow Facts: a page on banded snails, comparing nature with the game](docs/images/facts.jpg)
+
+**Bee and Meadow Facts** (from Esc, or the results screen) has illustrated pages
+on bees and on the meadow: what's true in nature, what the game simplifies, how
+to spot each friend, and links to sources.
+
+### Accessibility
+
+Menus work from the keyboard, and pollination has a text announcement. Your
+system's **Reduce motion** setting is read when the game loads: it calms
+ambient motion and uses still views for the cinematic moments. Sound can be
+muted at any time. The game still depends on moving through a 3D view.
+
+---
+
+## For developers
+
+Everything below is for running, changing and testing the game. It's a
+desktop, single-player browser game in TypeScript, Three.js and Vite. All art,
+animation, textures, icons and audio are generated in code: there are no
+downloaded art assets, backend, accounts or saves.
+
 
 ## Setup and local preview
 
@@ -49,7 +169,10 @@ Both servers bind to `127.0.0.1` and use strict ports. If a port is occupied,
 reuse or stop the server you already started; Vite will not silently choose a
 different port. No `.env` file or additional service is needed.
 
-## Playing
+## Game rules in detail
+
+The player section above is the short version; this is the full set of rules
+and numbers, for tuning and testing.
 
 Choose **Take flight** to start perched on a daisy with the keyboard guide open.
 Reading and trying the guide's keys costs no energy or daylight. Choose
@@ -57,7 +180,7 @@ Reading and trying the guide's keys costs no energy or daylight. Choose
 The opening daisy is visited but its supplies are untouched. Each day starts
 at 60% energy, so sipping its nectar is a good first step.
 
-### Controls
+### All controls
 
 | Action | Control |
 | --- | --- |
@@ -74,7 +197,7 @@ at 60% energy, so sipping its nectar is a good first step.
 | Pull free of a spider web | Tap Space or W (holding also works, more slowly) |
 | Way home | R heads home at any time (it needs 5 nectar for the flight); then fly to the hive-facing meadow edge. With the harvest goal met, the marker appears by itself |
 | Pause / release mouse | Esc during play; losing focus or switching tabs also pauses |
-| Bee facts | Esc → Small wonders, or About bees on either results screen |
+| Bee and Meadow Facts | Esc → Bee and Meadow Facts, or the link on either results screen |
 | Sound | M or the speaker button |
 | Save a picture | P saves the 3D view (without the HUD) as a PNG; it doesn't wake a resting bee. `beeGarden.screenshot()` in the browser console does the same. System screenshot shortcuts (Cmd+Shift+4) no longer wake the quiet view either |
 | Skip a closing scene | Space, Enter, left-click the meadow or the skip button |
@@ -153,9 +276,12 @@ label reads “Resting · time passes” (before resting, “Rest and pass time�
 left during this state. E cancels it; looking around
 with arrow keys does not. No flower supplies are collected during rest.
 
-Each day rolls its own weather: one or two showers, a hot spell most often
-from midday into mid-afternoon, and one or two heavy-wind spells. Shelter helps
-with all three:
+Each day rolls its own weather: the night before (wet, dewy or dry), none to
+two showers, a hot spell most often from midday into mid-afternoon, and one or
+two heavy-wind spells. After a wet night the leaves start wet, the rain pools
+are part full, mushrooms are up, the dew is heavier and the ants come out late;
+after a dry night there is no dew and the snails stay in their shells. A line
+after the welcome says which. Shelter helps with all three kinds of weather:
 
 - **Blue watercolor edges** mean low energy or accumulating cold. Flower heads
   and leaf tops are exposed to rain; leaf undersides and dense grass shelter you.
@@ -174,15 +300,31 @@ Rain also changes the broad leaves: they darken and turn shinier, then dry over
 about half a minute. Perched on or just above a leaf top in rain, the patter is
 louder, with occasional drop “plinks” (softer and lower from underneath).
 
-### Meadow friends
+### Meadow friends and finds
 
-Ladybirds live low in the meadow: about 18 per day, mostly on flower stems near
-the ground, some on the broad leaves (tops and undersides) and a few on the
-ground, heading for a stem to climb. They crawl slowly, pause and turn, hold
-still when the bee comes very close, and now and then flutter off to a nearby
-stem. They are harmless. Getting close to one counts it for the day (“Meadow
-friends” on the results screen), and the first one met brings a short note.
-Snails after rain and ant trails are planned next ([TODO.md](TODO.md)).
+Getting close to one, with it in view for a moment (on screen and not behind a
+leaf), counts it for the day. The first of each kind brings a short note with
+its name in bold, and the results screen lists them under “Meadow friends” and
+“Found in the grass”.
+
+- **Ladybirds** (`friends.ts`): about 18 a day, on stems, leaves and the ground.
+  They walk to the aphid clusters on poppy and cornflower stems and eat them down.
+- **Butterflies** (`butterflies.ts`): four kinds sip real nectar from daisies and
+  cornflowers, bask in sun, and shelter under leaves or in the grass in rain.
+- **Snails** (`snails.ts`): out in rain, dew and at dusk, at the pool rims and on
+  the leaves; they seal themselves on stems in the hot spell.
+- **Ant trails** (`ants.ts`): four colonies, each a soil mound with a trail to
+  an aphid-covered stem. The ants step around the bee and go home in rain.
+- **Mushrooms** (`mushrooms.ts`): clumps at about half the pools and one full
+  fairy ring (a rare find, with a chime) come up after rain, shrivel in the heat
+  and revive in the next rain.
+- **Fallen petals** (`petals.ts`): poppy petals and daisy rays under the flowers;
+  a poppy you pollinate drops a petal a little later.
+- **Caterpillars** (`caterpillars.ts`): five on the broad leaves, eating bites
+  into the leaf edges (cut out in the leaf shader).
+
+Water: dew and raindrops on petals and the rain pools (`puddles.ts`) can be
+sipped with F. Sipping cools the bee; it isn't food.
 
 ### Spider webs in the grass
 
@@ -277,27 +419,17 @@ round, home or not, grows the next meadow from what was pollinated
 
 Summers are counted through the session (restarting a round doesn't count, and
 keeps its meadow); each new one resets supplies, cargo and pollination and rolls
-new weather. From the second summer, leaving the first daisy brings a morning
-line from the Queen that echoes how the last one went and names how the meadow
-changed. There is no persistent save yet. Test pages
+new weather. From the second summer, the start page shows how the flowers and
+friends changed since last summer. There is no persistent save yet. Test pages
 (`?test`) keep one meadow; add `?summers` to let it change.
 
-### Bee facts and accessibility
+### Bee and Meadow Facts
 
-**Small wonders** has eight illustrated topics comparing “In nature” with “In
-this game”, including rain/rest, heat/shade, the three meadow flowers and the
-hive dance. The text,
-species qualifications and external research links live in
-[src/bee-facts.ts](src/bee-facts.ts). Sources open in a new tab. Topic buttons
-and arrow keys navigate; Esc returns to the field guide or the original results.
-These notes distinguish game simplifications from actual bee biology.
-
-Menus have keyboard focus, labeled controls and resource values; pollination
-also has a text announcement. The game still depends on navigating a 3D view.
-System **Reduce motion** is read when the game loads: refresh after changing it.
-It reduces ambient motion and particles and uses still cinematic views with
-short fades. Mute is available throughout. Audio starts after a user gesture;
-the game remains playable if the browser cannot start it.
+Seventeen illustrated topics in two sections, bees and the meadow, each
+comparing “In nature” with “In this game”; the meadow pages also say where to
+look for each friend. The text, species qualifications and research links live
+in [src/bee-facts.ts](src/bee-facts.ts). Sources open in a new tab. Topic
+buttons and arrow keys navigate; Esc returns to the field guide or the results.
 
 ## Technical guide
 
@@ -314,7 +446,10 @@ not a WebGPU/TSL pipeline. The HUD and journals use HTML/CSS and inline SVG.
 | [day-report.ts](src/day-report.ts) | Day tiers at the hive: delivery × pollination table, Queen/meadow wording, stats line, tip, and the next morning's line |
 | [world.ts](src/world.ts), [meadow-plan.ts](src/meadow-plan.ts), [shelters.ts](src/shelters.ts) | Seeded meadow and next-day species mix, flowers, instanced vegetation, moving leaf perches, collision/cover geometry and LOD |
 | [wind.ts](src/wind.ts), [wind-effects.ts](src/wind-effects.ts) | Shared wind field, inward edge gusts, current trails and drifting fragments |
-| [friends.ts](src/friends.ts) | Ladybirds: seeded perches on stems, leaves and ground, instanced shell art with painted spots, crawling, flutter hops |
+| [friends.ts](src/friends.ts) | Ladybirds and aphid clusters: seeded perches on stems, leaves and ground, instanced shell art with painted spots, crawling, flutter hops |
+| [butterflies.ts](src/butterflies.ts), [snails.ts](src/snails.ts), [ants.ts](src/ants.ts) | Butterflies, snails (with trails), ant colonies and their mounds |
+| [mushrooms.ts](src/mushrooms.ts), [petals.ts](src/petals.ts), [caterpillars.ts](src/caterpillars.ts) | Small finds: mushroom clumps and the fairy ring, fallen petals with contact shadows, caterpillars and their leaf bites |
+| [puddles.ts](src/puddles.ts), [rain-splash.ts](src/rain-splash.ts) | Rain pools with reflections and glints; raindrop strikes on the view |
 | [webs.ts](src/webs.ts) | Spider webs in the grass: seeded placement, loose/torn thread lines, dew and rain drops; catching and escape live in `garden.ts` |
 | [weather.ts](src/weather.ts), [atmosphere.ts](src/atmosphere.ts) | Daily weather plans (showers, heat, gales), lighting, sky and haze |
 | [rain.ts](src/rain.ts), [flower-rain.ts](src/flower-rain.ts) | Rain and water beads on moving petals/leaves |
@@ -354,7 +489,7 @@ Current balance values are gameplay choices, not biological measurements:
 | Start energy | `garden.ts`: `START_ENERGY` 60 (legacy test scenarios start full) |
 | Flower supplies | `garden.ts`: `NECTAR_SUPPLY` / `POLLEN_SUPPLY` raw units per species, halved by the yield; see [Flower_Facts.md](Flower_Facts.md) |
 | Landing cue | `garden.ts`: `FLOWER_LANDING_REACH` 1.85 past the petals, `FLOWER_LANDING_CLEARANCE` 2.8 above |
-| Weather plan | `weather.ts`: `planWeather()` rolls 1–2 showers, a hot spell weighted toward 320 s (`HEAT_PEAK`) and 1–2 gales of 70–110 s; `FIXED_WEATHER_PLAN` (shower from 150, heat 270–465, no gales) on test pages |
+| Weather plan | `weather.ts`: `planWeather()` rolls the night (about 30% wet, 50% dewy, 20% dry), 0–2 showers (dry days likelier after a dry night), a hot spell weighted toward 320 s (`HEAT_PEAK`) and 1–2 gales of 70–110 s; `FIXED_WEATHER_PLAN` (dewy night, shower from 150, heat 270–465, no gales) on test pages |
 | Meadow edge | `wind.ts`: inward current of 11–16 units/s beyond radius 30, about a third stronger in a gale |
 | Spider webs | `webs.ts`: `WEB_COUNT` 28, about 70% old/loose; `garden.ts`: each tap adds 0.16 × (1 − 0.45 × load) toward breaking free (×1.6 below 20 energy) and costs 0.8 energy; morning dew shows about a fifth of the drops |
 | Low-energy notices | `garden.ts`: below 38 and below 18 energy, re-armed at 50 |
@@ -485,8 +620,11 @@ Development and production URLs with `?test` expose:
 
 - `window.__BEE_TEST__`: detailed snapshots and flower/shelter, cargo, weather
   clock (`setDayProgress`, `setQuietTime`), position setup helpers, and
-  `webs()` / `setWebs(enabled)` and `ladybirds()`. The first-ladybird note is
-  skipped on `?test` pages unless `?friends` is added. Spider webs are off on `?test` pages so older
+  `webs()` / `setWebs(enabled)`, the friends and finds (`ladybirds()`,
+  `butterflies()`, `snails()`, `ants()`, `fairyRings()`, `petals()`,
+  `caterpillars()`), water (`puddles()`, `setPuddleFill`, `setRaindrops`) and
+  `setNight(wet|dewy|dry)`. First-meeting notes are skipped on `?test` pages
+  unless `?friends` is added; raindrops, dew and pool filling need `?drops`. Spider webs are off on `?test` pages so older
   flight checks never fly into one; add `?webs` to turn them on.
 - `window.__THREE_GAME_TEST_HOOKS__`: seeded scenes, frozen captures and reduced
   motion. Named states are `title`, `flight-start`, `active-play`, `windy`,
