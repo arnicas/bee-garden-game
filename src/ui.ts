@@ -779,7 +779,8 @@ export function createUI(actions: UIActions): GameUI {
       const lastSummer = preview?.lastSummerLadybirds ? ` (${preview.lastSummerLadybirds} last summer)` : '';
       const ladybirdsMet = state.friendsFound === 0 ? `None met${preview ? ` · ${preview.ladybirds} ladybirds here` : ''}${lastSummer}` : `${state.friendsFound}${living} ladybird${state.friendsFound === 1 && !living ? '' : 's'}${lastSummer}`;
       const withButterflies = state.butterfliesFound ? `${ladybirdsMet} · ${state.butterfliesFound} butterfl${state.butterfliesFound === 1 ? 'y' : 'ies'}` : ladybirdsMet;
-      text('result-friends', state.snailsFound ? `${withButterflies} · ${state.snailsFound} snail${state.snailsFound === 1 ? '' : 's'}` : withButterflies);
+      const withSnails = state.snailsFound ? `${withButterflies} · ${state.snailsFound} snail${state.snailsFound === 1 ? '' : 's'}` : withButterflies;
+      text('result-friends', state.antTrailsFound ? `${withSnails} · ${state.antTrailsFound} ant trail${state.antTrailsFound === 1 ? '' : 's'}` : withSnails);
       const water = state.waterSips > 1.5 ? 'You carried water home to cool the hive. ' : '';
       text('result-next', preview ? water + nextSummerLine(preview) : water);
       show(el('[data-text="result-next"]'), !!preview || !!water);

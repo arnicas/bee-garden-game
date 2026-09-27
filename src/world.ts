@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { CarriedPollen, Flower, Meadow, PuddleSpot, Species } from './types';
+import type { AntNestSpot, CarriedPollen, Flower, Meadow, PuddleSpot, Species } from './types';
 import { flowerFlex, flowerSwayAt, flowerSwayGLSL, windGLSL, windUniforms } from './wind';
 import { createGroundPaint } from './ground-paint';
 import { EVEN_MIX, type FlowerSpot, type SpeciesMix } from './meadow-plan';
@@ -577,6 +577,31 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     puddles.push({ x, z, radius }); added++;
   }
   const inPuddleClearing = (x: number, z: number, margin: number) => puddles.some(p => (x - p.x) ** 2 + (z - p.z) ** 2 < (p.radius * margin) ** 2);
+  // Ant nests: four small mounds in the grass, each with a trail to a nearby
+  // stem, mostly poppies and cornflowers (where the aphids live). The first is
+  // by the flower nearest the start, so a trail is easy to come across.
+  const antNests: AntNestSpot[] = [];
+  const antRandom = rng(seed ^ 0xa11ce);
+  const antHosts = flowers.filter(f => f.id !== 0 && f.species !== 'daisy' && Math.hypot(f.base.x, f.base.z + 3) < 19);
+  const firstHost = antHosts.reduce<Flower | null>((best, f) => !best || Math.hypot(f.base.x + 2, f.base.z) < Math.hypot(best.base.x + 2, best.base.z) ? f : best, null);
+  for (let tries = 0; antNests.length < 4 && tries < 40 && antHosts.length; tries++) {
+    const f = tries === 0 && firstHost ? firstHost : antHosts[Math.floor(antRandom() * antHosts.length)];
+    if (antNests.some(n => n.flowerId === f.id)) continue;
+    for (let attempt = 0; attempt < 14; attempt++) {
+      const a = antRandom() * TAU, d = f.radius * .9 + .9 + antRandom() * .8;
+      const x = f.base.x + Math.cos(a) * d, z = f.base.z + Math.sin(a) * d;
+      if (Math.abs(x) < 1.6 && z > -4 && z < 5.2) continue;
+      if (flowers.some(g => g !== f && Math.hypot(g.base.x - x, g.base.z - z) < g.radius * .9 + .45)) continue;
+      if (inPuddleClearing(x, z, 2.2) || puddles.some(p => Math.hypot(p.x - x, p.z - z) < p.radius + .5)) continue;
+      if (antNests.some(n => Math.hypot(n.x - x, n.z - z) < 2.5)) continue;
+      antNests.push({ x, z, flowerId: f.id }); break;
+    }
+  }
+  /** Near a nest mound or the line of its trail. */
+  const onAntTrail = (x: number, z: number, margin: number) => antNests.some(n => {
+    const b = flowers[n.flowerId].base, dx = b.x - n.x, dz = b.z - n.z, t = THREE.MathUtils.clamp(((x - n.x) * dx + (z - n.z) * dz) / (dx * dx + dz * dz), 0, 1);
+    return Math.hypot(x - n.x - dx * t, z - n.z - dz * t) < margin;
+  });
   const bladeGeometry = keep(grassBlade(3)), distantBladeGeometry = keep(grassBlade(2)), coverGeometry = keep(groundCover()), oatGeometry = keep(oatGrass()), dummy = new THREE.Object3D(), tint = new THREE.Color();
   const wavingMaterial = wavingGrassMaterial(clock); materials.add(wavingMaterial);
   const pages: { mesh: THREE.InstancedMesh; x: number; z: number; range: number }[] = [];
@@ -610,7 +635,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       const cover = new THREE.InstancedMesh(coverGeometry,grassMaterial,coverCount); cover.name = `groundcover page ${gx}:${gz}`;
       for(let i=0;i<coverCount;i++) {
         const x=px+(coverRandom()-0.5)*9,z=pz+(coverRandom()-0.5)*9,scale=0.82+coverRandom()*0.75;
-        dummy.position.set(x,heightAt(x,z),z); dummy.rotation.set(0,coverRandom()*TAU,0); dummy.scale.set(scale,0.8+coverRandom()*0.7,scale);if(inPuddleClearing(x,z,1.5))dummy.scale.multiplyScalar(.05);dummy.updateMatrix();cover.setMatrixAt(i,dummy.matrix);
+        dummy.position.set(x,heightAt(x,z),z); dummy.rotation.set(0,coverRandom()*TAU,0); dummy.scale.set(scale,0.8+coverRandom()*0.7,scale);if(inPuddleClearing(x,z,1.5)||onAntTrail(x,z,.5))dummy.scale.multiplyScalar(.05);dummy.updateMatrix();cover.setMatrixAt(i,dummy.matrix);
         tint.set(0xffffff).lerp(C(0xc6c6a0),coverRandom()*0.34);cover.setColorAt(i,tint);
       }
       cover.instanceMatrix.needsUpdate=true;cover.computeBoundingSphere();cover.boundingSphere!.radius+=0.5;root.add(cover);pages.push({mesh:cover,x:px,z:pz,range:40});
@@ -670,5 +695,5 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     }
   }
   update(0, new THREE.Vector3(0, 4.6, 3.5), false);
-  return { flowers, puddles, update, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
+  return { flowers, puddles, antNests, update, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
 }

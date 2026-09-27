@@ -29,9 +29,13 @@ test('ladybirds find aphid clusters and eat them down', async ({ page }) => {
   expect(clusters.length).toBeGreaterThanOrEqual(8);
   const flowers = await page.evaluate(() => window.__BEE_TEST__!.flowers());
   // Hover a little way off the first clusters so their ladybirds are in view but not shy.
-  const host = flowers.find(f => f.id === clusters[0].flowerId)!;
+  // A cluster without an ant trail: ants guard theirs, so no ladybirds start there.
+  const tended = new Set((await page.evaluate(() => window.__BEE_TEST__!.ants())).map(c => c.flowerId));
+  const host = flowers.find(f => f.id === clusters.find(c => !tended.has(c.flowerId))!.flowerId)!;
   await page.evaluate(c => window.__BEE_TEST__!.setPose([c[0] + 1.6, c[1] + .4, c[2] + 1.6], Math.PI * 1.25, -.2), host.base);
   await expect.poll(async () => ((await page.evaluate(() => window.__BEE_TEST__!.snapshot())) as Record<string, any>).ladybirds.eating, { timeout: 30000 }).toBeGreaterThanOrEqual(1);
-  const before = (await page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Record<string, any>).ladybirds.aphids;
-  await expect.poll(async () => ((await page.evaluate(() => window.__BEE_TEST__!.snapshot())) as Record<string, any>).ladybirds.aphids, { timeout: 20000 }).toBeLessThan(before);
+  // That cluster is eaten down (the others slowly grow back meanwhile).
+  const cluster = async () => (await page.evaluate(() => window.__BEE_TEST__!.aphids())).find(c => c.flowerId === host.id)!.population;
+  const before = await cluster();
+  await expect.poll(cluster, { timeout: 20000 }).toBeLessThan(before);
 });

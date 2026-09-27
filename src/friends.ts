@@ -22,6 +22,8 @@ export interface AphidCluster {
   flowerId: number;
   /** 0–1 share of the cluster still there. */
   population: number;
+  /** Height up the stem (0–1). */
+  u: number;
   /** Middle of the cluster on the stem surface, and the direction it faces. */
   position: THREE.Vector3;
   facing: THREE.Vector3;
@@ -61,7 +63,7 @@ const STEM_RADIUS = .03;
 const VISIBLE_RANGE = 14;
 const SHY_DISTANCE = .6;
 
-export function createLadybirds(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[]) {
+export function createLadybirds(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[], tended: readonly number[] = []) {
   const random = rng((seed ^ 0x1adb1d) >>> 0 || 11);
   const stems = flowers.filter(f => f.id !== 0);
   // Fewer poppies and cornflowers mean fewer aphids; fewer aphids and daisies, fewer ladybirds.
@@ -96,9 +98,12 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
     const h = Math.max(.2, f.center.y - f.base.y);
     return THREE.MathUtils.clamp(1 - (f.radius * .45 + .06 + r * .05) / h, .45, .92);
   };
-  for (let id = 0; id < aphidClusters && stems.length; id++) {
+  // Stems with an ant trail always carry a cluster: the ants tend it.
+  const tendedStems = tended.map(id => stems.find(f => f.id === id)).filter((f): f is Flower => !!f);
+  for (let id = 0; id < aphidClusters + tendedStems.length && stems.length; id++) {
+    if (id >= tendedStems.length && clusters.length >= Math.max(aphidClusters, tendedStems.length)) break;
     const pool = random() < .8 && hosts.length ? hosts : daisies.length ? daisies : stems;
-    const flower = pool[Math.floor(random() * pool.length)];
+    const flower = id < tendedStems.length ? tendedStems[id] : pool[Math.floor(random() * pool.length)];
     if (clusterOn.has(flower.id)) continue;
     const cluster: Cluster = {
       id: clusters.length, flowerId: flower.id, flower, population: .6 + random() * .4, position: new THREE.Vector3(), facing: new THREE.Vector3(),
@@ -107,8 +112,9 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
     };
     clusters.push(cluster); clusterOn.set(flower.id, cluster);
   }
-  // A few ladybirds start near a cluster, so they can be found at work.
-  for (const cluster of clusters.slice(0, 4)) {
+  // A few ladybirds start near a cluster, so they can be found at work (not
+  // the ant-tended ones: ants guard their aphids from ladybirds).
+  for (const cluster of clusters.filter(c => !tended.includes(c.flowerId)).slice(0, 4)) {
     const bird = birds.find(b => b.perch === 'stem' && !clusters.some(c => c.flower === b.flower));
     if (bird) { bird.flower = cluster.flower; bird.u = Math.max(.06, cluster.u - .12); bird.direction = 1; }
   }

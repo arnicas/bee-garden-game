@@ -25,9 +25,12 @@ export interface Flower {
 }
 /** A low spot where rain pools: a small clearing in the grass. */
 export interface PuddleSpot { x: number; z: number; radius: number }
+/** A small ant mound in the grass, with a trail to one flower's stem. */
+export interface AntNestSpot { x: number; z: number; flowerId: number }
 export interface Meadow {
   flowers: Flower[];
   puddles: PuddleSpot[];
+  antNests: AntNestSpot[];
   update(time: number, cameraPosition: Vector3, uv: boolean, carriedPollen?: CarriedPollen): void;
   dispose(): void;
 }
@@ -115,6 +118,8 @@ export interface ViewState {
   butterfliesFound: number;
   /** Distinct snails met today. */
   snailsFound: number;
+  /** Distinct ant trails found today. */
+  antTrailsFound: number;
   /** Seconds spent sipping water today (dew, raindrops, puddles). */
   waterSips: number;
   /** Chose to fly home before the harvest goal. */
