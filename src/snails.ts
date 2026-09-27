@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { meadowGroundHeight, rng, stalkPoint, stalkTangent } from './world';
 import { leafPlanarDistance, leafSurfaceHeight, type LeafShelter } from './shelters';
-import type { Flower } from './types';
+import type { Flower, PuddleSpot } from './types';
 
 /**
  * Banded snails (Cepaea), a meadow friend that shows the weather. In rain, dew
@@ -234,6 +234,8 @@ interface Mollusc extends Snail {
   underside: boolean; dir: 1 | -1;
   /** Stem height where it will seal itself on in the heat. */
   climbTo: number;
+  /** A ground snail's pool: it keeps to the damp rim when out. */
+  puddle: PuddleSpot | null;
   /** 0–1: bolder snails come out even when the meadow is dry. */
   boldness: number;
   pause: number;
@@ -247,7 +249,7 @@ interface Mollusc extends Snail {
   matrix: THREE.Matrix4;
 }
 
-export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[], count: number) {
+export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[], count: number, puddles: readonly PuddleSpot[] = []) {
   const random = rng((seed ^ 0x5a11) >>> 0 || 5);
   const meshes = createSnailMeshes(count);
   scene.add(meshes.shells, meshes.bodies, meshes.lids);
@@ -372,7 +374,7 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
     const s: Mollusc = {
       id, state: 'tucked', perch: 'ground', position: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), extension: 0, seen: false,
       random: rng((seed + id * 4099) >>> 0 || 9), flower: null, leaf: null, x: 0, z: 0, u: 0, angle: 0, heading: 0, underside: true, dir: 1,
-      climbTo: .5, boldness: random(), pause: 0, shy: 0, sealedAmount: 0,
+      climbTo: .5, puddle: null, boldness: random(), pause: 0, shy: 0, sealedAmount: 0,
       trail: Array.from({ length: TRAIL_POINTS }, () => new THREE.Vector3()), trailAge: new Array(TRAIL_POINTS).fill(1e6), trailHead: 0,
       trailLocal: Array.from({ length: TRAIL_POINTS }, () => new THREE.Vector3()), trailOn: new Array(TRAIL_POINTS).fill(null), trailKind: new Uint8Array(TRAIL_POINTS),
       lastDrop: new THREE.Vector3(), lastLocal: new THREE.Vector3(), lastOn: null, lastKind: 0,
@@ -394,7 +396,10 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
       const flower = stems.length ? stems[Math.floor(s.random() * stems.length)] : null;
       // Mostly up on the plants, where they can be seen above the ground cover:
       // on the broad leaves (often underneath) and on flower stems.
-      if (r < .4 && leaf) {
+      s.puddle = null;
+      // With pools about, more of them are down at the damp rims (clearings, so easier to see).
+      const leafShare = puddles.length ? .32 : .4, stemShare = puddles.length ? .62 : .8;
+      if (r < leafShare && leaf) {
         s.perch = 'leaf'; s.leaf = leaf; s.flower = null; s.underside = s.random() < .6;
         // Somewhere clear of the snails already placed on this side of the leaf.
         for (let attempt = 0; attempt < 10; attempt++) {
@@ -402,13 +407,20 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
           s.x = Math.cos(a) * d * .7; s.z = Math.sin(a) * d; offMidrib(s);
           if (!snails.some(o => o.id < s.id && o.perch === 'leaf' && o.leaf === leaf && o.underside === s.underside && Math.hypot(o.x - s.x, o.z - s.z) < .17)) break;
         }
-      } else if (r < .8 && flower) {
+      } else if (r < stemShare && flower) {
         s.perch = 'stem'; s.flower = flower; s.leaf = null; s.u = .1 + s.random() * .3; s.angle = s.random() * Math.PI * 2; s.dir = s.random() < .5 ? 1 : -1;
       } else {
-        // In the grass near a flower's base.
+        // On the ground: mostly at the rim of a low spot where rain pools, or in the grass near a flower's base.
         s.perch = 'ground'; s.leaf = null; s.flower = null;
-        const base = flower ? flower.base : new THREE.Vector3(), a = s.random() * Math.PI * 2, d = .3 + s.random() * 1.2;
-        s.x = base.x + Math.cos(a) * d; s.z = base.z + Math.sin(a) * d;
+        const pool = puddles.length && s.random() < .8 ? puddles[Math.floor(s.random() * puddles.length)] : null;
+        if (pool) {
+          s.puddle = pool;
+          const a = s.random() * Math.PI * 2, d = pool.radius * (1.05 + s.random() * .3);
+          s.x = pool.x + Math.cos(a) * d; s.z = pool.z + Math.sin(a) * d; s.heading = Math.atan2(-Math.sin(a), Math.cos(a));
+        } else {
+          const base = flower ? flower.base : new THREE.Vector3(), a = s.random() * Math.PI * 2, d = .3 + s.random() * 1.2;
+          s.x = base.x + Math.cos(a) * d; s.z = base.z + Math.sin(a) * d;
+        }
       }
       pose(s); s.lastDrop.copy(s.position);
       [s.lastKind, s.lastOn] = perchLocal(s, s.lastLocal);
@@ -473,6 +485,12 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
           offMidrib(s);
           // Something in the way (a resting butterfly, another snail): turn aside.
           if (crowded(s, px, pz)) { s.x = px; s.z = pz; s.heading += Math.PI * (.4 + s.random() * .5); }
+        } else if (s.puddle) {
+          // Round the damp rim of its pool, keeping just outside the water.
+          const p = s.puddle, dx = s.x - p.x, dz = s.z - p.z, d = Math.max(.001, Math.hypot(dx, dz)), pull = (p.radius * 1.12 - d) * 3;
+          const want = Math.atan2(-dz / d + dx / d * pull, dx / d + dz / d * pull);
+          s.heading += Math.atan2(Math.sin(want - s.heading), Math.cos(want - s.heading)) * Math.min(1, dt * 1.2);
+          s.x += Math.sin(s.heading) * SPEED * dt; s.z += Math.cos(s.heading) * SPEED * dt;
         } else approachStem(s, dt);
       }
       pose(s);

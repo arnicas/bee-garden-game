@@ -113,5 +113,7 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   await expect(page.locator('.learning-controls')).not.toHaveAttribute('open', '');
   await expect(page.locator('[data-text="summer-count-poppy"]')).not.toHaveText('');
   await expect(page.locator('[data-text="summer-count-ladybird"]')).not.toHaveText('');
+  await expect(page.locator('[data-text="summer-delta-poppy"]')).toHaveText(/^[+−]\d+$|^same$/);
+  await page.screenshot({ path: 'artifacts/summers-1/start-page.png' });
   expect(errors).toEqual([]);
 });

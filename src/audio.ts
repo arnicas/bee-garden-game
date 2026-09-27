@@ -267,17 +267,42 @@ export class GardenAudio {
     osc.onended = () => { osc.disconnect(); gain.disconnect(); };
   }
 
+  private slurpNoise?: AudioBuffer;
+  /** One small slurp of water: a wet, rising bubble of filtered noise with a soft gulp. */
+  waterSip(): void {
+    const ctx = this.context; if (this.disposed || !ctx || !this.master) return;
+    if (!this.slurpNoise) {
+      this.slurpNoise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * .22), ctx.sampleRate);
+      const data = this.slurpNoise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (.6 + .4 * Math.sin(i / data.length * 40));
+    }
+    const at = ctx.currentTime + Math.random() * .03;
+    const source = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
+    source.buffer = this.slurpNoise;
+    filter.type = 'bandpass'; filter.Q.value = 6;
+    filter.frequency.setValueAtTime(650, at); filter.frequency.exponentialRampToValueAtTime(1700 + Math.random() * 400, at + .16);
+    gain.gain.setValueAtTime(0, at); gain.gain.linearRampToValueAtTime(.05, at + .03); gain.gain.exponentialRampToValueAtTime(.0001, at + .2);
+    source.connect(filter).connect(gain).connect(this.master); source.start(at); source.stop(at + .22);
+    const gulp = ctx.createOscillator(), gulpGain = ctx.createGain();
+    gulp.type = 'sine'; gulp.frequency.setValueAtTime(260, at + .12); gulp.frequency.exponentialRampToValueAtTime(420, at + .2);
+    gulpGain.gain.setValueAtTime(0, at + .12); gulpGain.gain.linearRampToValueAtTime(.035, at + .135); gulpGain.gain.exponentialRampToValueAtTime(.0001, at + .24);
+    gulp.connect(gulpGain).connect(this.master); gulp.start(at + .12); gulp.stop(at + .26);
+    source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
+    gulp.onended = () => { gulp.disconnect(); gulpGain.disconnect(); };
+    this.slurps++;
+  }
+  slurps = 0;
   /** A raindrop striking the bee: a soft, low thud with a small wet splash on top. */
-  dropHit(): void {
+  dropHit(level = 1): void {
     const ctx = this.context; if (this.disposed || !ctx || !this.master) return;
     const at = ctx.currentTime;
     const thud = ctx.createOscillator(), thudGain = ctx.createGain();
     thud.type = 'sine'; thud.frequency.setValueAtTime(190, at); thud.frequency.exponentialRampToValueAtTime(62, at + .14);
-    thudGain.gain.setValueAtTime(0, at); thudGain.gain.linearRampToValueAtTime(.11, at + .006); thudGain.gain.exponentialRampToValueAtTime(.0001, at + .26);
+    thudGain.gain.setValueAtTime(0, at); thudGain.gain.linearRampToValueAtTime(.11 * level, at + .006); thudGain.gain.exponentialRampToValueAtTime(.0001, at + .26);
     thud.connect(thudGain).connect(this.master); thud.start(at); thud.stop(at + .28);
     const splash = ctx.createOscillator(), splashGain = ctx.createGain();
     splash.type = 'triangle'; splash.frequency.setValueAtTime(1150, at + .01); splash.frequency.exponentialRampToValueAtTime(520, at + .09);
-    splashGain.gain.setValueAtTime(0, at + .01); splashGain.gain.linearRampToValueAtTime(.025, at + .016); splashGain.gain.exponentialRampToValueAtTime(.0001, at + .12);
+    splashGain.gain.setValueAtTime(0, at + .01); splashGain.gain.linearRampToValueAtTime(.025 * (.6 + .4 * level), at + .016); splashGain.gain.exponentialRampToValueAtTime(.0001, at + .12);
     splash.connect(splashGain).connect(this.master); splash.start(at + .01); splash.stop(at + .13);
     for (const [osc, gain] of [[thud, thudGain], [splash, splashGain]] as const) osc.onended = () => { osc.disconnect(); gain.disconnect(); };
   }
@@ -317,7 +342,7 @@ export class GardenAudio {
     };
     const airGain = this.disposed ? 0 : this.rainAir?.gain.value ?? 0;
     const leafGain = this.disposed ? 0 : this.leafPatter?.gain.value ?? 0;
-    return { lossFade: this.lossFade ?? 0, context: this.context?.state ?? 'locked', muted: this.muted, sipping: this.sipping, touches: this.touches, sipRms: rms(this.sipMeter), outputRms: rms(this.masterMeter), sipLoops: this.disposed ? 0 : this.sipGain ? 1 : 0, ending: { active: this.endingActive, ...this.endingMix, ...this.endingTargets }, weather: { ...this.weatherMix, gain: airGain + leafGain, airGain, leafGain, rms: rms(this.weatherMeter), targets: { ...this.weatherTargets } }, loopSources: this.loopSources.length, retainedNodes: this.nodes.length + (!this.disposed && this.master ? 1 : 0) };
+    return { slurps: this.slurps, lossFade: this.lossFade ?? 0, context: this.context?.state ?? 'locked', muted: this.muted, sipping: this.sipping, touches: this.touches, sipRms: rms(this.sipMeter), outputRms: rms(this.masterMeter), sipLoops: this.disposed ? 0 : this.sipGain ? 1 : 0, ending: { active: this.endingActive, ...this.endingMix, ...this.endingTargets }, weather: { ...this.weatherMix, gain: airGain + leafGain, airGain, leafGain, rms: rms(this.weatherMeter), targets: { ...this.weatherTargets } }, loopSources: this.loopSources.length, retainedNodes: this.nodes.length + (!this.disposed && this.master ? 1 : 0) };
   }
   dispose(): void {
     if (this.disposed) return;

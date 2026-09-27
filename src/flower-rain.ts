@@ -224,7 +224,10 @@ export function createFlowerRain(scene: THREE.Scene, flowers: readonly Flower[],
   const world = new THREE.Vector3(), normal = new THREE.Vector3(), local = new THREE.Vector3(), scale = new THREE.Vector3();
   const rotation = new THREE.Quaternion(), matrix = new THREE.Matrix4();
   const perBeadTriangles = (bodyGeometry.index!.count + highlightGeometry.index!.count) / 3;
-  let wetness = 0, lastTime = 0, initialized = false, disposed = false, resetCount = 0;
+  let wetness = 0, lastTime = 0, initialized = false, disposed = false, resetCount = 0, currentDew = 0;
+  /** 0–1 per flower: how much of its drops the bee has sipped (rain refills them). */
+  const drained = new Float32Array(flowers.length);
+  const beadWorld = new THREE.Vector3(), beadLocal = new THREE.Vector3();
   let count = 0, activeFlowers = 0, currentRain = 0, reduced = false, latestEnabled = false;
   function hide() {
     group.visible = false; beads.count = 0; highlights.count = 0; count = 0; activeFlowers = 0;
@@ -232,9 +235,12 @@ export function createFlowerRain(scene: THREE.Scene, flowers: readonly Flower[],
     leafCount = 0; activeLeaves = 0; sampleLeaf = -1;
   }
   return {
-    update(time: number, cameraPosition: THREE.Vector3, rain: number, reducedMotion: boolean, enabled: boolean) {
+    /** dew 0–1: morning dew makes a lighter scatter of the same drops. */
+    update(time: number, cameraPosition: THREE.Vector3, rain: number, reducedMotion: boolean, enabled: boolean, dew = 0) {
       if (disposed) return;
       currentRain = THREE.MathUtils.clamp(Number.isFinite(rain) ? rain : 0, 0, 1); reduced = reducedMotion;
+      currentDew = THREE.MathUtils.clamp(dew, 0, 1);
+      const wetTarget = Math.max(currentRain, currentDew * .3);
       if (!enabled) {
         if (latestEnabled || initialized || wetness > 0) resetCount++;
         wetness = 0; initialized = false; latestEnabled = false; lastTime = time; hide(); return;
@@ -247,10 +253,12 @@ export function createFlowerRain(scene: THREE.Scene, flowers: readonly Flower[],
       const dt = Math.max(0, time - lastTime); lastTime = time;
       // The first small beads are an immediate rain response. Only elapsed time
       // grows/clears the retained appearance, including in reduced-motion mode.
-      wetness = Math.max(wetness, currentRain * .18);
-      const rate = currentRain > wetness ? .85 : .22;
-      wetness += (currentRain - wetness) * (1 - Math.exp(-rate * dt));
-      if (wetness < .001 && currentRain === 0) wetness = 0;
+      wetness = Math.max(wetness, wetTarget * .18);
+      const rate = wetTarget > wetness ? .85 : .22;
+      wetness += (wetTarget - wetness) * (1 - Math.exp(-rate * dt));
+      if (wetness < .001 && wetTarget === 0) wetness = 0;
+      // Rain refills the drops a bee has sipped.
+      if (currentRain > .02) for (let i = 0; i < drained.length; i++) drained[i] = Math.max(0, drained[i] - currentRain * dt * .15);
       if (wetness === 0 || cameraPosition.y > 14) { hide(); return; }
       let selected = 0;
       for (let i = 0; i < flowers.length; i++) {
@@ -271,7 +279,7 @@ export function createFlowerRain(scene: THREE.Scene, flowers: readonly Flower[],
         let flowerCount = 0;
         for (let j = 0; j < anchors[id].length; j++) {
           const anchor = anchors[id][j];
-          const growth = THREE.MathUtils.smoothstep(wetness, anchor.threshold, anchor.threshold + .23);
+          const growth = THREE.MathUtils.smoothstep(wetness, anchor.threshold, anchor.threshold + .23) * (1 - drained[id]);
           if (growth < .035 || distanceFade < .02) continue;
           normal.copy(anchor.normal).applyQuaternion(flower.rotation);
           if (normal.y < .35) continue;
@@ -329,6 +337,33 @@ export function createFlowerRain(scene: THREE.Scene, flowers: readonly Flower[],
       bodyOpacity.needsUpdate = true; highlightOpacity.needsUpdate = true;
       beads.boundingSphere!.center.copy(cameraPosition); highlights.boundingSphere!.center.copy(cameraPosition);
     },
+    /** 0–1: water on a flower's petals the bee could sip (dew or rain drops). */
+    waterOn(flowerId: number): number {
+      const i = flowers.findIndex(f => f.id === flowerId);
+      if (i < 0 || !anchors[i].length) return 0;
+      return Math.min(1, wetness * 2) * (1 - drained[i]);
+    },
+    /** The drop nearest to point on that flower, in world space; false if none shows. */
+    nearestBead(flowerId: number, point: THREE.Vector3, out: THREE.Vector3): boolean {
+      const i = flowers.findIndex(f => f.id === flowerId);
+      if (i < 0) return false;
+      const flower = flowers[i];
+      let best = Infinity;
+      for (const anchor of anchors[i]) {
+        const growth = THREE.MathUtils.smoothstep(wetness, anchor.threshold, anchor.threshold + .23) * (1 - drained[i]);
+        if (growth < .035) continue;
+        beadLocal.copy(anchor.local).multiplyScalar(flower.radius);
+        beadWorld.copy(beadLocal).applyQuaternion(flower.rotation).add(flower.center);
+        const d = beadWorld.distanceToSquared(point);
+        if (d < best) { best = d; out.copy(beadWorld); }
+      }
+      return best < Infinity;
+    },
+    /** Sipping takes some of a flower's drops. */
+    drink(flowerId: number, amount: number) {
+      const i = flowers.findIndex(f => f.id === flowerId);
+      if (i >= 0) drained[i] = Math.min(1, drained[i] + amount);
+    },
     diagnostics(): Record<string, unknown> {
       const samples: Record<string, unknown>[] = [];
       for (let species = 0; species < 3; species++) {
@@ -343,7 +378,7 @@ export function createFlowerRain(scene: THREE.Scene, flowers: readonly Flower[],
         });
       }
       return {
-        visible: group.visible, wetness, rain: currentRain, beads: count, count, activeFlowers,
+        visible: group.visible, wetness, rain: currentRain, dew: currentDew, beads: count, count, activeFlowers,
         leafBeads: leafCount, activeLeaves,
         leafSample: sampleLeaf < 0 ? null : { leafId: leaves[sampleLeaf].id, local: leafSampleLocal.toArray(), world: leafSampleWorld.toArray() },
         speciesCounts: { daisy: speciesCounts[0], poppy: speciesCounts[1], cornflower: speciesCounts[2] },

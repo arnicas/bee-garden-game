@@ -171,11 +171,11 @@ export function createUI(actions: UIActions): GameUI {
         <div class="learning-flower">${pollinationFlowers.daisy}</div>
         <h2 id="learning-title" tabindex="-1">Your summer day begins on a flower.</h2>
         <section class="learning-summer" aria-label="How the meadow changed since last summer" hidden>
-          <div class="summer-group"><h3>Flowers <span>last summer → this summer</span></h3>
-            <div class="learning-summer-counts">${summerKinds.map(([species, name]) => `<div data-summer-kind="${species}"><span class="summer-art">${pollinationFlowers[species]}</span><span class="summer-name">${name}</span><span class="summer-change"><span data-text="summer-was-${species}"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-${species}"></b></span><span class="summer-delta" data-text="summer-delta-${species}"></span></div>`).join('')}</div>
+          <div class="summer-group"><h3>Flowers <span>change since last summer</span></h3>
+            <div class="learning-summer-counts">${summerKinds.map(([species, name]) => `<div data-summer-kind="${species}"><span class="summer-art">${pollinationFlowers[species]}</span><span class="summer-name">${name}</span><span class="summer-delta" data-text="summer-delta-${species}"></span><span class="summer-change"><span data-text="summer-was-${species}"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-${species}"></b></span></div>`).join('')}</div>
             <p class="summer-lesson" data-text="summer-flowers-line"></p></div>
-          <div class="summer-group"><h3>Meadow friends</h3>
-            <div class="learning-summer-counts"><div data-summer-kind="aphid"><span class="summer-art">${aphidArt}</span><span class="summer-name">Aphid clusters</span><span class="summer-change"><span data-text="summer-was-aphid"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-aphid"></b></span><span class="summer-delta" data-text="summer-delta-aphid"></span></div><div data-summer-kind="ladybird"><span class="summer-art">${ladybirdArt}</span><span class="summer-name">Ladybirds</span><span class="summer-change"><span data-text="summer-was-ladybird"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-ladybird"></b></span><span class="summer-delta" data-text="summer-delta-ladybird"></span></div><div data-summer-kind="butterfly"><span class="summer-art">${butterflyArt}</span><span class="summer-name">Butterflies</span><span class="summer-change"><span data-text="summer-was-butterfly"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-butterfly"></b></span><span class="summer-delta" data-text="summer-delta-butterfly"></span></div><div data-summer-kind="snail"><span class="summer-art">${snailArt}</span><span class="summer-name">Snails</span><span class="summer-change"><span data-text="summer-was-snail"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-snail"></b></span><span class="summer-delta" data-text="summer-delta-snail"></span></div></div>
+          <div class="summer-group"><h3>Meadow friends <span>change since last summer</span></h3>
+            <div class="learning-summer-counts"><div data-summer-kind="aphid"><span class="summer-art">${aphidArt}</span><span class="summer-name">Aphid clusters</span><span class="summer-delta" data-text="summer-delta-aphid"></span><span class="summer-change"><span data-text="summer-was-aphid"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-aphid"></b></span></div><div data-summer-kind="ladybird"><span class="summer-art">${ladybirdArt}</span><span class="summer-name">Ladybirds</span><span class="summer-delta" data-text="summer-delta-ladybird"></span><span class="summer-change"><span data-text="summer-was-ladybird"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-ladybird"></b></span></div><div data-summer-kind="butterfly"><span class="summer-art">${butterflyArt}</span><span class="summer-name">Butterflies</span><span class="summer-delta" data-text="summer-delta-butterfly"></span><span class="summer-change"><span data-text="summer-was-butterfly"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-butterfly"></b></span></div><div data-summer-kind="snail"><span class="summer-art">${snailArt}</span><span class="summer-name">Snails</span><span class="summer-delta" data-text="summer-delta-snail"></span><span class="summer-change"><span data-text="summer-was-snail"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-snail"></b></span></div></div>
             <p class="summer-lesson" data-text="summer-friends-line"></p></div>
         </section>
         <p id="learning-goals">Fly between flowers, gathering nectar for energy and the hive.<br>Carry pollen to matching flowers and help the meadow bloom.</p>
@@ -630,7 +630,7 @@ export function createUI(actions: UIActions): GameUI {
           const change = after - before;
           text(`summer-was-${kind}`, String(before));
           text(`summer-count-${kind}`, String(after));
-          text(`summer-delta-${kind}`, change === 0 ? 'no change' : `${change > 0 ? '+' : '−'}${Math.abs(change)}`);
+          text(`summer-delta-${kind}`, change === 0 ? 'same' : `${change > 0 ? '+' : '−'}${Math.abs(change)}`);
           const cell = el(`[data-summer-kind="${kind}"]`), sign = change > 0 ? 'more' : change < 0 ? 'fewer' : 'same';
           if (cell.dataset.trend !== sign) cell.dataset.trend = sign;
         }
@@ -777,8 +777,9 @@ export function createUI(actions: UIActions): GameUI {
       const ladybirdsMet = state.friendsFound === 0 ? `None met${preview ? ` · ${preview.ladybirds} ladybirds here` : ''}${lastSummer}` : `${state.friendsFound}${living} ladybird${state.friendsFound === 1 && !living ? '' : 's'}${lastSummer}`;
       const withButterflies = state.butterfliesFound ? `${ladybirdsMet} · ${state.butterfliesFound} butterfl${state.butterfliesFound === 1 ? 'y' : 'ies'}` : ladybirdsMet;
       text('result-friends', state.snailsFound ? `${withButterflies} · ${state.snailsFound} snail${state.snailsFound === 1 ? '' : 's'}` : withButterflies);
-      text('result-next', preview ? nextSummerLine(preview) : '');
-      show(el('[data-text="result-next"]'), !!preview);
+      const water = state.waterSips > 1.5 ? 'You carried water home to cool the hive. ' : '';
+      text('result-next', preview ? water + nextSummerLine(preview) : water);
+      show(el('[data-text="result-next"]'), !!preview || !!water);
       text('result-pollinated', String(state.pollinated));
       text('result-pollinated-label', state.pollinated === 1 ? 'flower pollinated' : 'flowers pollinated');
       for (const { species, name, element } of resultSpeciesPetals) {

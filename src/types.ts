@@ -23,8 +23,11 @@ export interface Flower {
    * local frame (scaled to the flower). Empty for daisies and poppies. */
   nectarSpots: Vector3[];
 }
+/** A low spot where rain pools: a small clearing in the grass. */
+export interface PuddleSpot { x: number; z: number; radius: number }
 export interface Meadow {
   flowers: Flower[];
+  puddles: PuddleSpot[];
   update(time: number, cameraPosition: Vector3, uv: boolean, carriedPollen?: CarriedPollen): void;
   dispose(): void;
 }
@@ -112,6 +115,8 @@ export interface ViewState {
   butterfliesFound: number;
   /** Distinct snails met today. */
   snailsFound: number;
+  /** Seconds spent sipping water today (dew, raindrops, puddles). */
+  waterSips: number;
   /** Chose to fly home before the harvest goal. */
   headingHome: boolean;
   /** Carries enough nectar for the flight home. */

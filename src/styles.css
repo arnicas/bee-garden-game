@@ -89,10 +89,11 @@ h1 em { font-weight: 400; font-size: .93em; }
 .learning-summer-counts > div { display: grid; justify-items: center; gap: 2px; min-width: 80px; }
 .summer-art svg { width: 28px; height: 28px; }
 .summer-name { font-size: 11px; letter-spacing: .4px; }
-.summer-change { display: flex; align-items: baseline; gap: 5px; font: 15px/1.2 var(--serif); color: var(--muted); }
-.summer-change b { font: 21px/1.1 var(--serif); font-weight: 400; color: var(--ink, #3d4a36); }
-.summer-arrow { font-size: 12px; }
-.summer-delta { font-size: 11px; font-weight: 600; color: var(--muted); }
+/* The change is the headline (+3, −2, same); the counts sit small beneath it. */
+.summer-delta { font: 24px/1.1 var(--serif); font-weight: 400; color: var(--muted); }
+.summer-change { display: flex; align-items: baseline; gap: 4px; font: 12px/1.2 var(--serif); color: var(--muted); }
+.summer-change b { font: inherit; font-weight: 600; }
+.summer-arrow { font-size: 10px; }
 [data-trend="more"] > .summer-delta { color: #52703c; }
 [data-trend="fewer"] > .summer-delta { color: var(--rust); }
 .summer-lesson { margin: 8px auto 0; max-width: 470px; font: italic 14px/1.4 var(--serif); color: #57664b; }

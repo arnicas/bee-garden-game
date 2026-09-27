@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { CarriedPollen, Flower, Meadow, Species } from './types';
+import type { CarriedPollen, Flower, Meadow, PuddleSpot, Species } from './types';
 import { flowerFlex, flowerSwayAt, flowerSwayGLSL, windGLSL, windUniforms } from './wind';
 import { createGroundPaint } from './ground-paint';
 import { EVEN_MIX, type FlowerSpot, type SpeciesMix } from './meadow-plan';
@@ -555,6 +555,18 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   materials.add(groundMaterial);
   const ground = new THREE.Mesh(terrain, groundMaterial); ground.receiveShadow = true; root.add(ground);
 
+  // Low spots where rain pools: a dozen small clearings in the grass, one by the
+  // opening corridor, the rest spread among the flowers.
+  const puddles: PuddleSpot[] = [{ x: -.8, z: 1.6, radius: .42 }];
+  const puddleRandom = rng(seed ^ 0x9d11e);
+  for (let attempt = 0; puddles.length < 12 && attempt < 500; attempt++) {
+    const a = puddleRandom() * TAU, r = 6 + Math.sqrt(puddleRandom()) * 15, radius = .35 + puddleRandom() * .35;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r - 3;
+    if (flowers.some(f => Math.hypot(f.base.x - x, f.base.z - z) < f.radius + radius + .5)) continue;
+    if (puddles.some(p => Math.hypot(p.x - x, p.z - z) < 3)) continue;
+    puddles.push({ x, z, radius });
+  }
+  const inPuddleClearing = (x: number, z: number, margin: number) => puddles.some(p => (x - p.x) ** 2 + (z - p.z) ** 2 < (p.radius * margin) ** 2);
   const bladeGeometry = keep(grassBlade(3)), distantBladeGeometry = keep(grassBlade(2)), coverGeometry = keep(groundCover()), oatGeometry = keep(oatGrass()), dummy = new THREE.Object3D(), tint = new THREE.Color();
   const wavingMaterial = wavingGrassMaterial(clock); materials.add(wavingMaterial);
   const pages: { mesh: THREE.InstancedMesh; x: number; z: number; range: number }[] = [];
@@ -574,6 +586,8 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
         const f = flowers[j], dx = x - f.base.x, dz = z - f.base.z;
         if (dx * dx + dz * dz < (f.radius + 0.6) ** 2) h = Math.min(h, (heights[j] - 0.65) / 1.1);
       }
+      // Puddle clearings: only short stubble around the water.
+      if (inPuddleClearing(x, z, 1.6)) h = Math.min(h, .07);
       dummy.position.set(x, heightAt(x, z), z); dummy.rotation.set(0, pageRandom() * TAU, 0); dummy.scale.set(0.6 + pageRandom() * 0.8, h, 0.6 + pageRandom() * 0.8); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
       tint.set(0xffffff).lerp(C(0xc9d991), pageRandom() * 0.42); mesh.setColorAt(i, tint);
     }
@@ -586,7 +600,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       const cover = new THREE.InstancedMesh(coverGeometry,grassMaterial,coverCount); cover.name = `groundcover page ${gx}:${gz}`;
       for(let i=0;i<coverCount;i++) {
         const x=px+(coverRandom()-0.5)*9,z=pz+(coverRandom()-0.5)*9,scale=0.82+coverRandom()*0.75;
-        dummy.position.set(x,heightAt(x,z),z); dummy.rotation.set(0,coverRandom()*TAU,0); dummy.scale.set(scale,0.8+coverRandom()*0.7,scale);dummy.updateMatrix();cover.setMatrixAt(i,dummy.matrix);
+        dummy.position.set(x,heightAt(x,z),z); dummy.rotation.set(0,coverRandom()*TAU,0); dummy.scale.set(scale,0.8+coverRandom()*0.7,scale);if(inPuddleClearing(x,z,1.5))dummy.scale.multiplyScalar(.05);dummy.updateMatrix();cover.setMatrixAt(i,dummy.matrix);
         tint.set(0xffffff).lerp(C(0xc6c6a0),coverRandom()*0.34);cover.setColorAt(i,tint);
       }
       cover.instanceMatrix.needsUpdate=true;cover.computeBoundingSphere();cover.boundingSphere!.radius+=0.5;root.add(cover);pages.push({mesh:cover,x:px,z:pz,range:40});
@@ -646,5 +660,5 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     }
   }
   update(0, new THREE.Vector3(0, 4.6, 3.5), false);
-  return { flowers, update, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
+  return { flowers, puddles, update, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
 }

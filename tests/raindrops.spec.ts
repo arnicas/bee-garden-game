@@ -81,3 +81,19 @@ test('with soaked wings, walking off the rim of a flower slips the bee over the 
   expect((await state(page)).raindrops.knockedDown).toBe(true);
   await expect.poll(async () => (await state(page)).onGround, { timeout: 8000 }).toBe(true);
 });
+
+test('in the grass during rain, drips run off the blades: small splashes and a little wetness', async ({ page }) => {
+  await page.goto('/?test');
+  await startFlyingFixture(page);
+  await page.evaluate(() => { window.__BEE_TEST__!.setRaindrops(true); window.__BEE_TEST__!.setDayProgress(.35); window.__BEE_TEST__!.setCargo(0, 5, 100); window.__BEE_TEST__!.setPose([2, .7, 4], 0, 0); });
+  await expect.poll(async () => (await state(page)).onGround, { timeout: 8000 }).toBe(true);
+  const settled = await state(page);
+  expect(settled.rainExposure).toBe(0);
+  await expect.poll(async () => (await state(page)).raindrops.drips, { timeout: 20000 }).toBeGreaterThan(0);
+  const dripped = await state(page);
+  expect(dripped.raindrops.splash.visible).toBe(true);
+  expect(dripped.raindrops.wetness).toBeGreaterThan(0);
+  // Drips never knock the bee down; the grass is still shelter.
+  expect(dripped.raindrops.knockedDown).toBe(false);
+  expect(dripped.raindrops.count).toBe(0);
+});
