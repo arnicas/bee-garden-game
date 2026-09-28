@@ -31,6 +31,11 @@ test('the night passes between summers, with the moon crossing the day arc, and 
     const moon = Number(await page.locator('[data-day-moon]').getAttribute('opacity'));
     if (name === 'moonrise' || name === 'rain') expect(moon).toBeGreaterThan(.5);
     if (name === 'dawn') expect(moon).toBe(0);
+    // Crickets through the dark, hushed in the rain; birds at dawn.
+    const sound = (await state(page)).audio.night;
+    if (name === 'moonrise') expect(sound.crickets).toBeGreaterThan(.8);
+    if (name === 'rain') expect(sound.crickets).toBeLessThan(.4);
+    if (name === 'dawn') expect(sound.dawn).toBeGreaterThan(.5);
   }
   expect((await state(page)).mushrooms.up).toBeGreaterThan(0);
   await page.keyboard.press('Space');

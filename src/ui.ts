@@ -616,7 +616,7 @@ export function createUI(actions: UIActions): GameUI {
     transition.style.setProperty('--ending-fade', failing ? String(percent((loss - .72) / .28, 1)) : fade);
     // The flight home needs no heading; only the endings where the bee doesn't make it have one.
     text('ending-eyebrow', failing ? state.lossFromNight ? 'NIGHT FALLS ON THE MEADOW' : 'THE MEADOW FALLS QUIET' : '');
-    text('ending-caption', failing ? state.lossFromNight ? 'The last light slips away…' : 'Wings growing still…' : 'Heading home…');
+    text('ending-caption', failing ? state.lossFromNight ? 'The last light slips away…' : 'Wings growing still…' : state.endingStage === 'home' || state.endingStage === 'fade' ? 'Home at the Hive' : 'Heading home…');
     text('closing-action', failing ? 'Continue' : 'Skip to totals');
     attribute(transition, 'aria-label', failing ? state.lossFromNight ? 'Nightfall in the meadow' : 'The end of a little life' : "The day's journey home");
     attribute(closingButton, 'aria-label', failing ? 'Skip to results' : 'Skip to totals');
@@ -781,7 +781,7 @@ export function createUI(actions: UIActions): GameUI {
       show(el('[data-text="result-tip"]'), won && !!report.tip);
       text('result-eyebrow', won ? `SUMMER ${Math.max(1, state.summerNumber)} · ONE SMALL BEE` : state.lossFromNight ? 'DAYLIGHT RAN OUT' : state.lossFromHeat ? 'TOO MUCH SUN' : state.lossFromRain ? 'CAUGHT IN THE COLD RAIN' : 'AT THE END OF YOUR ENERGY');
       text('result-title', won ? report.title : state.lossFromNight ? 'Night in the meadow.' : 'The meadow grows quiet.');
-      text('result-description', won ? report.queen : state.lossFromNight ? 'Night fell before your harvest was ready for home. The flowers you helped still count. Next time, watch the sun: resting moves the day along.' : state.lossFromHeat ? 'The hot sun exhausted your bee’s energy. Next time, cool beneath a leaf or in dense grass; rest with stored nectar to recover.' : state.lossFromRain ? 'The cold rain exhausted your bee’s energy. Next time, shelter under a leaf and rest with stored nectar to recover.' : 'Your bee ran out of energy. Sip nectar along the way, and rest with a little stored nectar before your wings tire.');
+      text('result-description', won ? state.queenLine || report.queen : state.lossFromNight ? 'Night fell before your harvest was ready for home. The flowers you helped still count. Next time, watch the sun: resting moves the day along.' : state.lossFromHeat ? 'The hot sun exhausted your bee’s energy. Next time, cool beneath a leaf or in dense grass; rest with stored nectar to recover.' : state.lossFromRain ? 'The cold rain exhausted your bee’s energy. Next time, shelter under a leaf and rest with stored nectar to recover.' : 'Your bee ran out of energy. Sip nectar along the way, and rest with a little stored nectar before your wings tire.');
       text('result-nectar-label', won ? 'Nectar brought home' : 'Nectar gathered');
       text('result-pollen-label', won ? 'Pollen brought home' : 'Pollen gathered');
       text('result-nectar', `${share(state.nectar, state.nectarCapacity)}%`);

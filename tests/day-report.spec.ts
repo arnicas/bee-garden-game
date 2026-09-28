@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dayReport, morningLine } from '../src/day-report';
+import { dayReport, morningLine, queenLine } from '../src/day-report';
 import { startFlyingFixture } from './support/start';
 
 const day = (nectar: number, pollen: number, poppy: number, daisy: number, cornflower: number) =>
@@ -61,4 +61,37 @@ test('R heads home early and the partial delivery is judged at the hive', async 
   await expect(page.locator('[data-text="result-why"]')).toContainText('Jar 10% full');
   await expect(page.locator('[data-text="result-tip"]')).toBeVisible();
   expect((await state()).report.tier).toBe('okay');
+});
+
+test('the Queen remembers earlier summers', () => {
+  // A first poor summer, then a second in a row reads differently.
+  const first = queenLine(['okay'], 1);
+  expect(first).toContain('small list');
+  const second = queenLine(['okay', 'okay'], 2);
+  expect(second).not.toBe(first);
+  expect(second).toMatch(/list again|underlined/);
+  expect(queenLine(['okay', 'okay', 'okay'], 3)).not.toBe(second);
+  // A recovery is noticed.
+  expect(queenLine(['okay', 'good'], 2)).toMatch(/crossed your name off|tore up/);
+  expect(queenLine(['lost', 'fantastic'], 2)).toMatch(/crossed your name off|tore up/);
+  expect(queenLine(['okay', 'reasonable'], 2)).toMatch(/up her list|noticed/);
+  // Good summers build; one poor one after a good run is let go.
+  expect(queenLine(['good'], 1)).toBe('The Queen is very pleased with your delivery.');
+  expect(queenLine(['good', 'good'], 2)).toContain('Two good summers');
+  expect(queenLine(['good', 'fantastic', 'good'], 3)).toMatch(/count on you|honey/);
+  expect(queenLine(['good', 'good', 'okay'], 3)).toContain('lets it pass');
+  // After a lost summer, getting home at all counts for something.
+  expect(queenLine(['lost', 'okay'], 2)).toContain('made it home');
+  // A lost day has no Queen's line; the pools turn with the summer.
+  expect(queenLine(['good', 'lost'], 2)).toBe('');
+  expect(queenLine(['okay', 'okay'], 2)).not.toBe(queenLine(['okay', 'okay'], 3));
+});
+
+test('the results screen uses the Queen\'s memory of earlier summers', async ({ page }) => {
+  await page.goto('/?test');
+  await startFlyingFixture(page);
+  await page.evaluate(() => window.__BEE_TEST__!.setOutcomes(['okay']));
+  await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.setState('complete'));
+  // The fixture's day is an okay one, after an okay one: a second time on the list.
+  await expect(page.locator('[data-text="result-description"]')).toHaveText(/list again|underlined/);
 });

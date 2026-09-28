@@ -181,6 +181,8 @@ export interface ViewState {
   message: string;
   /** 0–1 through the night between summers (only in the night phase). */
   nightProgress: number;
+  /** The Queen's results line, remembering earlier summers ('' for a lost day). */
+  queenLine: string;
   /** Bold at the front of the message: the name of something just discovered. */
   messageLead: string;
   hint: string;

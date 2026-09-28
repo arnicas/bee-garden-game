@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createMeadow, FIXED_FLOWERS, grassRainCover, meadowGroundHeight, rng } from './world';
 import { countSpecies, friendCounts, meadowDryness, nextBadSummers, nextCounts, planNextSummer, type DayOutcome, type FlowerSpot, type PastFlower, type SpeciesCounts, type SummerPlan } from './meadow-plan';
-import { butterflyChangeLine, snailChangeLine, dayReport, flowerLessonLine, friendsChangeLine, type DayReport } from './day-report';
+import { butterflyChangeLine, snailChangeLine, dayReport, flowerLessonLine, friendsChangeLine, queenLine, type DayReport, type SummerOutcome } from './day-report';
 import { createUI } from './ui';
 import { createBeeRig } from './bee';
 import { createNectarBeads, createNectarDrop } from './nectar';
@@ -114,6 +114,8 @@ interface TestControl {
   setSkyClock(clock: number | null): void;
   skipNight(): void;
   setNightAge(seconds: number): void;
+  /** Earlier summers' outcomes, oldest first, for trying the Queen's memory. */
+  setOutcomes(outcomes: SummerOutcome[]): void;
   setSkyLook(look: Partial<import('./atmosphere').SkyLook>): void;
   sky(): { clock: number; sunElevation: number; night: number; moonElevation: number };
   fairyRings(): { id: number; kind: string; center: number[]; radius: number; seen: boolean }[];
@@ -383,6 +385,9 @@ export class Garden {
   private dayPlayed = false;
   /** Counts summers played this session; the morning line names it. */
   private summerNumber = 0;
+  /** How each finished summer ended, oldest first, for the Queen's memory. */
+  private outcomes: SummerOutcome[] = [];
+  private queenSays = '';
   /** The player chose to fly home before the harvest goal (R). */
   private headingHome = false;
   /** How the last day at the hive went (set when the bee gets home). */
@@ -535,6 +540,8 @@ export class Garden {
   private nextMeadow(): void {
     if (!this.dayPlayed) { this.dayPlayed = true; return; }
     const finished = this.phase === 'won' || this.phase === 'lost';
+    const outcome: SummerOutcome = this.phase === 'won' ? this.report?.tier ?? 'okay' : 'lost';
+    if (finished) this.outcomes = [...this.outcomes, outcome].slice(-8);
     this.previousDay = { pollinatedBySpecies: { ...this.pollinatedBySpecies }, completed: this.phase === 'won', tier: this.phase === 'won' ? this.report?.tier ?? null : this.phase === 'lost' ? 'lost' : null };
     if (finished && (this.pinnedMeadowSeed === null || this.summersInTest)) this.advanceSummer();
   }
@@ -579,6 +586,8 @@ export class Garden {
     const random = rng(seed);
     this.weatherPlan = planWeather(random);
     setWindVariation(random() * 240, (random() - .5) * Math.PI * 2);
+    const night = new URLSearchParams(location.search).get('night');
+    if (night === 'wet' || night === 'dry' || night === 'dewy') this.weatherPlan = { ...this.weatherPlan, night };
   }
 
   /** The night before shows in the morning. After rain the leaves are wet, the
@@ -660,6 +669,17 @@ export class Garden {
     this.applyNight();
     this.welcome();
   }
+  private nightSkyLook(): SkyLook {
+    const dry = this.weatherPlan.night === 'dry';
+    return { ...this.skyLook, clouds: this.skyLook.clouds === 'none' ? 'fair' : this.skyLook.clouds, cloudAmount: dry ? .3 + this.weather.gale * .4 : .36 };
+  }
+
+  /** Clouds drift slowly by day and faster in wind; the sped-up night sends them racing. */
+  private cloudSpeed(): number {
+    if (this.phase === 'night') return .7 + this.weather.gale * 1.2;
+    return (.012 + this.weather.gale * .05) * (this.reducedMotion ? .35 : 1);
+  }
+
   /** The night's own weather, played quickly: rain over the moon after a wet night, a breeze after a dry one. */
   private nightWeather(t: number): void {
     const night = this.weatherPlan.night;
@@ -1603,6 +1623,7 @@ export class Garden {
     this.nectar = Math.max(0, this.nectar - this.returnFuel);
     this.phase = 'won'; this.clearInput();
     this.report = dayReport({ nectar: this.nectar, pollen: this.pollen, pollinatedBySpecies: this.pollinatedBySpecies, visited: this.visited, flowerTotal: this.supplies.size });
+    this.queenSays = queenLine([...this.outcomes, this.report.tier], this.summerNumber);
     this.resultScore = Math.round(this.nectar * 12 + this.pollen * 15 + this.pollinated * 80 + Math.max(0, 300 - this.elapsed));
   }
   private dayProgress(): number {
@@ -1630,7 +1651,7 @@ export class Garden {
     if (this.onLeaf) this.position.copy(this.onLeaf.topPerch);
     if (this.onGround) this.position.y = this.groundAltitude();
     this.sampleWeather();
-    this.atmosphere.update(time, elevated ? this.camera.position : this.position, this.uv, this.dayProgress(), this.weather.cloudiness, { clock: this.skyClock(time), look: this.skyLook });
+    this.atmosphere.update(time, elevated ? this.camera.position : this.position, this.uv, this.dayProgress(), this.weather.cloudiness, { clock: this.skyClock(time), look: this.phase === 'night' ? this.nightSkyLook() : this.skyLook, cloudSpeed: this.cloudSpeed() });
   }
   private updateNectarTarget(f: Flower): void {
     // A cornflower's target is the floret in reach, else the nearest that still has nectar.
@@ -1692,7 +1713,7 @@ export class Garden {
       const t = Math.min(1, this.nightAge / Garden.NIGHT_DURATION);
       const rise = THREE.MathUtils.smoothstep(t, 0, .2), settle = THREE.MathUtils.smoothstep(t, .8, 1);
       const a = -.5 + t, flower = this.meadow.flowers[0];
-      const lookX = Math.sin(a) * 2, lookY = 3.2, lookZ = -10;
+      const lookX = Math.sin(a) * 2, lookY = 4.4, lookZ = -10;
       this.temp.set(1.2 + Math.sin(a) * 4.5, 10, 12);
       this.camera.position.lerpVectors(this.nightFrom, this.temp, rise);
       this.nightLook.position.copy(this.camera.position);
@@ -1791,7 +1812,12 @@ export class Garden {
     this.bee.update(this.reducedMotion ? 0 : this.time, closing || this.onGround || !!(this.landed || this.underLeaf || this.onLeaf), this.drinking, this.phase !== 'title' && this.phase !== 'won' && this.phase !== 'night' && this.restView.amount < .01 && (!cinematic || this.homecoming.firstPerson), this.pausedCapture || this.phase === 'paused' ? 0 : dt, this.temp, this.loose, (this.satiated || this.resting || !!this.underLeaf || !!this.onLeaf || closing) && !(this.onGround && !this.resting), this.nectarBend, this.pollenOrder[0]);
     this.bee.writeTongueContact(this.tongueTip, this.tongueApproach);
     const touchingNectar = this.nectarDrop.update(active && !this.pausedCapture ? dt : 0, this.tongueTip, this.tongueApproach, this.drinking, this.reducedMotion);
-    this.audio.update(this.phase === 'flying', this.flightEffort, Math.min(1.5, this.wind.length() / 2), touchingNectar, !(active || this.phase === 'returning' || this.phase === 'failing') || this.pausedCapture,
+    // The night between summers: crickets through the dark (hushed by rain), birds at dawn.
+    if (this.phase === 'night') {
+      const t = Math.min(1, this.nightAge / Garden.NIGHT_DURATION);
+      this.audio.night(THREE.MathUtils.smoothstep(t, .04, .18) * (1 - THREE.MathUtils.smoothstep(t, .8, .93)) * (1 - this.weather.rain * .85), THREE.MathUtils.smoothstep(t, .8, .92));
+    } else this.audio.night(0, 0);
+    this.audio.update(this.phase === 'flying', this.flightEffort, Math.min(1.5, this.wind.length() / 2 + this.weather.gale * (this.phase === 'night' ? .9 : 0)), touchingNectar, !(active || this.phase === 'returning' || this.phase === 'failing' || this.phase === 'night') || this.pausedCapture,
       cinematic ? { meadow: this.homecoming.firstPerson ? .1 : 1, home: this.homecoming.firstPerson ? 1 : 0, fade: this.homecoming.stage === 'fade' ? this.homecoming.fade : 0 } : this.restView.active && this.weather.cloudiness < .2 && this.weather.rain < .01 ? { meadow: this.restView.amount * .65, home: 0, fade: 0 } : undefined,
       { rain: this.weather.rain, underLeaf: !!this.rainCover || this.grassCover > .99, leafTop: this.leafTopNearness() }, closing ? this.lossProgress() : undefined, this.phase === 'flying' ? this.heavyStrain : 0);
     let targetVisible = false, x = .5, y = .5;
@@ -1842,7 +1868,7 @@ export class Garden {
       cold: this.coldVignette(), chilled: this.chill > .1, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight,
       phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
       homeCost, homeDistance: distance * .1, homeBearing: this.yaw - Math.atan2(-(HOME_EXIT.x - this.position.x), -(HOME_EXIT.z - this.position.z)),
-      homeX, homeY, homeVisible, harvestReady, friendsFound: this.ladybirds.seenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
+      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
       canReturn,
       wind: this.wind.length(), windBearing: this.yaw - Math.atan2(-this.wind.x, -this.wind.z), flightMode: this.flightMode, sheltered: !!this.underLeaf || this.position.y < 3.7, edgeGust,
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
@@ -1940,7 +1966,9 @@ export class Garden {
           this.position.copy(f.center).add(new THREE.Vector3(0, .55, 1)); this.land(f);
           this.pollinationFX.update(.65, true, this.reducedMotion);
         }
-        if (name === 'complete') { this.phase = 'won'; this.nectar = 55; this.pollen = POLLEN_GOAL; this.pollinated = 2; this.pollinatedBySpecies = { poppy: 1, daisy: 1, cornflower: 0 }; this.visited = 4; this.elapsed = 138; this.resultScore = 1852; }
+        if (name === 'complete') { this.phase = 'won'; this.nectar = 55; this.pollen = POLLEN_GOAL; this.pollinated = 2; this.pollinatedBySpecies = { poppy: 1, daisy: 1, cornflower: 0 }; this.visited = 4; this.elapsed = 138; this.resultScore = 1852;
+          this.report = dayReport({ nectar: this.nectar, pollen: this.pollen, pollinatedBySpecies: this.pollinatedBySpecies, visited: this.visited, flowerTotal: this.supplies.size });
+          this.queenSays = queenLine([...this.outcomes, this.report.tier], this.summerNumber); }
         if (name === 'failed') { this.energy = 0; this.beginLoss(); this.finishLoss(); }
         this.bee.snapPose(!!this.landed);
         this.windFX.reset(this.position, this.time);
@@ -1952,7 +1980,7 @@ export class Garden {
       hideDebugUi: (_value: boolean) => { /* No debug panels in the player interface. */ },
     };
     window.__BEE_TEST__ = {
-      snapshot: () => ({ nightAge: this.nightAge, previousDay: this.previousDay, night: this.weatherPlan.night, leafWet: this.leafWet, butterflies: this.butterflies.diagnostics(), snails: this.snails.diagnostics(), ants: this.ants.diagnostics(), mushrooms: this.mushrooms.diagnostics(), petals: this.petals.diagnostics(), caterpillars: this.caterpillars.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), water: { sips: this.waterSips, sipping: this.sippingWater, near: this.waterNear, flower: this.landed ? this.flowerRain.waterOn(this.landed.id) : 0, puddles: this.puddles.diagnostics() }, raindrops: { on: this.raindropsOn, wetness: this.wetness, strikes: this.dropStrikes, count: this.dropCount, drips: this.dripCount, knockdown: this.knockdown, knockedDown: this.knockedDown, groom: this.bee.groomAmount(), splash: this.rainSplash.diagnostics() }, nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
+      snapshot: () => ({ outcomes: this.outcomes, queenLine: this.queenSays, nightAge: this.nightAge, previousDay: this.previousDay, night: this.weatherPlan.night, leafWet: this.leafWet, butterflies: this.butterflies.diagnostics(), snails: this.snails.diagnostics(), ants: this.ants.diagnostics(), mushrooms: this.mushrooms.diagnostics(), petals: this.petals.diagnostics(), caterpillars: this.caterpillars.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), water: { sips: this.waterSips, sipping: this.sippingWater, near: this.waterNear, flower: this.landed ? this.flowerRain.waterOn(this.landed.id) : 0, puddles: this.puddles.diagnostics() }, raindrops: { on: this.raindropsOn, wetness: this.wetness, strikes: this.dropStrikes, count: this.dropCount, drips: this.dripCount, knockdown: this.knockdown, knockedDown: this.knockedDown, groom: this.bee.groomAmount(), splash: this.rainSplash.diagnostics() }, nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
       setPose: (p, yaw = 0, pitch = -.35, velocity = [0, 0, 0]) => { this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.fromArray(p); this.previousPosition.copy(this.position); this.yaw = yaw; this.pitch = pitch; this.velocity.fromArray(velocity); },
       walkToFloret: (index: number) => {
         const f = this.landed, spot = f?.nectarSpots[index];
@@ -2002,6 +2030,7 @@ export class Garden {
         if (this.phase !== 'night') this.applyNight();
         else if (night === 'wet') { if (this.raindropsOn) this.puddles.setFill(0); this.mushrooms.setGrowth(0); }
       },
+      setOutcomes: (outcomes: SummerOutcome[]) => { this.outcomes = [...outcomes]; },
       setNightAge: (seconds: number) => { if (this.phase === 'night') this.nightAge = seconds; },
       fairyRings: () => this.mushrooms.rings.map(r => ({ id: r.id, kind: r.kind, center: r.center.toArray(), radius: r.radius, seen: r.seen })),
       petals: () => this.petals.petals.filter(p => p.shown).map(p => ({ id: p.id, kind: p.kind, flowerId: p.flowerId, position: p.position.toArray(), falling: p.falling, seen: p.seen })),

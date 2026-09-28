@@ -53,6 +53,29 @@ function rainBuffer(ctx: BaseAudioContext, leaf: boolean): AudioBuffer {
   return buffer;
 }
 
+/** A few field crickets: trains of short, high pulses, each cricket at its own pitch and pace. */
+function cricketBuffer(ctx: BaseAudioContext): AudioBuffer {
+  const duration = 7.2;
+  const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * duration), ctx.sampleRate);
+  const samples = buffer.getChannelData(0);
+  let seed = 2711;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const crickets = [{ pitch: 4350, every: .72, level: .5 }, { pitch: 4720, every: .95, level: .32 }, { pitch: 3980, every: 1.3, level: .22 }];
+  for (const cricket of crickets) {
+    for (let at = random() * cricket.every; at < duration - .3; at += cricket.every * (.9 + random() * .2)) {
+      const pulses = 3 + Math.floor(random() * 2);
+      for (let k = 0; k < pulses; k++) {
+        const start = Math.floor((at + k * .034) * ctx.sampleRate), length = Math.floor(.018 * ctx.sampleRate);
+        for (let i = 0; i < length && start + i < samples.length; i++) {
+          const age = i / ctx.sampleRate, envelope = Math.sin(Math.PI * i / length) ** 2;
+          samples[start + i] += cricket.level * envelope * Math.sin(Math.PI * 2 * cricket.pitch * age);
+        }
+      }
+    }
+  }
+  return buffer;
+}
+
 export interface EndingAudioMix {
   meadow: number;
   home: number;
@@ -100,6 +123,10 @@ export class GardenAudio {
   private weatherMeter?: AnalyserNode;
   private meterSamples = new Float32Array(512);
   private nodes: AudioNode[] = [];
+  private crickets?: GainNode;
+  private nightMix = { crickets: 0, dawn: 0 };
+  private lastBird = 0;
+  birds = 0;
   muted = false;
 
   async start(): Promise<void> {
@@ -148,6 +175,10 @@ export class GardenAudio {
     const leaf = ctx.createBufferSource(); leaf.buffer = rainBuffer(ctx, true); leaf.loop = true;
     const leafFilter = ctx.createBiquadFilter(); leafFilter.type = 'lowpass'; leafFilter.frequency.value = 2300; leafFilter.Q.value = .4;
     leaf.connect(leafFilter).connect(this.leafPatter).connect(this.weatherGain); leaf.start();
+    this.crickets = ctx.createGain(); this.crickets.gain.value = 0;
+    const cricketLoop = ctx.createBufferSource(); cricketLoop.buffer = cricketBuffer(ctx); cricketLoop.loop = true;
+    cricketLoop.connect(this.crickets).connect(this.master); cricketLoop.start();
+    this.loopSources.push(cricketLoop); this.nodes.push(cricketLoop, this.crickets);
     this.loopSources.push(rain, leaf);
     this.nodes.push(rain, leaf, this.rainFilter, leafFilter, this.rainAir, this.leafPatter, this.weatherGain);
 
@@ -236,6 +267,36 @@ export class GardenAudio {
       source.onended = () => { source.disconnect(); gain.disconnect(); if (this.entrySource === source) this.entrySource = undefined; };
     }
     this.sipping = sipping;
+  }
+
+  /** The night between summers: 0–1 crickets, and 0–1 of the dawn chorus. */
+  night(crickets: number, dawn: number): void {
+    this.nightMix.crickets = boundedMix(crickets); this.nightMix.dawn = boundedMix(dawn);
+    const ctx = this.context; if (this.disposed || !ctx || !this.crickets) return;
+    const t = ctx.currentTime;
+    this.crickets.gain.setTargetAtTime(this.nightMix.crickets * .016, t, .5);
+    // Now and then a bird, more of them as the light comes.
+    const dt = Math.min(.25, Math.max(0, t - this.lastBird)); this.lastBird = t;
+    if (this.nightMix.dawn > 0 && Math.random() < 1 - Math.exp(-this.nightMix.dawn * 1.4 * dt)) this.bird();
+  }
+
+  /** A short blackbird-like phrase: a few sliding whistles. */
+  private bird(): void {
+    const ctx = this.context; if (this.disposed || !ctx || !this.master) return;
+    this.birds++;
+    const base = 1900 + Math.random() * 900, notes = 2 + Math.floor(Math.random() * 3);
+    let at = ctx.currentTime + Math.random() * .05;
+    for (let i = 0; i < notes; i++) {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      const from = base * (.85 + Math.random() * .4), to = from * (Math.random() < .5 ? .75 : 1.3), length = .08 + Math.random() * .14;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(from, at); osc.frequency.exponentialRampToValueAtTime(to, at + length);
+      gain.gain.setValueAtTime(0, at); gain.gain.linearRampToValueAtTime(.012 + Math.random() * .008, at + .015);
+      gain.gain.exponentialRampToValueAtTime(.0001, at + length);
+      osc.connect(gain).connect(this.master); osc.start(at); osc.stop(at + length + .02);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+      at += length + .03 + Math.random() * .08;
+    }
   }
 
   /** A soft plucked-silk thrum, for tugs against a spider web. */
@@ -342,7 +403,7 @@ export class GardenAudio {
     };
     const airGain = this.disposed ? 0 : this.rainAir?.gain.value ?? 0;
     const leafGain = this.disposed ? 0 : this.leafPatter?.gain.value ?? 0;
-    return { slurps: this.slurps, lossFade: this.lossFade ?? 0, context: this.context?.state ?? 'locked', muted: this.muted, sipping: this.sipping, touches: this.touches, sipRms: rms(this.sipMeter), outputRms: rms(this.masterMeter), sipLoops: this.disposed ? 0 : this.sipGain ? 1 : 0, ending: { active: this.endingActive, ...this.endingMix, ...this.endingTargets }, weather: { ...this.weatherMix, gain: airGain + leafGain, airGain, leafGain, rms: rms(this.weatherMeter), targets: { ...this.weatherTargets } }, loopSources: this.loopSources.length, retainedNodes: this.nodes.length + (!this.disposed && this.master ? 1 : 0) };
+    return { night: { ...this.nightMix, birds: this.birds, cricketGain: this.disposed ? 0 : this.crickets?.gain.value ?? 0 }, slurps: this.slurps, lossFade: this.lossFade ?? 0, context: this.context?.state ?? 'locked', muted: this.muted, sipping: this.sipping, touches: this.touches, sipRms: rms(this.sipMeter), outputRms: rms(this.masterMeter), sipLoops: this.disposed ? 0 : this.sipGain ? 1 : 0, ending: { active: this.endingActive, ...this.endingMix, ...this.endingTargets }, weather: { ...this.weatherMix, gain: airGain + leafGain, airGain, leafGain, rms: rms(this.weatherMeter), targets: { ...this.weatherTargets } }, loopSources: this.loopSources.length, retainedNodes: this.nodes.length + (!this.disposed && this.master ? 1 : 0) };
   }
   dispose(): void {
     if (this.disposed) return;

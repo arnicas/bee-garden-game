@@ -136,6 +136,73 @@ export function dayReport(stats: DayStats): DayReport {
   return { tier, delivery, pollination, ...lines[tier], why: capital(why.join(' · ')) };
 }
 
+/** How a summer ended: its tier if the bee got home, or 'lost'. */
+export type SummerOutcome = DayTier | 'lost';
+
+const GOOD = new Set<SummerOutcome>(['fantastic', 'good']);
+/** How many summers at the end of the list (today last) match. */
+const runOf = (history: readonly SummerOutcome[], match: (o: SummerOutcome) => boolean) => {
+  let n = 0;
+  for (let i = history.length - 1; i >= 0 && match(history[i]); i--) n++;
+  return n;
+};
+/** A small pool per situation; the summer number turns it, so a line rarely repeats. */
+const pick = (pool: readonly string[], summer: number) => pool[Math.abs(summer) % pool.length];
+
+/**
+ * The Queen's line on the results screen, from how the summers have gone so
+ * far. `history` runs oldest first and ends with today's tier. She remembers:
+ * a second poor summer in a row is not the first, a recovery is noticed, good
+ * summers build, and one poor summer after a good run is let go.
+ */
+export function queenLine(history: readonly SummerOutcome[], summer: number): string {
+  const today = history[history.length - 1];
+  if (!today || today === 'lost') return '';
+  const before = history.slice(0, -1);
+  const yesterday = before[before.length - 1];
+  const goodRunBefore = runOf(before, o => GOOD.has(o));
+  const okayRun = runOf(history, o => o === 'okay');
+  if (today === 'okay') {
+    if (okayRun >= 3) return pick([
+      'The Queen has given your name its own page on the list.',
+      'The Queen came to the entrance to watch you land. She said nothing at all.',
+    ], summer);
+    if (okayRun === 2) return pick([
+      'Your name is still on the Queen’s small list. She has underlined it.',
+      'The Queen found your name on her list again. She hoped not to.',
+    ], summer);
+    if (yesterday === 'lost') return 'The Queen is glad you made it home this time. Your name is on her small list, though.';
+    if (goodRunBefore >= 2) return 'A thin summer. The Queen remembers the good ones and lets it pass.';
+    return 'The Queen has added your name to a small list. It’s not a bad list. Yet.';
+  }
+  if (today === 'reasonable') {
+    if (yesterday === 'okay' || yesterday === 'lost') return pick([
+      'Better. The Queen has moved your name up her list.',
+      'The Queen noticed the change. Keep going.',
+    ], summer);
+    if (goodRunBefore >= 2) return 'Not your best summer. The Queen knows what you can do.';
+    return pick([
+      'The Queen hoped for a little more, but she believes in you.',
+      'The Queen takes your delivery with a small nod.',
+    ], summer);
+  }
+  // Good or fantastic.
+  if (yesterday === 'okay' || yesterday === 'lost') return pick([
+    'The Queen has crossed your name off her list.',
+    'The Queen tore up the small list. Your name was on it.',
+  ], summer);
+  const goodRun = goodRunBefore + 1;
+  if (goodRun >= 3) return today === 'fantastic'
+    ? pick(['The hive has stopped being surprised. The Queen has not.', 'Summer after summer. The Queen is telling everyone.'], summer)
+    : pick(['Another good summer. The Queen has started to count on you.', 'The Queen keeps a cell of honey with your name on it.'], summer);
+  if (goodRun === 2) return today === 'fantastic'
+    ? 'Two fine summers running. The whole hive has heard about you.'
+    : 'Two good summers running. The Queen is pleased.';
+  return today === 'fantastic'
+    ? 'The Queen is delighted. She’s telling the whole hive about you.'
+    : 'The Queen is very pleased with your delivery.';
+}
+
 /** The Queen's words at the start of a summer, echoing how the last one ended. */
 export function morningLine(summer: number, previous: DayTier | 'lost' | null): string {
   const lead = `Summer ${summer} · `;

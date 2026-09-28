@@ -33,6 +33,8 @@ export interface SkyOptions {
   look?: SkyLook;
   /** 0 new moon, .5 full, 1 new again. */
   moonPhase?: number;
+  /** How fast the clouds drift across, in sky units a second (about .012 on a still day). */
+  cloudSpeed?: number;
 }
 
 const DEG = Math.PI / 180;
@@ -72,7 +74,7 @@ const P = (top: string, horizon: string, cloud: string, fog: string, sky: string
   sky: new THREE.Color(sky), ground: new THREE.Color(ground), light: new THREE.Color(light), intensity, hemi,
 });
 // Keys by the sun's height. The high and mid-morning keys are the meadow's original day.
-const NIGHT = P('#141b33', '#2f3858', '#39415e', '#222a3e', '#3d4c74', '#161b16', '#b3c3e3', .5, .5);
+const NIGHT = P('#141b33', '#2f3858', '#66708f', '#222a3e', '#3d4c74', '#161b16', '#b3c3e3', .5, .5);
 const HIGH = P('#97c9cf', '#edf0d6', '#ecf0d8', '#ccd7bb', '#ecf0d8', '#66744a', '#ffe6ae', 3, 2);
 const MORNING = P('#afcbd8', '#f3dfbd', '#e7e6d6', '#d5d6ba', '#e7e6d6', '#737950', '#ffe0aa', 2.65, 2);
 const GOLDEN = P('#afc7cc', '#f4dcad', '#ebdfc3', '#d5d0a6', '#ebdfc3', '#716445', '#ffd092', 2.5, 1.85);
@@ -91,6 +93,8 @@ const TWILIGHT: Record<SunsetStyle, Palette> = {
   ember: P('#2c3360', '#d7684a', '#8a6a80', '#5c5268', '#6a6286', '#262420', '#e88a60', .55, .72),
   pale: P('#3a4568', '#b9a9b0', '#8d8a9c', '#646676', '#72748e', '#282a26', '#c8b8b8', .5, .78),
 };
+/** Rain cloud at night: a low, dark slate lid with only a little of the moon through it. */
+const NIGHT_OVERCAST = { top: new THREE.Color('#1a1f2b'), horizon: new THREE.Color('#262b37'), cloud: new THREE.Color('#353b4a'), fog: new THREE.Color('#1c212b'), sky: new THREE.Color('#2c3344'), ground: new THREE.Color('#121612'), light: new THREE.Color('#8691a6') };
 const OVERCAST = { top: new THREE.Color('#9baeb2'), horizon: new THREE.Color('#cbd4c4'), cloud: new THREE.Color('#d4dbce'), fog: new THREE.Color('#becbbe'), sky: new THREE.Color('#d9e3dc'), ground: new THREE.Color('#697655'), light: new THREE.Color('#e0e5d9') };
 /** Warm light for the sunset bloom near the horizon, by style. */
 const GLOW: Record<SunsetStyle, THREE.Color> = { golden: new THREE.Color('#f7b46e'), rose: new THREE.Color('#f2a0a6'), ember: new THREE.Color('#f5784a'), pale: new THREE.Color('#ead2b4') };
@@ -123,12 +127,14 @@ export function createAtmosphere(scene: THREE.Scene) {
     sunGlow: { value: 1 }, glowColor: { value: new THREE.Color('#f7b46e') }, bloom: { value: 0 },
     night: { value: 0 }, moonDirection: { value: moonDirection }, moonPhase: { value: .5 }, moonShow: { value: 0 },
     time: { value: 0 }, cloudStyle: { value: 0 }, cloudAmount: { value: .3 }, haze: { value: .35 },
+    cloudDrift: { value: new THREE.Vector2() },
   };
   const sky = new THREE.Mesh(new THREE.SphereGeometry(140, 40, 20), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, uniforms,
     vertexShader: `varying vec3 vSky; void main(){vSky=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader: `varying vec3 vSky;
       uniform vec3 topColor,horizonColor,sunDirection,cloudColor,glowColor,moonDirection;
+      uniform vec2 cloudDrift;
       uniform float cloudiness,sunGlow,bloom,night,moonPhase,moonShow,time,cloudStyle,cloudAmount,haze;
       float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float hash3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
@@ -161,7 +167,7 @@ export function createAtmosphere(scene: THREE.Scene) {
         c=mix(c,moonColor,disc*mix(.12,1.,lit)*moonShow);
         c+=vec3(.55,.6,.72)*halo*moonShow*(1.-disc);
         // Clouds: fair-weather puffs, or high streaks; more of them as a shower comes.
-        vec2 p=d.xz/(max(d.y,.08)+.25)*2.;
+        vec2 p=d.xz/(max(d.y,.08)+.25)*2.+cloudDrift;
         vec2 cp=cloudStyle>.5?p*vec2(.55,2.6)+vec2(noise(p*.7)*1.5,0.):p;
         float n=noise(cp)*.65+noise(cp*2.1)*.23+noise(cp*4.1)*.12;
         float ripple=cloudStyle>.5?.5+.5*sin(cp.y*7.+noise(cp*1.3)*3.):1.;
@@ -170,6 +176,8 @@ export function createAtmosphere(scene: THREE.Scene) {
         cloud*=cloudStyle<-.5?cloudiness:1.;
         // Moonlit edges on the night clouds near the moon.
         vec3 cc=cloudColor+vec3(.35,.38,.45)*halo*moonShow*3.;
+        // At night the thick middles go dark and the thin edges catch the moon.
+        cc*=mix(1.,.62+.55*(1.-smoothstep(.55,.9,n)),night);
         c=mix(c,cc,cloud*mix(.52,.87,cloudiness));
         // The sun itself, dimmed by cloud and gone below the horizon.
         float s=max(dot(d,sunDirection),0.);
@@ -183,11 +191,15 @@ export function createAtmosphere(scene: THREE.Scene) {
   })); scene.add(sky);
 
   const palette = P('#000', '#000', '#000', '#000', '#000', '#000', '#000', 0, 0);
+  const overcast = { top: new THREE.Color(), horizon: new THREE.Color(), cloud: new THREE.Color(), fog: new THREE.Color(), sky: new THREE.Color(), ground: new THREE.Color(), light: new THREE.Color() };
   const keysFor = (evening: boolean, style: SunsetStyle): [number, Palette][] => evening
     ? [[-18, NIGHT], [-6, TWILIGHT[style]], [4, LOW_SUN[style]], [16, GOLDEN], [45, HIGH]]
     : [[-18, NIGHT], [-6, DAWN], [4, DAWN_LOW], [20, MORNING], [45, HIGH]];
   const cloudStyles: Record<CloudStyle, number> = { fair: 0, high: 1, none: -1 };
   let lastState = { clock: 0, sunElevation: 0, night: 0, moonElevation: -30 };
+  // The clouds drift with the prevailing wind, from the south-west.
+  const driftDirection = new THREE.Vector2(.8, .6);
+  let lastTime = 0;
 
   return {
     update(time: number, cameraPosition: THREE.Vector3, uv: boolean, day = .38, cloudiness = 0, options: SkyOptions = {}) {
@@ -207,9 +219,10 @@ export function createAtmosphere(scene: THREE.Scene) {
       // The warm bloom is strongest as the sun touches the horizon.
       const bloom = Math.exp(-(((elevation - 1) / 7) ** 2)) * (evening ? 1 : .6);
 
-      uniforms.topColor.value.copy(palette.top).lerp(OVERCAST.top, cloudiness * .9 * (1 - night * .7));
-      uniforms.horizonColor.value.copy(palette.horizon).lerp(OVERCAST.horizon, cloudiness * .78 * (1 - night * .7));
-      uniforms.cloudColor.value.copy(palette.cloud).lerp(OVERCAST.cloud, cloudiness * (1 - night * .75));
+      for (const k of ['top', 'horizon', 'cloud', 'fog', 'sky', 'ground', 'light'] as const) overcast[k].copy(OVERCAST[k]).lerp(NIGHT_OVERCAST[k], night);
+      uniforms.topColor.value.copy(palette.top).lerp(overcast.top, cloudiness * .9);
+      uniforms.horizonColor.value.copy(palette.horizon).lerp(overcast.horizon, cloudiness * .78);
+      uniforms.cloudColor.value.copy(palette.cloud).lerp(overcast.cloud, cloudiness);
       uniforms.cloudiness.value = cloudiness;
       uniforms.sunGlow.value = THREE.MathUtils.smoothstep(elevation, -3, 2);
       uniforms.glowColor.value.copy(evening ? GLOW[look.sunset] : GLOW.rose);
@@ -218,21 +231,24 @@ export function createAtmosphere(scene: THREE.Scene) {
       uniforms.moonPhase.value = phase;
       uniforms.moonShow.value = moonUp;
       uniforms.time.value = time;
+      const dt = THREE.MathUtils.clamp(time - lastTime, 0, .25); lastTime = time;
+      uniforms.cloudDrift.value.addScaledVector(driftDirection, (options.cloudSpeed ?? .012) * dt);
+      if (uniforms.cloudDrift.value.lengthSq() > 4e4) uniforms.cloudDrift.value.set(0, 0);
       uniforms.cloudStyle.value = cloudStyles[look.clouds];
       uniforms.cloudAmount.value = look.clouds === 'none' ? 0 : look.cloudAmount;
       uniforms.haze.value = look.haze;
 
       const fog = scene.fog as THREE.Fog;
-      fog.color.copy(palette.fog).lerp(OVERCAST.fog, cloudiness * .8 * (1 - night * .7));
+      fog.color.copy(palette.fog).lerp(overcast.fog, cloudiness * .8);
       fog.near = 18 - cloudiness * 5 - night * 4;
       fog.far = 73 - cloudiness * 16 - night * 18;
       (scene.background as THREE.Color).copy(fog.color);
-      hemi.color.copy(palette.sky).lerp(OVERCAST.sky, cloudiness * .85 * (1 - night * .7));
-      hemi.groundColor.copy(palette.ground).lerp(OVERCAST.ground, cloudiness * .6 * (1 - night * .7));
+      hemi.color.copy(palette.sky).lerp(overcast.sky, cloudiness * .85);
+      hemi.groundColor.copy(palette.ground).lerp(overcast.ground, cloudiness * .6);
       // One directional light: the sun by day, the moon (or a faint sky glow) by night.
       const byMoon = elevation < 0;
       const lightDirection = byMoon ? (moonUp > .05 ? moonDirection : new THREE.Vector3(-.3, 1, .2).normalize()) : sunDirection;
-      sun.color.copy(palette.light).lerp(OVERCAST.light, cloudiness * .88 * (1 - night * .6));
+      sun.color.copy(palette.light).lerp(overcast.light, cloudiness * .88);
       sun.position.copy(lightDirection).multiplyScalar(28); sun.position.x += cameraPosition.x; sun.position.z += cameraPosition.z;
       sun.target.position.set(cameraPosition.x, 0, cameraPosition.z);
       const moonlight = .2 + .35 * moonUp * (1 - Math.abs(phase - .5) * 1.4);

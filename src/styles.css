@@ -301,7 +301,8 @@ h1 em { font-weight: 400; font-size: .93em; }
 #ui[data-phase="night"] .day-timeline::before { opacity: .6; }
 .night-caption { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; font-family: var(--serif); font-size: 14px; color: rgba(246,241,226,.82); letter-spacing: .4px; animation: note-in 1.2s ease-out; }
 .night-caption .text-button { color: rgba(246,241,226,.72); font-size: 11px; background: transparent; border: 0; cursor: pointer; }
-.night-caption kbd { font-size: 9px; }
+.night-caption .text-button { margin: 0; padding: 0; gap: 8px; line-height: 1; }
+.night-caption kbd { font-size: 9px; border-color: rgba(246,241,226,.35); }
 .message-toast .message-lead:not(:empty) { margin-right: .35em; }
 .toast-mark { color: #b88d41; font-size: 17px; font-style: normal; }
 .pollination-toast { position: absolute; top: 132px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 4px 12px 4px 5px; width: 94px; height: 54px; background: rgba(251,245,229,.92); border: 1px solid #b19d653b; border-radius: 28px; box-shadow: 0 3px 16px #31452a0c; animation: note-in .4s ease-out; }
