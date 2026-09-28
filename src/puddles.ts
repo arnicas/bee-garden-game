@@ -144,6 +144,9 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
   const fill = new Float32Array(spots.length);
+  /** Ground moisture (0–1). In a dry summer only some pools hold water at all. */
+  let moisture = .5;
+  const canFill = (i: number) => seedData[i] < .35 + moisture * 1.3;
   const matrix = new THREE.Matrix4(), turn = new THREE.Quaternion(), at = new THREE.Vector3(), size = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   const clear = new THREE.Color('#d4e4ec'), grey = new THREE.Color('#c3ccd0');
   /** How far the water reaches from the centre (the shader's shoreline is about 0.82 of the scale). */
@@ -167,7 +170,7 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
     /** Rain fills the pools; sun and heat dry them. */
     update(dt: number, time: number, rain: number, heat: number, cloudiness: number, enabled: boolean) {
       for (let i = 0; i < fill.length; i++) {
-        const gain = enabled ? rain * .07 : 0, loss = rain > .02 ? 0 : .003 + heat * .02 + (1 - cloudiness) * .002;
+        const gain = enabled && canFill(i) ? rain * .07 * (.6 + moisture * .8) : 0, loss = rain > .02 && canFill(i) ? 0 : (.003 + heat * .02 + (1 - cloudiness) * .002) * (1.5 - moisture);
         fill[i] = THREE.MathUtils.clamp(fill[i] + dt * (gain - loss), 0, 1);
       }
       material.uniforms.uTime.value = time; material.uniforms.uRain.value = rain;
@@ -191,8 +194,10 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
       return { index: best, distance };
     },
     drink(index: number, amount: number) { if (fill[index] !== undefined) fill[index] = Math.max(0, fill[index] - amount); },
-    setFill(value: number) { fill.fill(THREE.MathUtils.clamp(value, 0, 1)); pose(); },
-    diagnostics: () => ({ count: spots.length, visible: mesh.visible, wet: Array.from(fill).filter(f => f > .05).length, fill: Array.from(fill, f => Math.round(f * 100) / 100) }),
+    setFill(value: number) { for (let i = 0; i < fill.length; i++) fill[i] = canFill(i) ? THREE.MathUtils.clamp(value, 0, 1) : 0; pose(); },
+    /** The summer's ground moisture: how many pools can fill, and how fast they fill and dry. */
+    setMoisture(value: number) { moisture = THREE.MathUtils.clamp(value, 0, 1); },
+    diagnostics: () => ({ canFill: spots.filter((_, i) => canFill(i)).length, count: spots.length, visible: mesh.visible, wet: Array.from(fill).filter(f => f > .05).length, fill: Array.from(fill, f => Math.round(f * 100) / 100) }),
     dispose() { scene.remove(mesh, glints); geometry.dispose(); material.dispose(); mesh.dispose(); glintGeometry.dispose(); glintMaterial.dispose(); },
   };
 }

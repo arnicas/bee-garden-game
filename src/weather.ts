@@ -109,3 +109,21 @@ export function weatherAt(daySeconds: number, out: MeadowWeather, plan: WeatherP
   out.sunHeat = MathUtils.smoothstep(t, plan.heatStart, plan.heatStart + 45) * (1 - MathUtils.smoothstep(t, plan.heatEnd - 75, plan.heatEnd)) * (1 - out.cloudiness);
   return out;
 }
+
+/** How a finished day moves the meadow's ground moisture (0–1): rain and a wet
+ * night raise it, heat and a dry night lower it, a third of the way at most, so a
+ * run of similar summers moves it a long way. See Seasons_Design.md. */
+export function nextMoisture(moisture: number, plan: WeatherPlan): number {
+  const rainMinutes = plan.showers.reduce((sum, s) => sum + s.length, 0) / 60;
+  const heatMinutes = Math.max(0, plan.heatEnd - plan.heatStart) / 60;
+  const night = plan.night === 'wet' ? .25 : plan.night === 'dewy' ? .1 : -.15;
+  const day = Math.max(-1, Math.min(1, rainMinutes / 4 + night - heatMinutes / 6));
+  return Math.max(0, Math.min(1, moisture + day * .35));
+}
+
+/** One line for the summer start page, only when it isn't an ordinary summer. */
+export function moistureLine(moisture: number): string {
+  if (moisture < .3) return 'A dry summer: the grass has browned, and the pools are slow to fill.';
+  if (moisture > .7) return 'A wet summer: the grass is tall and green, and the pools fill quickly.';
+  return '';
+}

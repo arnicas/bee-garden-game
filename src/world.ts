@@ -461,9 +461,16 @@ function pickSpecies(u: number, mix: SpeciesMix): Species {
 /** The hand-placed opening flowers come first in every meadow and never change. */
 export const FIXED_FLOWERS = 6;
 
-/** Builds the meadow. Without `spots` the flowers are seeded evenly (the first
- * summer); with them, each summer's planned layout is planted (see planNextSummer). */
-export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly FlowerSpot[] | null = null): Meadow {
+/* Without `spots` the flowers are seeded evenly (the first summer); with them,
+ * each summer's planned layout is planted (see planNextSummer). */
+/** Straw and lush tints for the grass (instance colours multiply the blade's green). */
+const STRAW = new THREE.Color(1.55, 1.2, .72), LUSH = new THREE.Color(.84, 1.04, .86), NO_TINT = new THREE.Color(1, 1, 1);
+
+/** Builds the meadow. `moisture` (0 parched – 1 sodden, .5 ordinary) is the ground
+ * water carried over from summer to summer: a dry meadow has shorter, thinner,
+ * straw-tinted grass; a wet one taller, denser and deeper green. See Seasons_Design.md. */
+export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly FlowerSpot[] | null = null, moisture = .5): Meadow {
+  const dry = THREE.MathUtils.clamp((.5 - moisture) / .4, 0, 1), wet = THREE.MathUtils.clamp((moisture - .5) / .4, 0, 1), shade = new THREE.Color();
   const root = new THREE.Group(); root.name = 'the living meadow'; scene.add(root);
   const random = rng(seed), clock = { value: 0 }, uvMode = { value: 0 };
   const petalMaterial = botanicalMaterial(clock, uvMode, true, false), plantMaterial = botanicalMaterial(clock, uvMode, false, false), grassMaterial = botanicalMaterial(clock, uvMode, false, true);
@@ -664,11 +671,17 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     const px = gx * 9, pz = gz * 9;
     if (Math.hypot(px, pz) > 50) continue;
     const pageRandom = rng(seed ^ Math.imul(gx + 41, 73856093) ^ Math.imul(gz + 41, 19349663));
+    // A separate lane for the moisture look, so the seeded layout never shifts.
+    const waterRandom = rng(seed ^ Math.imul(gx + 47, 83492791) ^ Math.imul(gz + 47, 50331653) ^ 0x3c6ef);
     const inner = Math.hypot(px, pz) < 28, count = inner ? 500 : 320;
     const mesh = new THREE.InstancedMesh(bladeGeometry, wavingMaterial, count); mesh.name = `grass page ${gx}:${gz}`;
     for (let i = 0; i < count; i++) {
       const x = px + (pageRandom() - 0.5) * 9, z = pz + (pageRandom() - 0.5) * 9, corridor = Math.abs(x) < 1.4 && z > -3.8 && z < 5;
       let h = (0.85 + pageRandom() ** 0.65 * (inner ? 2.9 : 2.05)) * (corridor ? 0.35 : 1);
+      // Moisture: taller in a wet summer; shorter, and thinned to stubble in patches, in a dry one.
+      const water = waterRandom(), browning = dry * (.45 + .55 * waterRandom());
+      h *= 1 + wet * .07 - dry * .3;
+      if (water < dry * .28) h *= .12;
       // Keep the flower heads and landing surfaces clear while filling the gaps.
       if (inner) for (let j = 0; j < flowers.length; j++) {
         const f = flowers[j], dx = x - f.base.x, dz = z - f.base.z;
@@ -684,7 +697,9 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       // Nor through an ant mound.
       if (antNests.some(n => (x - n.x) ** 2 + (z - n.z) ** 2 < .5 ** 2)) h = Math.min(h, .005);
       dummy.position.set(x, heightAt(x, z), z); dummy.rotation.set(0, pageRandom() * TAU, 0); dummy.scale.set(0.6 + pageRandom() * 0.8, h, 0.6 + pageRandom() * 0.8); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
-      tint.set(0xffffff).lerp(C(0xc9d991), pageRandom() * 0.42); if (ringBand) tint.multiplyScalar(.78); mesh.setColorAt(i, tint);
+      tint.set(0xffffff).lerp(C(0xc9d991), pageRandom() * 0.42); if (ringBand) tint.multiplyScalar(.78);
+      tint.multiply(shade.copy(NO_TINT).lerp(STRAW, browning)).multiply(shade.copy(NO_TINT).lerp(LUSH, wet));
+      mesh.setColorAt(i, tint);
     }
     mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere(); mesh.boundingSphere!.radius += 2.5; root.add(mesh); pages.push({ mesh, x: px, z: pz, range: 49 });
     grassPages.push({ mesh, x: px, z: pz, detailed: true });
@@ -696,7 +711,10 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       for(let i=0;i<coverCount;i++) {
         const x=px+(coverRandom()-0.5)*9,z=pz+(coverRandom()-0.5)*9,scale=0.82+coverRandom()*0.75;
         dummy.position.set(x,heightAt(x,z),z); dummy.rotation.set(0,coverRandom()*TAU,0); dummy.scale.set(scale,0.8+coverRandom()*0.7,scale);if(nearPoolRim(x,z)||onAntTrail(x,z,.5)||inFairyRing(x,z,.55)||onPetal(x,z))dummy.scale.multiplyScalar(.05);dummy.updateMatrix();cover.setMatrixAt(i,dummy.matrix);
-        tint.set(0xffffff).lerp(C(0xc6c6a0),coverRandom()*0.34);cover.setColorAt(i,tint);
+        tint.set(0xffffff).lerp(C(0xc6c6a0),coverRandom()*0.34);
+        // Low cover browns less than the tall grass, and grows lusher when wet.
+        tint.multiply(shade.copy(NO_TINT).lerp(STRAW, dry * .6)).multiply(shade.copy(NO_TINT).lerp(LUSH, wet));
+        cover.setColorAt(i,tint);
       }
       cover.instanceMatrix.needsUpdate=true;cover.computeBoundingSphere();cover.boundingSphere!.radius+=0.5;root.add(cover);pages.push({mesh:cover,x:px,z:pz,range:40});
       const oatCount=4, oats=new THREE.InstancedMesh(oatGeometry,grassMaterial,oatCount);oats.name=`oat panicles ${gx}:${gz}`;
