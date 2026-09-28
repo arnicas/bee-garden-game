@@ -20,7 +20,7 @@ test('ant trails run from a mound up a stem; finding one is counted, and walkers
   await page.evaluate(n => window.__BEE_TEST__!.setPose([n[0] + .65, n[1] + .25, n[2]], Math.PI / 2, -.85), nest);
   await expect.poll(async () => (await state(page)).onGround, { timeout: 8000 }).toBe(true);
   await expect.poll(async () => (await state(page)).ants.seen).toBeGreaterThanOrEqual(1);
-  await expect(page.locator('[data-text="message"]')).toContainText('ant trail');
+  await expect(page.locator('[data-text="message"]')).toContainText('Ants!');
   // Ants are out along the ground and up the stem.
   await expect.poll(async () => (await state(page)).ants.onStems, { timeout: 10000 }).toBeGreaterThan(0);
   const ants = await page.evaluate(() => window.__BEE_TEST__!.antsOf(0));

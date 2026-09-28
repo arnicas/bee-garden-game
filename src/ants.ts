@@ -13,6 +13,12 @@ import type { AntNestSpot, Flower } from './types';
  * trail empties as they go home into the mound, and fills again when it clears;
  * in the heat they hurry. One instanced draw for the ants, one for crumbs, one
  * for the mounds; they are only posed near the camera.
+ *
+ * Nectar thieves: now and then a small party from a colony climbs a nearby daisy
+ * or cornflower and crowds its nectar. Ants take nectar without pollinating (they
+ * don't carry pollen from flower to flower); while they are there the bee can't
+ * sip, and they slowly drain it. In a thin meadow there are fewer flowers to share,
+ * so more of them are raided at once. Rain sends the raiders home.
  */
 export interface AntColony {
   id: number;
@@ -37,6 +43,28 @@ interface Ant {
   position: THREE.Vector3;
   detour: boolean;
 }
+/** An ant of a raiding party: up the stem, then about on the flower's head. */
+interface Raider {
+  /** Height up the stem, 0–STEM_TOP; on the head once it arrives. */
+  u: number;
+  onHead: boolean;
+  /** Where it is on the head, in the head's own frame (polar), and which way it faces. */
+  r: number; a: number; heading: number;
+  side: number; speed: number; pause: number;
+  /** Waits in the grass before starting up (so the party arrives in a straggle). */
+  delay: number;
+  leaving: boolean; done: boolean;
+  random: () => number;
+  position: THREE.Vector3;
+}
+interface Raid {
+  flower: Flower;
+  raiders: Raider[];
+  age: number; duration: number; ending: boolean;
+  /** Heights of the real head surface on a small grid (head frame), for the ants' feet. */
+  heights: Float32Array; extent: number;
+}
+
 interface Colony extends AntColony {
   flower: Flower;
   /** Ground path from the nest hole to the stem foot, with lengths. */
@@ -59,6 +87,8 @@ const HOLE_RADIUS = .052, HOLE_DEPTH = .05;
 const STEM_RADIUS = .026;
 const LANE_WIDTH = .016;
 const VISIBLE_RANGE = 5;
+/** Raids: how many ants in a party, at most how many flowers at once, and where the stem ends. */
+const RAID_ANTS = 7, MAX_RAIDS = 4, STEM_TOP = .96, HEAD_GRID = 9;
 /** How close a walking bee's body comes; ants step around it. */
 const BEE_CLEARANCE = .085;
 
@@ -110,7 +140,12 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
     }
     colonies.push(colony);
   }
-  const total = Math.max(1, colonies.length * ANTS_PER_COLONY);
+  // Flowers a raid can reach: daisies and cornflowers (poppies have no nectar)
+  // near a nest, never the first daisy.
+  const raidable = flowers.filter(f => f.id !== 0 && f.species !== 'poppy' && colonies.some(c => Math.hypot(f.base.x - c.nest.x, f.base.z - c.nest.z) < 6));
+  const raids: Raid[] = [];
+  let raidLimit = 2, raidTimer = 8;
+  const total = Math.max(1, colonies.length * ANTS_PER_COLONY + MAX_RAIDS * RAID_ANTS);
 
   // ---- art: head, thorax, waist and gaster, six legs and two elbowed antennae,
   // head forward along +z, in one geometry. Legs are tagged for a walking swing.
@@ -291,6 +326,100 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
     matrix.makeBasis(right, up, forward).setPosition(ant.position);
   }
 
+  // ---- raids
+  const raycaster = new THREE.Raycaster(), rayOrigin = new THREE.Vector3(), rayDown = new THREE.Vector3(), inverseMatrix = new THREE.Matrix4();
+  const headLocal = new THREE.Vector3(), headUp = new THREE.Vector3(), headTurn = new THREE.Quaternion(), headDir = new THREE.Vector3();
+  /** The head's real top surface under a point of its own frame: a ray down onto
+   * everything in the head (petals, and the raised disc or florets above them). */
+  function headSurface(flower: Flower, x: number, z: number): number {
+    rayOrigin.set(x, .8, z).applyMatrix4(flower.group.matrixWorld);
+    rayDown.set(0, -1, 0).applyQuaternion(flower.group.quaternion);
+    raycaster.set(rayOrigin, rayDown); raycaster.far = 2;
+    const hit = raycaster.intersectObject(flower.group, true)[0];
+    return hit ? hit.point.applyMatrix4(inverseMatrix.copy(flower.group.matrixWorld).invert()).y : 0;
+  }
+  function heightOn(raid: Raid, x: number, z: number): number {
+    const n = HEAD_GRID, e = raid.extent;
+    const gx = THREE.MathUtils.clamp((x / e * .5 + .5) * (n - 1), 0, n - 1.001), gz = THREE.MathUtils.clamp((z / e * .5 + .5) * (n - 1), 0, n - 1.001);
+    const i = Math.floor(gx), j = Math.floor(gz), fx = gx - i, fz = gz - j, h = raid.heights;
+    const a = h[j * n + i], b = h[j * n + i + 1], c = h[(j + 1) * n + i], d = h[(j + 1) * n + i + 1];
+    return (a * (1 - fx) + b * fx) * (1 - fz) + (c * (1 - fx) + d * fx) * fz;
+  }
+  function startRaid(flower: Flower, arrived = false): boolean {
+    if (raids.length >= MAX_RAIDS || raids.some(r => r.flower === flower)) return false;
+    flower.group.updateMatrixWorld(true);
+    // Around the nectar: a daisy's yellow disc, a cornflower's inner florets.
+    const extent = flower.radius * (flower.species === 'daisy' ? .26 : .3);
+    const heights = new Float32Array(HEAD_GRID * HEAD_GRID);
+    for (let j = 0; j < HEAD_GRID; j++) for (let i = 0; i < HEAD_GRID; i++) {
+      heights[j * HEAD_GRID + i] = headSurface(flower, (i / (HEAD_GRID - 1) * 2 - 1) * extent, (j / (HEAD_GRID - 1) * 2 - 1) * extent);
+    }
+    const raid: Raid = { flower, raiders: [], age: 0, duration: 55 + random() * 60, ending: false, heights, extent };
+    for (let k = 0; k < RAID_ANTS; k++) {
+      const r = rng((flower.id * 977 + k * 31 + raids.length * 7) >>> 0 || 3);
+      raid.raiders.push({
+        u: 0, onHead: arrived, r: extent * Math.sqrt(r()) * .85, a: r() * Math.PI * 2, heading: r() * Math.PI * 2,
+        side: r() * Math.PI * 2, speed: .12 + r() * .05, pause: r() * 2, delay: arrived ? 0 : k * (.8 + r() * 1.4),
+        leaving: false, done: false, random: r, position: new THREE.Vector3(),
+      });
+    }
+    raids.push(raid);
+    return true;
+  }
+  /** Moves a raiding party; returns false once every ant has gone home. */
+  function stepRaid(raid: Raid, dt: number): boolean {
+    raid.age += dt;
+    if (raid.age > raid.duration || recall) raid.ending = true;
+    const f = raid.flower, stemLength = Math.max(.2, f.center.y - f.base.y);
+    let alive = false;
+    for (const ant of raid.raiders) {
+      if (ant.done) continue;
+      alive = true;
+      if (raid.ending && !ant.leaving) { ant.leaving = true; ant.pause = ant.random() * 1.5; }
+      if (ant.delay > 0) { ant.delay -= dt; if (ant.leaving) ant.done = true; continue; }
+      if (ant.pause > 0) { ant.pause -= dt; continue; }
+      const step = ant.speed * dt * (recall ? 1.6 : 1);
+      if (!ant.onHead) {
+        ant.u += (ant.leaving ? -1 : 1) * step / stemLength;
+        if (!ant.leaving && ant.u >= STEM_TOP) { ant.onHead = true; ant.r = raid.extent * .15; ant.a = ant.side; ant.heading = ant.side + Math.PI; }
+        if (ant.leaving && ant.u <= 0) ant.done = true;
+      } else if (ant.leaving) {
+        // Back to the edge of the nectar patch, then down the stem.
+        ant.r += step * 1.5;
+        ant.heading = ant.a;
+        if (ant.r >= raid.extent) { ant.onHead = false; ant.u = STEM_TOP; ant.side = ant.a; }
+      } else {
+        // Feeding: short walks about the nectar, with pauses to drink.
+        let x = Math.cos(ant.a) * ant.r, z = Math.sin(ant.a) * ant.r;
+        ant.heading += (ant.random() - .5) * dt * 3;
+        x += Math.cos(ant.heading) * step * .5; z += Math.sin(ant.heading) * step * .5;
+        const r = Math.hypot(x, z);
+        if (r > raid.extent * .9) { ant.heading = Math.atan2(-z, -x) + (ant.random() - .5); x *= .97; z *= .97; }
+        ant.r = Math.hypot(x, z); ant.a = Math.atan2(z, x);
+        if (ant.random() < dt * .5) ant.pause = .8 + ant.random() * 2.5;
+      }
+    }
+    return alive;
+  }
+  function placeRaider(raid: Raid, ant: Raider): void {
+    const f = raid.flower;
+    if (!ant.onHead) {
+      stalkPoint(f, ant.u, ant.position);
+      stalkTangent(f, ant.u, tangent);
+      radial.set(Math.cos(ant.side), 0, Math.sin(ant.side));
+      radial.addScaledVector(tangent, -radial.dot(tangent)).normalize();
+      ant.position.addScaledVector(radial, STEM_RADIUS * .8);
+      up.copy(radial); forward.copy(tangent).multiplyScalar(ant.leaving ? -1 : 1);
+      return;
+    }
+    const x = Math.cos(ant.a) * ant.r, z = Math.sin(ant.a) * ant.r;
+    headLocal.set(x, heightOn(raid, x, z) + .004, z);
+    ant.position.copy(headLocal).applyMatrix4(f.group.matrixWorld);
+    f.group.getWorldQuaternion(headTurn);
+    up.copy(headUp.set(0, 1, 0).applyQuaternion(headTurn));
+    forward.copy(headDir.set(Math.cos(ant.heading), 0, Math.sin(ant.heading)).applyQuaternion(headTurn));
+  }
+
   return {
     colonies: colonies as readonly AntColony[],
     /** Moves the ants; the bee's body pushes walkers aside when she is down in the grass. */
@@ -363,11 +492,36 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
           }
         }
       }
+      // Raids: start a new one now and then (never in rain), step and draw the parties.
+      if (dt > 0) {
+        raidTimer -= dt;
+        if (!recall && raidTimer <= 0) {
+          raidTimer = 18 + random() * 30;
+          const live = raids.filter(r => !r.ending).length;
+          const free = raidable.filter(f => !raids.some(r => r.flower === f));
+          if (live < raidLimit && free.length) startRaid(free[Math.floor(random() * free.length)]);
+        }
+        for (let i = raids.length - 1; i >= 0; i--) if (!stepRaid(raids[i], dt)) raids.splice(i, 1);
+      }
+      for (const raid of raids) {
+        const f = raid.flower;
+        if (Math.hypot(f.base.x - camera.x, f.base.z - camera.z) > VISIBLE_RANGE + 1) continue;
+        f.group.updateMatrixWorld(true);
+        for (const ant of raid.raiders) {
+          if (ant.done || ant.delay > 0) continue;
+          placeRaider(raid, ant);
+          writeMatrix(ant as unknown as Ant);
+          const index = drawn++;
+          antMesh.setMatrixAt(index, matrix);
+          walking[index] = dt > 0 && ant.pause <= 0 ? 1 : 0;
+        }
+      }
       antMesh.count = drawn; antMesh.instanceMatrix.needsUpdate = true; walkAttribute.needsUpdate = true;
       crumbs.count = crumbCount; if (crumbCount) crumbs.instanceMatrix.needsUpdate = true;
     },
-    /** The nearest colony to a point (its mound or any ant out on the trail). */
-    nearest(point: THREE.Vector3): { colony: AntColony; distance: number; at: THREE.Vector3 } | null {
+    /** The nearest colony to a point (its mound or any ant out on the trail), and
+     * whether any of its ants are out (after rain they may all be inside). */
+    nearest(point: THREE.Vector3): { colony: AntColony; distance: number; at: THREE.Vector3; antsOut: boolean } | null {
       let found: Colony | null = null, distance = Infinity;
       const at = new THREE.Vector3();
       for (const colony of colonies) {
@@ -376,11 +530,31 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
           if (!ant.inside && ant.position.distanceTo(point) < distance) { distance = ant.position.distanceTo(point); found = colony; at.copy(ant.position); }
         }
       }
-      return found ? { colony: found, distance, at } : null;
+      return found ? { colony: found, distance, at, antsOut: found.ants.some(ant => !ant.inside) } : null;
     },
     markSeen(id: number): void { const colony = colonies[id]; if (colony) colony.seen = true; },
+    /** How many raiding ants are at a flower's nectar now (0 if none). */
+    feedingOn(flowerId: number): number {
+      const raid = raids.find(r => r.flower.id === flowerId);
+      return raid ? raid.raiders.filter(a => a.onHead && !a.leaving && !a.done).length : 0;
+    },
+    /** Flowers being raided now, and how many ants are at each one's nectar. */
+    raids(): { flowerId: number; feeding: number; ending: boolean }[] {
+      return raids.map(r => ({ flowerId: r.flower.id, feeding: r.raiders.filter(a => a.onHead && !a.leaving && !a.done).length, ending: r.ending }));
+    },
+    /** At most this many flowers raided at once (more in a thin meadow). */
+    setRaidLimit(limit: number): void { raidLimit = THREE.MathUtils.clamp(Math.round(limit), 0, MAX_RAIDS); },
+    /** Starts a raid on a flower (for tests); `arrived` puts the ants on the head already. */
+    startRaid(flowerId: number, arrived = false): boolean {
+      const flower = flowers.find(f => f.id === flowerId && f.species !== 'poppy');
+      return flower ? startRaid(flower, arrived) : false;
+    },
     seenCount(): number { return colonies.filter(c => c.seen).length; },
-    reset(): void { for (const colony of colonies) colony.seen = false; },
+    reset(): void {
+      for (const colony of colonies) colony.seen = false;
+      raids.length = 0; raidTimer = 20;
+      if (raidable.length && raidLimit > 0) startRaid(raidable[Math.floor(random() * raidable.length)], true);
+    },
     /** After rain in the night the ants start the day indoors and come out over a while. */
     stayIn(seconds: number): void {
       for (const colony of colonies) for (const ant of colony.ants) { ant.inside = true; ant.s = 0; ant.dir = 1; ant.carry = false; ant.wait = ant.random() * seconds; }
@@ -392,7 +566,7 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
     },
     diagnostics() {
       const ants = colonies.flatMap(c => c.ants);
-      return { colonies: colonies.length, outside: ants.filter(a => !a.inside).length, inside: ants.filter(a => a.inside).length, onStems: colonies.reduce((n, c) => n + c.ants.filter(a => !a.inside && a.s >= c.groundLength).length, 0), carrying: ants.filter(a => !a.inside && a.carry).length, detouring, recall, seen: colonies.filter(c => c.seen).length };
+      return { raids: raids.length, raiding: raids.reduce((n, r) => n + r.raiders.filter(a => a.onHead && !a.leaving && !a.done).length, 0), colonies: colonies.length, outside: ants.filter(a => !a.inside).length, inside: ants.filter(a => a.inside).length, onStems: colonies.reduce((n, c) => n + c.ants.filter(a => !a.inside && a.s >= c.groundLength).length, 0), carrying: ants.filter(a => !a.inside && a.carry).length, detouring, recall, seen: colonies.filter(c => c.seen).length };
     },
     dispose(): void {
       scene.remove(antMesh, crumbs, mounds);

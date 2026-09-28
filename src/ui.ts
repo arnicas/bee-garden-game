@@ -788,12 +788,16 @@ export function createUI(actions: UIActions): GameUI {
       text('result-pollen', `${share(state.pollen, state.pollenGoal)}%`);
       text('result-visited', String(state.visited));
       const preview = state.summerPreview;
-      const living = preview ? ` of ${preview.ladybirds}` : '';
+      // Each kind named with its count; if none were met, say so, and how many ladybirds live here.
+      const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
       const lastSummer = preview?.lastSummerLadybirds ? ` (${preview.lastSummerLadybirds} last summer)` : '';
-      const ladybirdsMet = state.friendsFound === 0 ? `None met${preview ? ` · ${preview.ladybirds} ladybirds here` : ''}${lastSummer}` : `${state.friendsFound}${living} ladybird${state.friendsFound === 1 && !living ? '' : 's'}${lastSummer}`;
-      const withButterflies = state.butterfliesFound ? `${ladybirdsMet} · ${state.butterfliesFound} butterfl${state.butterfliesFound === 1 ? 'y' : 'ies'}` : ladybirdsMet;
-      const withSnails = state.snailsFound ? `${withButterflies} · ${state.snailsFound} snail${state.snailsFound === 1 ? '' : 's'}` : withButterflies;
-      text('result-friends', state.antTrailsFound ? `${withSnails} · ${state.antTrailsFound} ant trail${state.antTrailsFound === 1 ? '' : 's'}` : withSnails);
+      const friends = [
+        state.friendsFound ? (preview ? `${state.friendsFound} of ${preview.ladybirds} ladybirds${lastSummer}` : plural(state.friendsFound, 'ladybird', 'ladybirds')) : '',
+        state.butterfliesFound ? plural(state.butterfliesFound, 'butterfly', 'butterflies') : '',
+        state.snailsFound ? plural(state.snailsFound, 'snail', 'snails') : '',
+        state.antTrailsFound ? plural(state.antTrailsFound, 'ant trail', 'ant trails') : '',
+      ].filter(Boolean);
+      text('result-friends', friends.length ? friends.join(' · ') : `None met today${preview ? ` · ${preview.ladybirds} ladybirds live here${lastSummer}` : ''}`);
       { const f = state.finds, parts = [
           // A full fairy ring is a rare find, so it leads the line.
           f.rings ? '✦ a fairy ring, a rare find' : '',

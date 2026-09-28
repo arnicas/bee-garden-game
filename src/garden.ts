@@ -58,6 +58,8 @@ const DAY_DURATION = 600, DUSK_START = 540, NIGHT_LOSS_DURATION = 6;
 // Per-flower supplies before the 0.5 harvest yield, matched to real flowers (see
 // Flower_Facts.md): cornflowers for nectar, poppies for pollen, daisies in between.
 const NECTAR_SUPPLY: Record<Species, number> = { poppy: 0, daisy: 26, cornflower: 56 };
+/** Nectar a raiding ant drinks from a flower each second (a party of seven empties a daisy in about a minute and a half). */
+const ANT_NECTAR_RATE = .04;
 const POLLEN_SUPPLY: Record<Species, number> = { poppy: 42, daisy: 28, cornflower: 20 };
 // Flower supplies track visible material; counters track usable harvest.
 // Keep contact/depletion lively while asking for more flower visits per day.
@@ -107,6 +109,9 @@ interface TestControl {
   butterflies(): { id: number; state: string; flowerId: number; species: Species | null; position: number[]; seen: boolean }[];
   snails(): { id: number; state: string; perch: string; position: number[]; extension: number; seen: boolean }[];
   ants(): { id: number; flowerId: number; nest: number[]; seen: boolean }[];
+  /** Flowers ants are raiding for nectar, with how many are at it. */
+  antRaids(): { flowerId: number; feeding: number; ending: boolean }[];
+  startRaid(flowerId: number, arrived?: boolean): boolean;
   antsOf(colony: number): { position: number[]; onStem: boolean; detour: boolean }[];
   /** Replays the morning after a given night. */
   setNight(night: 'wet' | 'dewy' | 'dry'): void;
@@ -179,6 +184,9 @@ export class Garden {
   private butterflyNoteShown = this.friendNoteShown;
   private snailNoteShown = this.friendNoteShown;
   private antNoteShown = this.friendNoteShown;
+  private raidNoteShown = false;
+  /** Test pages have no ant raids of their own (so sipping tests stay steady) unless ?raids. */
+  private readonly antRaidsOn = (() => { const p = new URLSearchParams(location.search); return !p.has('test') || p.has('raids'); })();
   private ringNoteShown = this.friendNoteShown;
   private mushroomNoteShown = this.friendNoteShown;
   private caterpillarNoteShown = this.friendNoteShown;
@@ -443,6 +451,7 @@ export class Garden {
     this.webs = createWebs(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
     this.ladybirds = createLadybirds(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters, this.meadow.antNests.map(n => n.flowerId));
     this.ants = createAnts(this.scene, this.seed, this.meadow.flowers, this.meadow.antNests, this.ladybirds.aphids);
+    this.ants.setRaidLimit(this.antRaidsOn ? 2 + meadowDryness(countSpecies(this.meadow.flowers)) * 2 : 0);
     this.mushrooms = createMushrooms(this.scene, this.seed, this.meadow.fairyRings, this.meadow.mushroomPatches);
     this.petals = createPetals(this.scene, this.seed, this.meadow.flowers, this.meadow.petalSpots);
     this.caterpillars = createCaterpillars(this.scene, this.seed, this.leafShelters.shelters);
@@ -529,6 +538,7 @@ export class Garden {
     this.webs = createWebs(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
     this.ladybirds = createLadybirds(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters, this.meadow.antNests.map(n => n.flowerId));
     this.ants = createAnts(this.scene, seed, this.meadow.flowers, this.meadow.antNests, this.ladybirds.aphids);
+    this.ants.setRaidLimit(this.antRaidsOn ? 2 + meadowDryness(countSpecies(this.meadow.flowers)) * 2 : 0);
     this.mushrooms = createMushrooms(this.scene, seed, this.meadow.fairyRings, this.meadow.mushroomPatches);
     this.petals = createPetals(this.scene, seed, this.meadow.flowers, this.meadow.petalSpots);
     this.caterpillars = createCaterpillars(this.scene, seed, this.leafShelters.shelters);
@@ -976,8 +986,23 @@ export class Garden {
     { const near = this.ants.nearest(this.position);
       if (near && near.distance < 1 && !near.colony.seen && this.spotted('ants', near.colony.id, near.at, dt)) {
         this.ants.markSeen(near.colony.id);
-        if (!this.antNoteShown) { this.antNoteShown = true; this.notify('The ants tend aphids up on the stem for their sweet honeydew.', 6, 'An ant trail!'); }
+        // After rain the ants may all be indoors: then it's their nest that's found.
+        if (!this.antNoteShown) {
+          this.antNoteShown = true;
+          this.notify(near.antsOut ? 'They trail up a stem to tend aphids for their sweet honeydew.' : 'Their nest mound. The ants are inside out of the wet, and trail out again when it dries.', 6, 'Ants!');
+        }
       } }
+    // Ants raiding a flower's nectar: they drink it down, and are noticed once, close up.
+    this.drainRaids(dt);
+    if (!this.raidNoteShown) for (const raid of this.ants.raids()) {
+      if (raid.feeding < 2) continue;
+      const f = this.meadow.flowers.find(x => x.id === raid.flowerId);
+      if (f && f.center.distanceTo(this.position) < 1.4 && this.spotted('raid', f.id, f.center, dt)) {
+        this.raidNoteShown = true;
+        this.notify('Ants are drinking this flower’s nectar. They take it without pollinating.', 7, 'Nectar thieves!');
+        break;
+      }
+    }
     // Small finds in the grass and on the leaves.
     { const near = this.mushrooms.nearest(this.position);
       if (near && near.distance < 1.1 && !near.ring.seen && this.spotted('ring', near.ring.id, near.at, dt)) {
@@ -1419,7 +1444,7 @@ export class Garden {
     this.updateNectarTarget(f);
     this.temp.subVectors(this.nectarTarget, this.position);
     const reach = this.temp.length();
-    this.canDrink = !this.satiated && f.species !== 'poppy' && supply.nectar > .01
+    this.canDrink = !this.satiated && f.species !== 'poppy' && supply.nectar > .01 && !this.antsAtNectar(f)
       && (florets.length ? this.nectarFloret >= 0 : reach < f.radius * .95 + .20 && this.temp.normalize().dot(this.forward) > .92);
     if (this.canDrink && (this.keys.has('KeyF') || this.mouseDown) && this.landingAge > .3) {
       this.drinking = true;
@@ -1439,6 +1464,17 @@ export class Garden {
       if (this.drinkChime > 9) { this.audio.chime('nectar'); this.drinkChime = 0; }
     }
   }
+  /** A party of ants crowding this flower's nectar: the bee can't sip past them. */
+  private antsAtNectar(f: Flower): boolean { return f.species !== 'poppy' && this.ants.feedingOn(f.id) >= 2; }
+
+  /** Raiding ants drink a flower's nectar down while they are at it. */
+  private drainRaids(dt: number): void {
+    for (const raid of this.ants.raids()) {
+      const supply = this.supplies.get(raid.flowerId);
+      if (supply && raid.feeding) this.takeNectar(supply, dt * ANT_NECTAR_RATE * raid.feeding);
+    }
+  }
+
   private tryLand(): void {
     if (this.landingAssist || this.shelterAssist) return;
     // Key presses may arrive between rendered frames; recheck the current
@@ -1864,6 +1900,7 @@ export class Garden {
     if (this.resting && this.underLeaf && this.weather.rain > .05) hint = 'Safe and dry while the shower passes · E to wake';
     if (this.onGround) hint = this.resting ? 'Resting in sheltered grass · Nectar restores energy · E to wake' : 'Sheltered among the grass · E to rest · Space to fly · WASD to walk';
     else if (this.phase === 'flying' && this.grassCover > .99 && !this.canLand) hint = 'Low grass offers shelter and shade · Settle down to rest · Space to rise';
+    if (this.phase === 'landed' && this.landed && this.antsAtNectar(this.landed) && !this.resting && !this.satiated) hint = 'Ants are at the nectar · Try another flower, or gather pollen here';
     if (this.sippingWater) hint = 'Sipping water · It cools you down';
     else if (this.waterNear && this.phase === 'landed' && !this.canDrink && !this.drinking && !this.resting) hint = this.waterNear === 'puddle' ? 'A little pool · Hold F to sip water' : 'Water drops on the petals · Hold F to sip';
     if (this.caughtWeb) hint = 'Caught in a web · Tap Space or W to pull free';
@@ -2035,6 +2072,8 @@ export class Garden {
       snails: () => this.snails.snails.map(s => ({ id: s.id, state: s.state, perch: s.perch, position: s.position.toArray(), extension: s.extension, seen: s.seen })),
       ants: () => this.ants.colonies.map(c => ({ id: c.id, flowerId: c.flowerId, nest: c.nest.toArray(), seen: c.seen })),
       antsOf: (colony: number) => this.ants.antsOf(colony),
+      antRaids: () => this.ants.raids(),
+      startRaid: (flowerId: number, arrived = false) => this.ants.startRaid(flowerId, arrived),
       setSkyClock: (clock: number | null) => { this.skyOverride = clock; },
       skipNight: () => this.finishNight(),
       setSkyLook: (look: Partial<SkyLook>) => { this.skyLook = { ...this.skyLook, ...look }; },

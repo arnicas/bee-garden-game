@@ -395,10 +395,11 @@ h1 em { font-weight: 400; font-size: .93em; }
 .result-coverage .petal-tally b { font-size: 18px; }
 .result-coverage .petal-name { margin-top: 4px; font-size: 8px; }
 .result-facts { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 16px; }
-.result-stats { flex: 1; margin: 0; font-size: 10px; text-align: left; }
-.result-stats > div { display: flex; justify-content: space-between; gap: 18px; padding: 4px 0; }
-.result-stats dt { color: var(--muted); }
-.result-stats dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.result-stats { flex: 1; margin: 0; font-size: 12px; line-height: 1.35; text-align: left; }
+.result-stats > div { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; padding: 3px 0; }
+.result-stats dt { color: var(--muted); white-space: nowrap; }
+/* Long lists (friends, finds) wrap onto a second line instead of running off the card. */
+.result-stats dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
 .result-score { display: flex; flex-direction: column; justify-content: center; gap: 5px; min-width: 111px; padding: 0 0 0 22px; border-left: 1px solid var(--line); }
 .result-score b { font-family: var(--serif); font-size: 26px; line-height: 1; font-weight: 400; font-variant-numeric: tabular-nums; }
 .result-score span { font-size: 7px; letter-spacing: 1.3px; }
