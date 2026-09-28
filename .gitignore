@@ -2,5 +2,6 @@ node_modules/
 dist/
 test-results/
 artifacts/
+video/out/
 *.log
 .DS_Store

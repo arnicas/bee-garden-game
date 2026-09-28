@@ -114,6 +114,12 @@ interface TestControl {
   setSkyClock(clock: number | null): void;
   skipNight(): void;
   setNightAge(seconds: number): void;
+  /** Video capture: stops the live loop, advances the game by dt seconds and renders one frame. */
+  captureFrame(dt: number): void;
+  /** Hands the game back to the live loop after capturing. */
+  endCapture(): void;
+  /** Shows or hides the whole on-screen interface (for video). */
+  setHud(visible: boolean): void;
   /** Earlier summers' outcomes, oldest first, for trying the Queen's memory. */
   setOutcomes(outcomes: SummerOutcome[]): void;
   setSkyLook(look: Partial<import('./atmosphere').SkyLook>): void;
@@ -844,19 +850,28 @@ export class Garden {
   }
   private tick = (stamp: number): void => {
     const dt = this.lastFrame ? Math.min((stamp - this.lastFrame) / 1000, .1) : 0;
-    this.lastFrame = stamp; this.frame++;
+    this.lastFrame = stamp;
     if (dt > 0) { this.frameTimes.push(dt * 1000); if (this.frameTimes.length > 240) this.frameTimes.shift(); }
+    // During video capture the game advances only when asked, by exact frame steps.
+    if (!this.captureMode) this.advance(dt, 6);
+    this.raf = requestAnimationFrame(this.tick);
+  };
+
+  /** Video capture: once captureFrame is called, frames advance only through it, by exact steps. */
+  private captureMode = false;
+
+  private advance(dt: number, maxSteps: number): void {
+    this.frame++;
     if (!this.pausedCapture && this.phase !== 'paused') {
       this.accumulator += dt;
       let steps = 0;
-      while (this.accumulator >= FIXED && steps++ < 6) { this.step(FIXED); this.accumulator -= FIXED; }
+      while (this.accumulator >= FIXED && steps++ < maxSteps) { this.step(FIXED); this.accumulator -= FIXED; }
     }
     this.updateWorld(this.reducedMotion ? 0 : this.time);
     this.updateView(dt);
     this.renderer.render(this.scene, this.camera);
     this.publishDiagnostics();
-    this.raf = requestAnimationFrame(this.tick);
-  };
+  }
   private step(dt: number): void {
     this.time += dt;
     this.previousPosition.copy(this.position);
@@ -2031,6 +2046,9 @@ export class Garden {
         else if (night === 'wet') { if (this.raindropsOn) this.puddles.setFill(0); this.mushrooms.setGrowth(0); }
       },
       setOutcomes: (outcomes: SummerOutcome[]) => { this.outcomes = [...outcomes]; },
+      captureFrame: (dt: number) => { this.captureMode = true; this.advance(dt, 1e4); },
+      endCapture: () => { this.captureMode = false; this.lastFrame = 0; },
+      setHud: (visible: boolean) => { const ui = document.getElementById('ui'); if (ui) ui.style.opacity = visible ? '' : '0'; },
       setNightAge: (seconds: number) => { if (this.phase === 'night') this.nightAge = seconds; },
       fairyRings: () => this.mushrooms.rings.map(r => ({ id: r.id, kind: r.kind, center: r.center.toArray(), radius: r.radius, seen: r.seen })),
       petals: () => this.petals.petals.filter(p => p.shown).map(p => ({ id: p.id, kind: p.kind, flowerId: p.flowerId, position: p.position.toArray(), falling: p.falling, seen: p.seen })),

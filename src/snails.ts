@@ -43,6 +43,8 @@ export interface SnailWeather {
 const SHELL_REACH = .06;
 /** How far a snail's middle keeps from the middle of a mushroom clump. */
 const CLUMP_CLEARANCE = .34;
+/** How fast a snail turns its body, radians a second (a half turn takes about three seconds). */
+const TURN_RATE = 1.1;
 const SPEED = .03;          // units (10 cm) per second on the ground: about 3 mm/s
 const CLIMB_SPEED = .04;
 const STEM_RADIUS = .03;
@@ -234,6 +236,10 @@ interface Mollusc extends Snail {
   /** Ground: world x, z; leaf: leaf-local x, z (underside); stem: height 0–1 and angle. */
   x: number; z: number; u: number; angle: number;
   heading: number;
+  /** Which way the body actually points: it turns toward the heading at a snail's
+   * pace, so a change of mind never flips it round in one frame. On a stem, 0 faces
+   * up and π down. */
+  facing: number; stemFacing: number;
   /** On a leaf: under it (true) or on top. On a stem: 1 up, -1 down. */
   underside: boolean; dir: 1 | -1;
   /** Stem height where it will seal itself on in the heat. */
@@ -341,7 +347,12 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
     s.heading += Math.atan2(Math.sin(want - s.heading), Math.cos(want - s.heading)) * Math.min(1, dt * 1.5);
     s.x += Math.sin(s.heading) * SPEED * dt; s.z += Math.cos(s.heading) * SPEED * dt;
   }
-  /** Places a snail and writes its matrix: up is the surface normal, forward its heading. */
+  const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+  /** How much of its speed a snail makes while still turning toward where it wants to go. */
+  const alignment = (s: Mollusc) => s.perch === 'stem'
+    ? Math.max(0, Math.cos((s.dir === 1 ? 0 : Math.PI) - s.stemFacing))
+    : Math.max(0, Math.cos(wrap(s.heading - s.facing)));
+  /** Places a snail and writes its matrix: up is the surface normal, forward its facing. */
   function pose(s: Mollusc) {
     if (s.perch === 'stem' && s.flower) {
       const f = s.flower;
@@ -350,7 +361,9 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
       radial.set(Math.cos(s.angle), 0, Math.sin(s.angle));
       radial.addScaledVector(tangent, -radial.dot(tangent)).normalize();
       s.position.addScaledVector(radial, STEM_RADIUS);
-      up.copy(radial); forward.copy(tangent).multiplyScalar(s.dir);
+      // Turning round on a stem: through the side, not end over end.
+      right.crossVectors(radial, tangent).normalize();
+      up.copy(radial); forward.copy(tangent).multiplyScalar(Math.cos(s.stemFacing)).addScaledVector(right, Math.sin(s.stemFacing));
     } else if (s.perch === 'leaf' && s.leaf) {
       const leaf = s.leaf, e = .02, y = leafSurfaceHeight(s.x, s.z);
       normal.set(-(leafSurfaceHeight(s.x + e, s.z) - y) / e, 1, -(leafSurfaceHeight(s.x, s.z + e) - y) / e).normalize();
@@ -363,7 +376,7 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
       local.set(s.x, clear + (s.underside ? -.042 : .008), s.z);
       s.position.copy(local).applyQuaternion(leaf.rotation).add(leaf.center);
       up.copy(normal).applyQuaternion(leaf.rotation);
-      forward.set(Math.sin(s.heading), 0, Math.cos(s.heading)).applyQuaternion(leaf.rotation);
+      forward.set(Math.sin(s.facing), 0, Math.cos(s.facing)).applyQuaternion(leaf.rotation);
     } else {
       // Around a mushroom clump, not through its stalks.
       for (const c of clumps) {
@@ -373,7 +386,7 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
       s.position.set(s.x, meadowGroundHeight(s.x, s.z) + .004, s.z);
       const e = .1, y = s.position.y;
       up.set(-(meadowGroundHeight(s.x + e, s.z) - y) / e, 1, -(meadowGroundHeight(s.x, s.z + e) - y) / e).normalize();
-      forward.set(Math.sin(s.heading), 0, Math.cos(s.heading));
+      forward.set(Math.sin(s.facing), 0, Math.cos(s.facing));
     }
     forward.addScaledVector(up, -forward.dot(up));
     if (forward.lengthSq() < 1e-6) forward.set(1, 0, 0).addScaledVector(up, -up.x);
@@ -387,7 +400,7 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
   for (let id = 0; id < count; id++) {
     const s: Mollusc = {
       id, state: 'tucked', perch: 'ground', position: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), extension: 0, seen: false,
-      random: rng((seed + id * 4099) >>> 0 || 9), flower: null, leaf: null, x: 0, z: 0, u: 0, angle: 0, heading: 0, underside: true, dir: 1,
+      random: rng((seed + id * 4099) >>> 0 || 9), flower: null, leaf: null, x: 0, z: 0, u: 0, angle: 0, heading: 0, facing: 0, stemFacing: 0, underside: true, dir: 1,
       climbTo: .5, puddle: null, boldness: random(), pause: 0, shy: 0, sealedAmount: 0,
       trail: Array.from({ length: TRAIL_POINTS }, () => new THREE.Vector3()), trailAge: new Array(TRAIL_POINTS).fill(1e6), trailHead: 0,
       trailLocal: Array.from({ length: TRAIL_POINTS }, () => new THREE.Vector3()), trailOn: new Array(TRAIL_POINTS).fill(null), trailKind: new Uint8Array(TRAIL_POINTS),
@@ -422,7 +435,8 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
           if (!snails.some(o => o.id < s.id && o.perch === 'leaf' && o.leaf === leaf && o.underside === s.underside && Math.hypot(o.x - s.x, o.z - s.z) < .17)) break;
         }
       } else if (r < stemShare && flower) {
-        s.perch = 'stem'; s.flower = flower; s.leaf = null; s.u = .16 + s.random() * .26; // above the low leafy cover s.angle = s.random() * Math.PI * 2; s.dir = s.random() < .5 ? 1 : -1;
+        // Above the low leafy cover.
+        s.perch = 'stem'; s.flower = flower; s.leaf = null; s.u = .16 + s.random() * .26; s.angle = s.random() * Math.PI * 2; s.dir = s.random() < .5 ? 1 : -1;
       } else {
         // On the ground: mostly at the rim of a low spot where rain pools, or in the grass near a flower's base.
         s.perch = 'ground'; s.leaf = null; s.flower = null;
@@ -437,6 +451,7 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
           s.x = base.x + Math.cos(a) * d; s.z = base.z + Math.sin(a) * d;
         }
       }
+      s.facing = s.heading; s.stemFacing = s.dir === 1 ? 0 : Math.PI;
       pose(s); s.lastDrop.copy(s.position);
       [s.lastKind, s.lastOn] = perchLocal(s, s.lastLocal);
     }
@@ -486,16 +501,17 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
         }
       } else if (moving) {
         // Damp: wander over the plants, stopping now and then to eat something
-        // dead or fallen.
+        // dead or fallen. A snail turning round stops while it turns.
+        const going = alignment(s);
         if (s.random() < dt * .04) { s.state = 'feeding'; s.pause = 4 + s.random() * 8; }
         s.heading += (s.random() - .5) * dt * .9;
         if (s.perch === 'stem' && s.flower) {
           const h = Math.max(.3, s.flower.center.y - s.flower.base.y);
-          s.u += s.dir * CLIMB_SPEED * .7 * dt / h;
+          s.u += s.dir * CLIMB_SPEED * .7 * dt / h * going;
           if (s.u > .55 || s.u < .15) { s.u = THREE.MathUtils.clamp(s.u, .15, .55); s.dir = s.dir === 1 ? -1 : 1; s.pause = 2 + s.random() * 5; }
         } else if (s.perch === 'leaf') {
           const px = s.x, pz = s.z;
-          s.x += Math.sin(s.heading) * SPEED * .6 * dt; s.z += Math.cos(s.heading) * SPEED * .6 * dt;
+          s.x += Math.sin(s.heading) * SPEED * .6 * dt * going; s.z += Math.cos(s.heading) * SPEED * .6 * dt * going;
           if (leafPlanarDistance(s.x, s.z) > .34) { s.heading += Math.PI * .8; s.x *= .98; s.z *= .98; }
           offMidrib(s);
           // Something in the way (a resting butterfly, another snail): turn aside.
@@ -505,8 +521,15 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
           const p = s.puddle, dx = s.x - p.x, dz = s.z - p.z, d = Math.max(.001, Math.hypot(dx, dz)), pull = (p.radius * 1.12 - d) * 3;
           const want = Math.atan2(-dz / d + dx / d * pull, dx / d + dz / d * pull);
           s.heading += Math.atan2(Math.sin(want - s.heading), Math.cos(want - s.heading)) * Math.min(1, dt * 1.2);
-          s.x += Math.sin(s.heading) * SPEED * dt; s.z += Math.cos(s.heading) * SPEED * dt;
+          s.x += Math.sin(s.heading) * SPEED * dt * going; s.z += Math.cos(s.heading) * SPEED * dt * going;
         } else approachStem(s, dt);
+      }
+      // The body follows the heading at a steady turn (at once with reduced motion).
+      if (reduced) { s.facing = s.heading; s.stemFacing = s.dir === 1 ? 0 : Math.PI; }
+      else {
+        const step = TURN_RATE * dt;
+        s.facing += THREE.MathUtils.clamp(wrap(s.heading - s.facing), -step, step);
+        s.stemFacing += THREE.MathUtils.clamp((s.dir === 1 ? 0 : Math.PI) - s.stemFacing, -step, step);
       }
       pose(s);
 

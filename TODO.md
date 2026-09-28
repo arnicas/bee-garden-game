@@ -182,6 +182,8 @@
 
 - [x] The Queen's mood across summers (Lynn, 2026-09-28). Built: `queenLine()` in `src/day-report.ts` picks her results line from the summers so far (`Garden.outcomes`, last 8), with a second and third poor summer in a row, recoveries, good runs and a forgiven slip each worded differently, and small pools turned by the summer number; tests in `tests/day-report.spec.ts` (`setOutcomes` hook). Original note: Today her results line depends only on that day's tier (`lines` in `src/day-report.ts`), so a second "small list" day reads exactly like the first. Keep a short history of past tiers (and perhaps what went wrong: rain, heat, nightfall, too little pollen) with the other summer state in `garden.ts`, and pick her line from it: a second bad day in a row changes the message ("Your name is still on the list…"), a recovery after a bad day is noticed ("She has crossed your name off the list"), a run of good days builds, and one bad day after many good ones is forgiven. A small pool of lines per situation so repeats are rare. Keep it gentle and short; the results screen only.
 
+- [ ] Showcase video (Lynn, 2026-09-28): in the rain shot ("Shelter from the rain and the heat"), film a cornflower or daisy close-up instead of the poppy, so the video shows a flower other than the poppy up close (the poppy already has its own shot). The rain shot's camera is in `video/shots.spec.ts` (it uses `poppies[1]`); see `video/README.md` to remake the video.
+
 ### Lower priority
 
 - [ ] Tune flower landing distance further. The E cue now needs reach 1.85 past the petals and 2.8 above them (was 2.25 / 3.2); the difference felt small in play. Adjust `FLOWER_LANDING_REACH` / `FLOWER_LANDING_CLEARANCE` in `src/garden.ts`.
