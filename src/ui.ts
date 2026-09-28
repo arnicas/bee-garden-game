@@ -128,7 +128,7 @@ export function createUI(actions: UIActions): GameUI {
     <aside class="status-sidebar play-only" aria-label="Bee and hive status">
     <section class="home-note" aria-label="Hive status">
       <div class="home-heading"><span class="compass-arrow" aria-hidden="true">↑</span><span>THE HIVE</span>${icons.hive}</div>
-      <div class="home-distance"><span data-text="home-distance">0</span><small>m to meadow edge</small></div>
+      <div class="home-distance"><span data-text="home-distance">0</span><small>m</small></div>
       <p data-text="home-guidance">The hive lies beyond the meadow.</p>
       <div class="return-ready" hidden><span data-text="return-ready-label">YOUR HIVE IS CALLING</span><button data-action="return" class="small-button">Way home ${key('R')}</button></div>
     </section>
@@ -155,6 +155,7 @@ export function createUI(actions: UIActions): GameUI {
     <div class="target-marker" hidden aria-hidden="true"><kbd>E</kbd></div>
     <div class="aim play-only" aria-hidden="true"><i></i><span></span></div>
     <div class="center-note play-only"><span class="interaction-label" data-text="interaction"></span><p data-text="hint"></p></div>
+    <div class="night-caption" hidden><span>The night passes</span><button class="text-button" data-action="skip-night">Skip <kbd>Space</kbd></button></div>
     <div class="message-toast" role="status" aria-live="polite" hidden><span class="toast-mark">✳</span><span data-text="message"><b class="message-lead" data-text="message-lead"></b><span data-text="message-body"></span></span></div>
     <div class="pollination-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
       ${flowerTypes.map(([species]) => `<span class="pollination-bloom" data-pollinated-species="${species}" hidden>${pollinationFlowers[species]}</span>`).join('')}
@@ -315,6 +316,7 @@ export function createUI(actions: UIActions): GameUI {
   const dayHeat = el<SVGGElement>('[data-day-heat]');
   const dayPigment = el<SVGStopElement>('[data-day-pigment]');
   const dayTrail = el<SVGPathElement>('[data-day-trail]');
+  const dayMoon = el<SVGGElement>('[data-day-moon]');
   const dayCloud = el<SVGGElement>('[data-day-cloud]');
   const dayRain = el<SVGGElement>('[data-day-rain]');
   const dayGale = el<SVGGElement>('[data-day-gale]');
@@ -474,7 +476,7 @@ export function createUI(actions: UIActions): GameUI {
       return;
     }
     if (button.dataset.action === 'facts-close') { closeFacts(); return; }
-    const callbacks: Record<string, () => void> = { start: actions.start, explore: actions.explore, resume: actions.resume, pause: actions.pause, restart: actions.restart, sound: actions.toggleSound, uv: actions.toggleUV, photo: actions.photo, return: actions.returnHome, 'skip-return': actions.skipReturn, rest: actions.toggleRest };
+    const callbacks: Record<string, () => void> = { start: actions.start, explore: actions.explore, resume: actions.resume, pause: actions.pause, restart: actions.restart, sound: actions.toggleSound, uv: actions.toggleUV, photo: actions.photo, return: actions.returnHome, 'skip-return': actions.skipReturn, 'skip-night': actions.skipNight, rest: actions.toggleRest };
     callbacks[button.dataset.action!]?.();
     button.blur();
   }, { signal: cleanup.signal });
@@ -512,17 +514,24 @@ export function createUI(actions: UIActions): GameUI {
     lossVeil.style.setProperty('--loss-soft', `${(100 * (1 - closed)).toFixed(2)}%`);
     lossVeil.style.setProperty('--loss-center', (centerDarkness * centerDarkness * (3 - 2 * centerDarkness)).toFixed(3));
     const day = percent(state.dayProgress, 1);
-    const dayName = day < .4 ? 'MORNING' : day < .6 ? 'MIDDAY' : day < .75 ? 'AFTERNOON' : day < .9 ? 'GOLDEN HOUR' : day < 1 ? 'SUNSET' : 'LAST LIGHT';
+    const night = state.phase === 'night';
+    const dayName = night ? (state.nightProgress > .88 ? 'DAWN' : 'NIGHT') : day < .4 ? 'MORNING' : day < .6 ? 'MIDDAY' : day < .75 ? 'AFTERNOON' : day < .9 ? 'GOLDEN HOUR' : day < 1 ? 'SUNSET' : 'LAST LIGHT';
     text('day-label', dayName);
     // One simulation clock drives daylight, the sun and the rain strokes.
     // No CSS animation can drift ahead while the game is paused.
-    const noon = Math.sin(day * Math.PI);
-    const sunX = 24 + day * 432;
-    const sunY = 43 - 72 * day * (1 - day);
-    attribute(daySun, 'transform', `translate(${sunX.toFixed(2)} ${sunY.toFixed(2)}) scale(${(.72 + noon * .48).toFixed(3)})`);
+    // Through the night the moon crosses the same arc, quickly, while the sun is away.
+    const moonT = percent((state.nightProgress - .08) / .84, 1);
+    const arcT = night ? moonT : day;
+    const noon = night ? 0 : Math.sin(day * Math.PI);
+    const sunX = 24 + arcT * 432;
+    const sunY = 43 - 72 * arcT * (1 - arcT);
+    attribute(dayMoon, 'transform', `translate(${sunX.toFixed(2)} ${sunY.toFixed(2)})`);
+    attribute(dayMoon, 'opacity', night ? Math.min(1, moonT * 10, (1 - moonT) * 10).toFixed(3) : '0');
+    // At dawn the sun comes back at the start of the arc.
+    attribute(daySun, 'transform', night ? 'translate(24 43) scale(.72)' : `translate(${sunX.toFixed(2)} ${sunY.toFixed(2)}) scale(${(.72 + noon * .48).toFixed(3)})`);
     attribute(dayGlow, 'opacity', (.35 + noon * .65).toFixed(3));
-    attribute(daySun, 'opacity', (1 - state.rain * .35).toFixed(3));
-    attribute(dayTrail, 'stroke-dashoffset', (1 - day).toFixed(4));
+    attribute(daySun, 'opacity', night ? percent((state.nightProgress - .9) / .08, 1).toFixed(3) : (1 - state.rain * .35).toFixed(3));
+    attribute(dayTrail, 'stroke-dashoffset', (1 - arcT).toFixed(4));
     const underLeaf = state.phase === 'landed' && state.underLeaf;
     const onLeaf = state.phase === 'landed' && state.onLeaf;
     const leafPerch = underLeaf || onLeaf;
@@ -706,7 +715,10 @@ export function createUI(actions: UIActions): GameUI {
     }
     attribute(reserveMark, 'transform', `translate(0 ${(80 - 52 * percent(nectarTotal, state.nectarCapacity)).toFixed(2)})`);
     text('home-distance', state.homeDistance.toFixed(1));
-    text('home-guidance', state.harvestReady ? 'Carry your harvest to the meadow edge.' : state.headingHome ? 'Heading home early with what you carry.' : 'Gather nectar and pollen for the journey.');
+    // Nothing to say under the hive until the harvest is ready or the bee heads home.
+    const homeGuidance = state.harvestReady ? 'Carry your harvest to the meadow edge.' : state.headingHome ? 'Heading home early with what you carry.' : '';
+    text('home-guidance', homeGuidance);
+    show(el('[data-text="home-guidance"]'), homeGuidance !== '');
     text('return-ready-label', state.harvestReady ? 'YOUR HIVE IS CALLING' : 'HEADING HOME EARLY');
     compass.style.transform = `rotate(${state.homeBearing}rad)`;
     const homeward = state.harvestReady || state.headingHome;
@@ -734,6 +746,7 @@ export function createUI(actions: UIActions): GameUI {
     keyText('interaction', redundantCue(interaction, state.hint) ? '' : interaction);
     aim.classList.toggle('can-land', highlightLanding);
     aim.classList.toggle('is-sipping', state.drinking);
+    show(el('.night-caption'), state.phase === 'night');
     text('message-lead', state.messageLead); text('message-body', state.message);
     show(messageToast, playing && !!state.message && !state.pollinationSpecies);
     show(target, playing && state.phase === 'flying' && state.targetVisible && highlightLanding);

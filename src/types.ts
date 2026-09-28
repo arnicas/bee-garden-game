@@ -2,7 +2,7 @@ import type { Curve, Group, InstancedMesh, Quaternion, Vector3 } from 'three';
 
 export type Species = 'daisy' | 'poppy' | 'cornflower';
 export type CarriedPollen = Readonly<Partial<Record<Species, number>>>;
-export type Phase = 'title' | 'learning' | 'flying' | 'landed' | 'paused' | 'returning' | 'failing' | 'won' | 'lost';
+export type Phase = 'title' | 'night' | 'learning' | 'flying' | 'landed' | 'paused' | 'returning' | 'failing' | 'won' | 'lost';
 export interface Flower {
   id: number;
   species: Species;
@@ -179,6 +179,8 @@ export interface ViewState {
   flowerTotal: number;
   elapsed: number;
   message: string;
+  /** 0–1 through the night between summers (only in the night phase). */
+  nightProgress: number;
   /** Bold at the front of the message: the name of something just discovered. */
   messageLead: string;
   hint: string;
@@ -196,6 +198,8 @@ export interface UIActions {
   photo(): void;
   returnHome(): void;
   skipReturn(): void;
+  /** Skips the night between summers to the next morning. */
+  skipNight(): void;
   toggleRest(): void;
 }
 export interface GameUI {

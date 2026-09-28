@@ -6,6 +6,8 @@ export const dayArt = `<svg class="day-arc" viewBox="0 0 480 100" fill="none" ar
     </linearGradient>
     <radialGradient id="day-glow"><stop stop-color="#ffe8a6" stop-opacity=".7"/><stop offset="1" stop-color="#ffe8a6" stop-opacity="0"/></radialGradient>
     <radialGradient id="day-gold" cx=".35" cy=".28"><stop stop-color="#ffe6a0"/><stop data-day-pigment offset=".72" stop-color="#efc163"/><stop offset="1" stop-color="#d9a551"/></radialGradient>
+    <radialGradient id="day-moonglow"><stop stop-color="#e4ebf2" stop-opacity=".75"/><stop offset="1" stop-color="#e4ebf2" stop-opacity="0"/></radialGradient>
+    <mask id="day-moon-cut"><circle r="12" fill="#fff"/><circle cx="5.5" cy="-3" r="9" fill="#000"/></mask>
     <linearGradient id="day-cloud-wash" x2=".25" y2="1"><stop stop-color="#f3f3e8"/><stop offset=".55" stop-color="#d5e1df"/><stop offset="1" stop-color="#9db8bf"/></linearGradient>
   </defs>
   <path d="M24 43Q240 7 456 43" stroke="url(#day-thread)" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="1 6" opacity=".75"/>
@@ -26,6 +28,10 @@ export const dayArt = `<svg class="day-arc" viewBox="0 0 480 100" fill="none" ar
     <path d="M-6-4q2-4 6-4" stroke="#fff6cf" stroke-width="2.4" stroke-linecap="round" opacity=".65"/>
     <path d="M-3-1v1m6-1v1m-5 3q2 2 4 0" stroke="#997844" stroke-width="1.15" stroke-linecap="round"/>
     <ellipse cx="-5.5" cy="2" rx="1.7" ry="1" fill="#d8966b" opacity=".4"/><ellipse cx="5.5" cy="2" rx="1.7" ry="1" fill="#d8966b" opacity=".4"/>
+  </g>
+  <g data-day-moon opacity="0" transform="translate(24 43)">
+    <circle r="22" fill="url(#day-moonglow)"/>
+    <circle r="10" fill="#f1efe2" stroke="#8e9aa8" stroke-width=".8" mask="url(#day-moon-cut)"/>
   </g>
   <g data-day-cloud opacity="0">
     <path d="M-23 13c-14-1-14-19-2-21 1-14 23-17 29-4 10-8 24 0 22 10 14 3 12 20-3 20h-46Z" fill="url(#day-cloud-wash)" stroke="#90a6a9" stroke-width=".8" stroke-linejoin="round"/>

@@ -236,7 +236,10 @@ h1 em { font-weight: 400; font-size: .93em; }
 .status-sidebar { position: absolute; top: 89px; right: 33px; width: 225px; display: flex; flex-direction: column; gap: 24px; }
 .home-note { isolation: isolate; position: relative; text-align: right; width: 100%; min-height: 196px; }
 /* A soft wash behind the hive note that fades out on every side (no hard top edge under the icon buttons). */
-.home-note::before { content: ""; position: absolute; z-index: -1; inset: -14px -39px -28px -46px; background: radial-gradient(ellipse closest-side at 62% 46%, rgba(251,245,229,.88), rgba(251,245,229,.6) 45%, rgba(251,245,229,.2) 78%, rgba(251,245,229,0) 100%); pointer-events: none; }
+/* A small wash behind the hive heading and distance; it grows to cover the text below only when there is some. */
+.home-note::before { content: ""; position: absolute; z-index: -1; top: -18px; right: -32px; width: 200px; height: 104px; background: radial-gradient(ellipse closest-side at 64% 50%, rgba(251,245,229,.86), rgba(251,245,229,.55) 50%, rgba(251,245,229,.16) 80%, rgba(251,245,229,0) 100%); pointer-events: none; }
+.home-note:has(> p:not([hidden]))::before { height: 130px; }
+.home-note:has(.return-ready:not([hidden]))::before { height: auto; bottom: -28px; left: -46px; width: auto; }
 .home-heading { display: flex; justify-content: flex-end; align-items: center; gap: 8px; font-size: 8px; font-weight: 600; letter-spacing: 1.8px; }
 .home-heading svg { width: 24px; height: 24px; }
 .home-marker { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 4px; color: #68542f; pointer-events: none; text-align: center; text-shadow: 0 1px 4px #fff9e9; }
@@ -292,6 +295,13 @@ h1 em { font-weight: 400; font-size: .93em; }
 .target-marker kbd { display: block; padding: 4px 6px; font-size: 11px; border-color: #fff9df99; background: #34452b73; }
 .message-toast { position: absolute; top: 102px; left: 50%; transform: translateX(-50%); max-width: min(420px, calc(100vw - 550px)); display: flex; align-items: center; gap: 10px; color: var(--ink); font-family: var(--serif); font-size: 14px; text-align: center; background: rgba(251,245,229,.8); padding: 10px 17px; border-radius: 3px; animation: note-in .4s ease-out; }
 .message-toast .message-lead { font-weight: 600; }
+/* The night between summers: only the sky and meadow, and a quiet caption. */
+#ui[data-phase="night"] > :not(.night-caption):not(.day-timeline) { visibility: hidden !important; }
+#ui[data-phase="night"] > .day-timeline.play-only { opacity: 1; visibility: visible; }
+#ui[data-phase="night"] .day-timeline::before { opacity: .6; }
+.night-caption { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; font-family: var(--serif); font-size: 14px; color: rgba(246,241,226,.82); letter-spacing: .4px; animation: note-in 1.2s ease-out; }
+.night-caption .text-button { color: rgba(246,241,226,.72); font-size: 11px; background: transparent; border: 0; cursor: pointer; }
+.night-caption kbd { font-size: 9px; }
 .message-toast .message-lead:not(:empty) { margin-right: .35em; }
 .toast-mark { color: #b88d41; font-size: 17px; font-style: normal; }
 .pollination-toast { position: absolute; top: 132px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 4px 12px 4px 5px; width: 94px; height: 54px; background: rgba(251,245,229,.92); border: 1px solid #b19d653b; border-radius: 28px; box-shadow: 0 3px 16px #31452a0c; animation: note-in .4s ease-out; }

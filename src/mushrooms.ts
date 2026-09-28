@@ -200,6 +200,12 @@ export function createMushrooms(scene: THREE.Scene, seed: number, spots: readonl
     },
     markSeen(id: number): void { const ring = rings[id]; if (ring) ring.seen = true; },
     seenCount(kind?: 'ring' | 'patch'): number { return rings.filter(r => r.seen && (!kind || r.kind === kind)).length; },
+    /** For the night between summers: how far the mushrooms have come up (0–1), a little staggered. */
+    setGrowth(amount: number): void {
+      soak = Math.max(soak, amount > 0 ? 1 : 0); if (amount > 0) sinceSoak = 1e3;
+      for (const m of mushrooms) m.grown = THREE.MathUtils.clamp(amount * 1.5 - m.delay / 28, 0, 1);
+      pose();
+    },
     /** After rain in the night: the ground is soaked and the mushrooms are already up. */
     presoak(): void { soak = 1; sinceSoak = 1e3; for (const m of mushrooms) { m.grown = 1; m.dry = 0; } pose(); },
     /** A new day: the ground is dry again, and the rings are still to be found. */
