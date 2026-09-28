@@ -48,7 +48,7 @@ test('single day light, aerial detail, homecoming, pause, mute, delivery and res
   await seek(page, 4.8);
   await expect.poll(async () => (await state(page)).ending.stage).toBe('meadow');
   captures.meadow = await state(page);
-  expect(captures.meadow.ending.workers).toBe(36);
+  expect(captures.meadow.ending.workers).toBe(14);
   expect(captures.meadow.ending.butterflies).toBe(8);
   expect(captures.meadow.diagnostics.renderer.triangles).toBeLessThan(750_000);
   expect(captures.meadow.diagnostics.renderer.calls).toBeLessThan(300);

@@ -48,7 +48,8 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
   for (const z of [-.055,.055]) bodyParts.push(paint(new THREE.TorusGeometry(.099, .024, 4, 8).translate(0,0,z), '#59422c'));
   const bodyGeo = keep(mergeGeometries(bodyParts)!); bodyParts.forEach(g => g.dispose());
   const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .86 }); materials.add(bodyMat);
-  const count = 36, bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, count + 1); bodies.name = 'meadow workers'; root.add(bodies);
+  // A few other foragers about the meadow (fewer than before: the game doesn't model their competition).
+  const count = 14, bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, count + 1); bodies.name = 'meadow workers'; root.add(bodies);
   const wingGeo = keep(new THREE.SphereGeometry(1, 6, 4).scale(.15,.009,.075));
   const wingMat = mat('#e6e4c6');
   const wings = new THREE.InstancedMesh(wingGeo, wingMat, (count + 1) * 2); wings.name = 'worker wings'; root.add(wings);
