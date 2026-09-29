@@ -86,8 +86,31 @@ export function redundantCue(cue: string, hint: string): boolean {
   });
 }
 
+// ---- The title: one painted letter per span, each in a meadow colour (the B is a bee).
+const TITLE_BEE: [string, string][] = [['B', 'bee-b'], ['e', 'daisy'], ['e', 'corn']];
+const TITLE_GARDEN: [string, string][] = [['G', 'leaf'], ['a', 'poppy'], ['r', 'corn'], ['d', 'daisy'], ['e', 'poppy'], ['n', 'leaf']];
+/** Each letter's resting tilt (degrees) and lift, so they sit a little unevenly, like flowers. */
+const TITLE_TILT = [-5, 4, -2, -4, 5, -3, 3, -4, 3], TITLE_LIFT = [0, .05, 0, 0, .04, 0, -.03, .03, 0];
+const titleWings = '<svg class="title-wings" viewBox="0 0 50 30"><g fill="rgba(240,248,255,.82)" stroke="rgba(80,90,100,.55)" stroke-width="1.5"><ellipse cx="16" cy="18" rx="14" ry="9" transform="rotate(-25 16 18)"/><ellipse cx="34" cy="16" rx="14" ry="9" transform="rotate(20 34 16)"/></g></svg>';
+function titleLetters(letters: [string, string][], start: number): string {
+  return letters.map(([letter, kind], k) => {
+    const i = start + k;
+    return `<span class="title-letter ${kind}" style="--i:${i};--tilt:${TITLE_TILT[i]};--lift:${TITLE_LIFT[i]}em">${kind === 'bee-b' ? titleWings : ''}<span>${letter}</span></span>`;
+  }).join('');
+}
+/** A bee on a dotted flight through the title: out over the letters, then back round low. */
+const titleFlight = `<svg class="title-flight" viewBox="0 0 560 330" aria-hidden="true">
+  <path d="M40 300 C 120 250, 90 120, 190 110 S 330 200, 380 120 S 470 30, 450 70" fill="none" stroke="#6d5a3a" stroke-width="2.2" stroke-dasharray="3 9" stroke-linecap="round" opacity=".5"/>
+  <path id="title-route" d="M40 300 C 120 250, 90 120, 190 110 S 330 200, 380 120 S 470 30, 450 70 C 432 108, 540 180, 470 240 S 170 350, 40 300 Z" fill="none"/>
+  <g><g transform="rotate(90) scale(.62)"><g stroke="#3a3322" stroke-width="2" stroke-linecap="round"><g class="title-flyer-wings"><path d="M-4-4C-26-24-12-32 0-10M4-4C26-24 12-32 0-10" fill="#f6f3df" opacity=".95"/></g><ellipse cy="6" rx="12" ry="15" fill="#f1b733"/><path d="M-10 2h20M-11 9h22M-8 16h16" stroke-width="4"/><circle cy="-11" r="7" fill="#3a3322"/></g></g>
+    <animateMotion dur="11s" repeatCount="indefinite" rotate="auto"><mpath href="#title-route"/></animateMotion></g>
+</svg>`;
+/** Paint: roughens the letters' edges like watercolour on paper. */
+const titlePaint = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="title-paint"><feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.5"/></filter></svg>';
+
 export function createUI(actions: UIActions): GameUI {
   const root = document.querySelector<HTMLDivElement>('#ui')!;
+  const stillTitle = () => { if (matchMedia('(prefers-reduced-motion: reduce)').matches) root.querySelector<SVGSVGElement>('.title-flight')?.pauseAnimations(); };
   if (!root) throw new Error('Bee Garden requires a #ui element.');
   root.innerHTML = `
     <div class="scene-shade" aria-hidden="true"></div>
@@ -163,10 +186,9 @@ export function createUI(actions: UIActions): GameUI {
       <span class="pollination-announcement" data-text="pollination-announcement"></span>
     </div>
     <div class="lower-right play-only"><span class="vision-label" hidden>THE WORLD THROUGH BEE EYES</span></div>
-    <section class="title-screen" aria-labelledby="game-title">
-      <div class="title-bee">${icons.bee}</div>
-      <h1 id="game-title">Bee<br><em>Garden</em><span class="title-star">✳</span></h1>
-      <p class="title-subtitle">A summer in a day —<br>Feed the hive and the meadow, and shape the next summer day.</p>
+    ${titlePaint}<section class="title-screen" aria-labelledby="game-title">
+      <h1 id="game-title" aria-label="Bee Garden">${titleFlight}<span class="title-word" aria-hidden="true">${titleLetters(TITLE_BEE, 0)}</span><span class="title-word title-garden" aria-hidden="true">${titleLetters(TITLE_GARDEN, 3)}</span></h1>
+      <p class="title-subtitle">A game about bees in a flower meadow.</p>
       <button class="primary-button start-button" data-action="start"><span>Take flight</span><span class="button-arrow">${icons.arrow}</span></button>
     </section>
     <section class="learning-overlay" hidden>
@@ -254,6 +276,7 @@ export function createUI(actions: UIActions): GameUI {
     </section>
   `;
 
+  stillTitle();
   const el = <T extends Element = HTMLElement>(selector: string): T => root.querySelector<T>(selector)!;
   const labels = new Map(Array.from(root.querySelectorAll<HTMLElement>('[data-text]')).map(item => [item.dataset.text!, item]));
   const text = (name: string, value: string) => {

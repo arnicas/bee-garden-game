@@ -1,3 +1,5 @@
+/* Fredoka (SIL Open Font License, src/fonts/Fredoka-OFL.txt), for the title and its button only. */
+@font-face { font-family: 'Fredoka'; font-weight: 700; font-display: swap; src: url('./fonts/fredoka-latin-700.woff2') format('woff2'); }
 :root {
   font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
   color: #344537;
@@ -60,18 +62,47 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 500; padding: 3px 5px;
 .title-screen, .title-footer { opacity: 0; visibility: hidden; transition: opacity .6s, visibility .6s; }
 #ui[data-phase="title"] .title-screen, #ui[data-phase="title"] .title-footer { opacity: 1; visibility: visible; }
 .title-screen { position: absolute; top: 50%; left: clamp(34px, 5.5vw, 100px); transform: translateY(-49%); width: 385px; }
-.title-bee { position: absolute; left: 286px; top: 0; width: 49px; transform: rotate(-14deg); color: var(--rust); }
-.title-bee svg { width: 100%; height: auto; }
 h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 118px); line-height: .83; position: relative; }
-h1 em { font-weight: 400; font-size: .93em; }
-.title-star { position: absolute; top: 69px; left: 307px; font: 25px var(--serif); color: var(--rust); transform: rotate(12deg); }
-.title-subtitle { margin-top: 26px; font-family: var(--serif); font-size: 22px; line-height: 1.26; }
+/* The title: painted flower letters in Fredoka, each a meadow colour with a watercolour wash. */
+#game-title { font-family: 'Fredoka', var(--serif); font-weight: 700; line-height: .92; filter: url(#title-paint); }
+.title-word { display: block; white-space: nowrap; position: relative; font-size: 1.22em; }
+.title-word.title-garden { font-size: 1.34em; margin-top: .02em; }
+.title-letter { display: inline-block; position: relative; animation: title-sprout .75s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--i) * 90ms + 250ms); }
+.title-letter > span { display: inline-block; color: transparent; -webkit-background-clip: text; background-clip: text; transform-origin: 50% 85%;
+  rotate: calc(var(--tilt) * 1deg); translate: 0 var(--lift);
+  /* Pigment: a pale bloom where the water spread, a deeper pool low down, paper grain over it all. */
+  background-image: var(--title-grain), radial-gradient(ellipse 60% 45% at 32% 28%, var(--light), transparent 70%), radial-gradient(ellipse 55% 40% at 70% 82%, var(--deep), transparent 72%), linear-gradient(170deg, var(--mid), var(--mid2));
+  background-size: 1.3em 1.3em, 100% 100%, 100% 100%, 100% 100%;
+  -webkit-text-stroke: .016em var(--edge);
+  filter: drop-shadow(0 0 .012em #fbf5e5) drop-shadow(0 0 .012em #fbf5e5) drop-shadow(0 0 .012em #fbf5e5) drop-shadow(0 .035em 0 rgba(58, 72, 40, .16));
+  /* Each letter bobs on its own slow rhythm, with a quick wobble now and then. */
+  animation: title-bob calc(2.4s + var(--i) * .23s) ease-in-out calc(var(--i) * -.37s) infinite alternate, title-jiggle 8s ease-in-out calc(var(--i) * .7s + 2.5s) infinite; }
+:root { --title-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.03' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 -2.6 1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.title-letter.poppy { --mid: #e0603f; --mid2: #c9432e; --light: #f59a78; --deep: #a8301f; --edge: rgba(150, 40, 25, .75); }
+.title-letter.daisy { --mid: #efb53a; --mid2: #e39a26; --light: #fbd97a; --deep: #c07a17; --edge: rgba(170, 105, 20, .7); }
+.title-letter.corn { --mid: #5d7fd0; --mid2: #4563b8; --light: #93aee6; --deep: #2f468f; --edge: rgba(40, 60, 130, .75); }
+.title-letter.leaf { --mid: #6c9a43; --mid2: #557f31; --light: #a2c878; --deep: #3d6423; --edge: rgba(45, 80, 25, .75); }
+/* The B is a bee: a honey wash with soft dark stripes, and two little wings that flutter. */
+.title-letter.bee-b > span { background-image: var(--title-grain), repeating-linear-gradient(-12deg, transparent 0 .17em, rgba(60, 42, 22, .5) .19em .27em), radial-gradient(ellipse 60% 45% at 32% 28%, #fbd97a, transparent 70%), linear-gradient(170deg, #f1b733, #e19b22); -webkit-text-stroke: .016em rgba(90, 60, 20, .8); }
+.title-wings { position: absolute; left: .22em; top: -.2em; width: .48em; height: .3em; transform-origin: 30% 90%; animation: title-flutter .14s ease-in-out infinite alternate; }
+.title-flight { position: absolute; left: -.28em; top: -.55em; width: 4.75em; height: 2.8em; pointer-events: none; overflow: visible; }
+.title-flyer-wings { animation: title-flutter .09s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 90%; }
+@keyframes title-sprout { from { transform: translateY(.4em) scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes title-bob { from { translate: 0 var(--lift); rotate: calc(var(--tilt) * 1deg); } to { translate: 0 calc(var(--lift) - .045em); rotate: calc(var(--tilt) * -.5deg); } }
+@keyframes title-jiggle { 0%, 88%, 100% { scale: 1; } 91% { scale: 1.1 .9; } 94% { scale: .94 1.07; } 97% { scale: 1.03 .98; } }
+@keyframes title-flutter { from { scale: 1 1; } to { scale: 1 .55; } }
+.title-subtitle { margin-top: 22px; font-family: var(--serif); font-style: italic; font-size: 22px; line-height: 1.26; }
+/* Take flight: a honey-yellow, rounded game button. */
+.primary-button.start-button { background: #f1b733; color: #3b2a12; border-color: #b77e1d; border-radius: 30px; font: 700 18px 'Fredoka', sans-serif; box-shadow: 0 4px 0 #b77e1d, 0 10px 20px rgba(60, 40, 10, .16); }
+.primary-button.start-button:hover { background: #f6c64b; box-shadow: 0 6px 0 #b77e1d, 0 12px 22px rgba(60, 40, 10, .18); }
+.primary-button.start-button:active { transform: translateY(2px); box-shadow: 0 2px 0 #b77e1d; }
+.start-button .button-arrow { border-left-color: rgba(59, 42, 18, .22); }
 .primary-button { background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 3px; min-height: 50px; padding: 0 17px 0 22px; display: flex; align-items: center; justify-content: space-between; gap: 33px; font-size: 13px; transition: background .2s, transform .2s, box-shadow .2s; }
 .primary-button:hover { background: #46593d; box-shadow: 0 5px 18px rgba(28,50,27,.1); transform: translateY(-2px); }
 .primary-button:active { transform: translateY(0); }
 .button-arrow { width: 26px; height: 26px; display: grid; place-items: center; border-left: 1px solid rgba(251,245,229,.26); padding-left: 11px; box-sizing: content-box; }
 .button-arrow svg { width: 20px; }
-.start-button { margin-top: 26px; width: 202px; }
+.start-button { margin-top: 26px; width: 210px; }
 .title-tip { color: var(--muted); font-size: 10px; margin-top: 16px; }
 .title-tip kbd { font-size: 9px; border: 0; padding: 0; }
 .title-footer { position: absolute; bottom: 27px; left: clamp(34px, 5.5vw, 100px); right: 35px; display: flex; justify-content: flex-end; gap: 20px; font-size: 8px; letter-spacing: 1.8px; }
@@ -450,14 +481,10 @@ h1 em { font-weight: 400; font-size: .93em; }
   .lower-right { bottom: 15px; }
   .message-toast { max-width: 330px; }
   .title-screen { width: 330px; }
-  .title-star { left: 260px; }
-  .title-bee { left: 245px; }
 }
 @media (max-height: 780px) {
   .title-screen { transform: translateY(-49%); }
   h1 { font-size: 88px; }
-  .title-star { left: 260px; top: 53px; }
-  .title-bee { left: 246px; }
   .title-subtitle { margin-top: 20px; font-size: 20px; }
   .start-button { margin-top: 21px; }
   .title-footer { bottom: 20px; }
@@ -489,8 +516,6 @@ h1 em { font-weight: 400; font-size: .93em; }
 @media (max-width: 520px) {
   .title-screen { left: 26px; width: calc(100% - 52px); }
   h1 { font-size: 84px; }
-  .title-star { left: 247px; }
-  .title-bee { left: 232px; }
   #ui[data-phase="title"] .scene-shade { background: linear-gradient(90deg, #faf6e6dd, #faf6e66b 70%, transparent); }
   .game-heading { width: 170px; }
   .objective { max-width: 140px; }
@@ -529,8 +554,6 @@ h1 em { font-weight: 400; font-size: .93em; }
   .meter-caption { min-height: 16px; line-height: 14px; }
   .title-screen { transform: translateY(-50%); }
   h1 { font-size: 70px; }
-  .title-bee { left: 210px; }
-  .title-star { left: 219px; top: 43px; }
   .title-subtitle { font-size: 18px; margin-top: 16px; }
   .title-footer { font-size: 7px; bottom: 12px; }
   .journal-page { padding: 20px 30px; margin: auto; }
@@ -583,3 +606,5 @@ h1 em { font-weight: 400; font-size: .93em; }
   .sleep-z-3 { transform: translate(20px, -30px); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+/* Phones: the title back at the base size, so Garden fits. */
+@media (max-width: 520px) { .title-word { font-size: 1em; } .title-word.title-garden { font-size: 1.1em; } }
