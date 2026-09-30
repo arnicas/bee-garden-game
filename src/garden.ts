@@ -217,6 +217,9 @@ export class Garden {
   private water = 0;
   private waterGoal = 0;
   private waterGoalMet = false;
+  /** Across this run of summers: hot days, and those when water came home for the hive. */
+  private hotDays = 0;
+  private waterDays = 0;
   private jarFullNoteShown = false;
   /** Water play (morning groundwater in the pools, the hive's water on hot days). Off on
    * test pages unless ?hivewater, which also asks for water whatever the weather. */
@@ -478,7 +481,7 @@ export class Garden {
     this.petals = createPetals(this.scene, this.seed, this.meadow.flowers, this.meadow.petalSpots);
     this.caterpillars = createCaterpillars(this.scene, this.seed, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).caterpillars);
     this.butterflies = createButterflies(this.scene, this.seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).butterflies, this.leafShelters.shelters);
-    this.puddles = createPuddles(this.scene, this.meadow.puddles); this.puddles.setMoisture(this.groundMoisture); this.puddles.setBare(meadowDryness(countSpecies(this.meadow.flowers)));
+    this.puddles = createPuddles(this.scene, this.meadow.puddles); this.puddles.setMoisture(this.groundMoisture); this.puddles.setBare(meadowDryness(countSpecies(this.meadow.flowers))); this.meadow.setHollows(this.puddles.hollows(moistureShift(this.groundMoisture).dry));
     this.snails = createSnails(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).snails, this.meadow.puddles, this.meadow.mushroomPatches);
     this.snailDryness = THREE.MathUtils.clamp(meadowDryness(countSpecies(this.meadow.flowers)) + moistureShift(this.groundMoisture).dry * .8, 0, 1);
     this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
@@ -569,7 +572,7 @@ export class Garden {
     this.petals = createPetals(this.scene, seed, this.meadow.flowers, this.meadow.petalSpots);
     this.caterpillars = createCaterpillars(this.scene, seed, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).caterpillars);
     this.butterflies = createButterflies(this.scene, seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).butterflies, this.leafShelters.shelters);
-    this.puddles = createPuddles(this.scene, this.meadow.puddles); this.puddles.setMoisture(this.groundMoisture); this.puddles.setBare(meadowDryness(countSpecies(this.meadow.flowers)));
+    this.puddles = createPuddles(this.scene, this.meadow.puddles); this.puddles.setMoisture(this.groundMoisture); this.puddles.setBare(meadowDryness(countSpecies(this.meadow.flowers))); this.meadow.setHollows(this.puddles.hollows(moistureShift(this.groundMoisture).dry));
     this.snails = createSnails(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).snails, this.meadow.puddles, this.meadow.mushroomPatches);
     this.snailDryness = THREE.MathUtils.clamp(meadowDryness(countSpecies(this.meadow.flowers)) + moistureShift(this.groundMoisture).dry * .8, 0, 1);
     this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
@@ -583,6 +586,8 @@ export class Garden {
     if (!this.dayPlayed) { this.dayPlayed = true; return; }
     const finished = this.phase === 'won' || this.phase === 'lost';
     const outcome: SummerOutcome = this.phase === 'won' ? this.report?.tier ?? 'okay' : 'lost';
+    // A hot day lost counts too (no water came home); a won one was counted at the hive.
+    if (this.phase === 'lost' && this.waterGoal > 0) this.hotDays++;
     // The meadow the bee leaves (what it pollinated) holds the ground's water, or lets it dry.
     const cover = finished ? this.leftCover() : 1;
     this.lastCoverShift = finished ? coverMoisture(cover) : 0;
@@ -986,6 +991,7 @@ export class Garden {
     if (previousChill < .18 && this.chill >= .18) this.notify('Cold rain is draining your energy. Follow the leaf to shelter.', 6);
     this.updateRaindrops(dt);
     this.puddles.update(dt, this.time, this.weather.rain, this.weather.sunHeat, this.weather.cloudiness, this.raindropsOn);
+    this.meadow.setHollows(this.puddles.hollows(moistureShift(this.groundMoisture).dry));
     if (previousChill < .62 && this.chill >= .62) this.notify('You are getting soaked. A broad leaf will stop the rain.', 6);
     const previousHeat = this.heat;
     // Short exposure has a grace period. Dense grass and the existing moving
@@ -1081,9 +1087,12 @@ export class Garden {
         }
       } }
     { const near = this.caterpillars.nearest(this.position);
-      if (near && near.distance < 1 && !near.caterpillar.seen && this.spotted('caterpillar', near.caterpillar.id, near.caterpillar.position, dt)) {
+      // On (or under) the leaf it's eating counts too: perched, it's usually below the frame.
+      const leafHere = this.onLeaf ?? this.underLeaf, sharingLeaf = !!leafHere && near?.caterpillar.leafId === leafHere.id;
+      if (near && !near.caterpillar.seen && (sharingLeaf || near.distance < 1 && this.spotted('caterpillar', near.caterpillar.id, near.caterpillar.position, dt))) {
         this.caterpillars.markSeen(near.caterpillar.id);
         if (!this.caterpillarNoteShown) { this.caterpillarNoteShown = true; this.notify('It eats its way in from the leaf edge, and will become a moth.', 6, 'A caterpillar!'); }
+        else this.foundAgain('A caterpillar!', this.caterpillars.seenCount(), 'caterpillar', 'caterpillars');
       } }
     if (!this.poolNoteShown && this.raindropsOn && (this.phase === 'flying' || this.phase === 'landed') && this.position.y - meadowGroundHeight(this.position.x, this.position.z) < 2.5) {
       const pool = this.puddles.nearest(this.position, this.poolPoint);
@@ -1753,8 +1762,9 @@ export class Garden {
     this.returnAge = this.reducedMotion ? QUIET_ENDING_DURATION : ENDING_DURATION;
     this.homecoming.pose(this.returnAge, this.time, this.reducedMotion, this.camera);
     this.nectar = Math.max(0, this.nectar - this.returnFuel);
+    if (this.waterGoal > 0) { this.hotDays++; if (this.water >= this.waterGoal - 1e-6) this.waterDays++; }
     this.phase = 'won'; this.clearInput();
-    this.report = dayReport({ nectar: this.nectar, pollen: this.pollen, pollinatedBySpecies: this.pollinatedBySpecies, visited: this.visited, flowerTotal: this.supplies.size, water: this.water, waterGoal: this.waterGoal });
+    this.report = dayReport({ nectar: this.nectar, pollen: this.pollen, pollinatedBySpecies: this.pollinatedBySpecies, visited: this.visited, flowerTotal: this.supplies.size, water: this.water, waterGoal: this.waterGoal, hotDays: this.hotDays, waterDays: this.waterDays });
     this.queenSays = queenLine([...this.outcomes, this.report.tier], this.summerNumber);
     this.resultScore = Math.round(this.nectar * 12 + this.pollen * 15 + this.pollinated * 80 + Math.max(0, 300 - this.elapsed));
   }
@@ -2100,7 +2110,7 @@ export class Garden {
           this.pollinationFX.update(.65, true, this.reducedMotion);
         }
         if (name === 'complete') { this.phase = 'won'; this.nectar = 55; this.pollen = POLLEN_GOAL; this.pollinated = 2; this.pollinatedBySpecies = { poppy: 1, daisy: 1, cornflower: 0 }; this.visited = 4; this.elapsed = 138; this.resultScore = 1852;
-          this.report = dayReport({ nectar: this.nectar, pollen: this.pollen, pollinatedBySpecies: this.pollinatedBySpecies, visited: this.visited, flowerTotal: this.supplies.size, water: this.water, waterGoal: this.waterGoal });
+          this.report = dayReport({ nectar: this.nectar, pollen: this.pollen, pollinatedBySpecies: this.pollinatedBySpecies, visited: this.visited, flowerTotal: this.supplies.size, water: this.water, waterGoal: this.waterGoal, hotDays: this.hotDays, waterDays: this.waterDays });
           this.queenSays = queenLine([...this.outcomes, this.report.tier], this.summerNumber); }
         if (name === 'failed') { this.energy = 0; this.beginLoss(); this.finishLoss(); }
         this.bee.snapPose(!!this.landed);

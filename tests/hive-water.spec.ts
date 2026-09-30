@@ -57,3 +57,26 @@ test('an ordinary test day asks for no water, and dry grass shades less', async 
   await startFlyingFixture(page);
   expect((await state(page)).water.grassShade).toBe(1);
 });
+
+test('the results remember water across hot days', async () => {
+  const { dayReport } = await import('../src/day-report');
+  const base = { nectar: 60, pollen: 140, pollinatedBySpecies: { daisy: 2, poppy: 2, cornflower: 2 }, visited: 8, flowerTotal: 72, water: 15, waterGoal: 15 };
+  expect(dayReport(base).why).toContain('Water to cool the hive');
+  expect(dayReport(base).why).not.toContain('hot days');
+  expect(dayReport({ ...base, hotDays: 3, waterDays: 2 }).why).toContain('Water to cool the hive (2 of 3 hot days)');
+  expect(dayReport({ ...base, nectar: 60, water: 4, hotDays: 2, waterDays: 1 }).why).toContain('Too little water for the hive (1 of 2 hot days)');
+});
+
+test('a dry summer shows cracked, empty pool beds; an ordinary one none', async ({ page }) => {
+  await page.goto('/?test&drops&moisture=0.1');
+  await startFlyingFixture(page);
+  const dry = (await state(page)).water.puddles;
+  expect(dry.hollows).toBeGreaterThan(3);
+  const pool = (await page.evaluate(() => window.__BEE_TEST__!.puddles()))[dry.fill.findIndex((f: number) => f < .02)];
+  await page.evaluate(({ x, z }) => window.__BEE_TEST__!.setPose([x + 1.6, 1.4, z + 1.6], Math.atan2(-(-1.6), -(-1.6)), -.55), { x: pool.x, z: pool.z });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: 'artifacts/hive-water/dry-hollow.png' });
+  await page.goto('/?test&drops');
+  await startFlyingFixture(page);
+  expect((await state(page)).water.puddles.hollows).toBe(0);
+});

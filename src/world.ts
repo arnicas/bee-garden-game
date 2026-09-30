@@ -576,7 +576,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   const positions = terrain.getAttribute('position');
   for (let i = 0; i < positions.count; i++) positions.setY(i, heightAt(positions.getX(i), positions.getZ(i)));
   terrain.computeVertexNormals();
-  const groundMaterial = createGroundPaint();
+  const groundMaterial = createGroundPaint(); groundMaterial.setMoisture(dry, wet);
   materials.add(groundMaterial);
   const ground = new THREE.Mesh(terrain, groundMaterial); ground.receiveShadow = true; root.add(ground);
 
@@ -799,5 +799,5 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     }
   }
   update(0, new THREE.Vector3(0, 4.6, 3.5), false);
-  return { flowers, puddles, antNests, fairyRings, mushroomPatches, petalSpots, update, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
+  return { flowers, puddles, antNests, fairyRings, mushroomPatches, petalSpots, update, setHollows: groundMaterial.setHollows, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
 }

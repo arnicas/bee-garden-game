@@ -35,6 +35,9 @@ export interface DayStats {
   /** On a hot day: water carried home to cool the hive, and how much it asked for (0 on other days). */
   water?: number;
   waterGoal?: number;
+  /** Across this run of summers, today included: hot days, and those with water brought home. */
+  hotDays?: number;
+  waterDays?: number;
 }
 
 export interface DayReport {
@@ -98,7 +101,11 @@ export function dayReport(stats: DayStats): DayReport {
   const jar = Math.floor(Math.min(1, stats.nectar / t.nectarCapacity) * 100 + 1e-6), pouch = Math.floor(Math.min(1, stats.pollen / t.pollenGoal) * 100 + 1e-6);
   why.push(delivery === 'brimming' ? `Nectar jar brimming (${jar}%)` : `Jar ${jar}% full`);
   why.push(pollen >= t.pollenGoal ? 'Pollen pouch full' : `Pouch ${pouch}% full`);
-  if ((stats.waterGoal ?? 0) > 0) why.push((stats.water ?? 0) >= (stats.waterGoal ?? 0) - 1e-6 ? 'Water to cool the hive' : 'Too little water for the hive');
+  if ((stats.waterGoal ?? 0) > 0) {
+    const today = (stats.water ?? 0) >= (stats.waterGoal ?? 0) - 1e-6 ? 'Water to cool the hive' : 'Too little water for the hive';
+    // After more than one hot day, how the bee has done with water across the summers.
+    why.push((stats.hotDays ?? 0) > 1 ? `${today} (${stats.waterDays ?? 0} of ${stats.hotDays} hot days)` : today);
+  }
 
   // One tip, aimed at what most held the day back.
   const pollinationTip = missing.length && total > 0

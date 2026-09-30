@@ -29,6 +29,8 @@ test('the daylight strip grows toward noon and reveals only current rain, then l
   for (const [name, day] of [['morning', .08], ['approaching', .29], ['first-rain', .31], ['shower', .35], ['easing', .415], ['dry-again', .432], ['noon', .5], ['late', .86]] as const) {
     await page.evaluate(day => window.__BEE_TEST__!.setDayProgress(day), day);
     await expect.poll(async () => (await sample(page)).day).toBeCloseTo(day, 4);
+    // The strip is drawn on the next frames; let it catch up with the clock before reading it.
+    await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => done(null)))));
     samples[name] = await sample(page);
     await page.screenshot({ path: `artifacts/day-timeline-1/${name}.png` });
     await page.locator('.day-timeline').screenshot({ path: `artifacts/day-timeline-1/${name}-strip.png` });

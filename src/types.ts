@@ -45,6 +45,8 @@ export interface Meadow {
   mushroomPatches: MushroomPatchSpot[];
   petalSpots: PetalSpot[];
   update(time: number, cameraPosition: Vector3, uv: boolean, carriedPollen?: CarriedPollen): void;
+  /** Dry pool beds to paint as cracked clay (see ground-paint.ts). */
+  setHollows(hollows: readonly { x: number; z: number; radius: number; amount: number }[]): void;
   dispose(): void;
 }
 export interface SummerPreview {

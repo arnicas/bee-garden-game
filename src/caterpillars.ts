@@ -187,7 +187,7 @@ export function createCaterpillars(scene: THREE.Scene, seed: number, shelters: r
       for (const c of crawlers) { c.seen = false; c.angle = c.start.angle; c.target = c.angle; c.state = 'eating'; c.bites = c.start.bites.map(b => ({ ...b })); writeBites(c); }
     },
     diagnostics() {
-      return { count: crawlers.length, bites: crawlers.reduce((n, c) => n + c.bites.length, 0), biteArea: crawlers.reduce((a, c) => a + c.bites.reduce((s, b) => s + b.radius * b.radius, 0), 0), eating: crawlers.filter(c => c.state === 'eating').length, seen: crawlers.filter(c => c.seen).length };
+      return { leaves: crawlers.map(c => c.leafId), count: crawlers.length, bites: crawlers.reduce((n, c) => n + c.bites.length, 0), biteArea: crawlers.reduce((a, c) => a + c.bites.reduce((s, b) => s + b.radius * b.radius, 0), 0), eating: crawlers.filter(c => c.state === 'eating').length, seen: crawlers.filter(c => c.seen).length };
     },
     dispose(): void {
       for (const c of crawlers) for (let k = 0; k < MAX_BITES; k++) bites[c.leafId * MAX_BITES + k].set(0, 0, 0, 0);

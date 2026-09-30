@@ -151,6 +151,8 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
   let moisture = .5;
   /** 0–1: how bare and patchy the meadow is. Pools in open ground dry faster. */
   let bare = 0;
+  /** How many dry pool beds the ground shows (for diagnostics). */
+  let shownHollows = 0;
   const canFill = (i: number) => seedData[i] < .35 + moisture * 1.3;
   const matrix = new THREE.Matrix4(), turn = new THREE.Quaternion(), at = new THREE.Vector3(), size = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   const clear = new THREE.Color('#d4e4ec'), grey = new THREE.Color('#c3ccd0');
@@ -208,6 +210,17 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
     /** The summer's ground moisture: how many pools can fill, and how fast they fill and dry. */
     setMoisture(value: number) { moisture = THREE.MathUtils.clamp(value, 0, 1); },
     setBare(value: number) { bare = THREE.MathUtils.clamp(value, 0, 1); },
+    /** Pool beds with no water, for the ground to paint as dry, cracked hollows: a
+     * pool that can't fill this summer always (more so the drier it is); one that
+     * can, only once it has dried out in a dry summer. None in an ordinary one. */
+    hollows(dry: number) {
+      const beds = spots.map((spot, i) => {
+        const empty = 1 - THREE.MathUtils.smoothstep(fill[i], .02, .2);
+        return { x: spot.x, z: spot.z, radius: spot.radius * 1.15, amount: empty * (canFill(i) ? dry * .7 : Math.max(.6, dry)) };
+      });
+      shownHollows = beds.filter(b => b.amount > .01).length;
+      return beds;
+    },
     /** Morning groundwater from the ground's moisture: pools start part full, the
      * deeper ones more; off clears it (the pools hold only rain). */
     setSprings(on: boolean) {
@@ -218,7 +231,7 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
       }
       pose();
     },
-    diagnostics: () => ({ canFill: spots.filter((_, i) => canFill(i)).length, count: spots.length, visible: mesh.visible, wet: Array.from(fill).filter(f => f > .05).length, springs: Array.from(spring, f => Math.round(f * 100) / 100), fill: Array.from(fill, f => Math.round(f * 100) / 100) }),
+    diagnostics: () => ({ canFill: spots.filter((_, i) => canFill(i)).length, count: spots.length, visible: mesh.visible, wet: Array.from(fill).filter(f => f > .05).length, hollows: shownHollows, springs: Array.from(spring, f => Math.round(f * 100) / 100), fill: Array.from(fill, f => Math.round(f * 100) / 100) }),
     dispose() { scene.remove(mesh, glints); geometry.dispose(); material.dispose(); mesh.dispose(); glintGeometry.dispose(); glintMaterial.dispose(); },
   };
 }
