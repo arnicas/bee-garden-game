@@ -198,6 +198,7 @@ Each step is playable on its own.
    the start-page line.
 3. **Flowers and friends respond.** Daisy droop and browning; species multipliers in
    `meadow-plan.ts`; bolder friend counts by moisture. Update the summers tests.
+   (Done 2026-09-30; see TODO.md.)
 4. **Water in play.** Shade from grass scales with density; pools shrink in heat;
    the hive's water request on hot days, filling the jar blue; results lines.
 5. **Scenario mode.** Start-screen button and card; scenario line; the summers chart

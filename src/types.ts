@@ -22,6 +22,10 @@ export interface Flower {
   /** Cornflowers: the mouths of the disc florets that hold nectar, in the head's
    * local frame (scaled to the flower). Empty for daisies and poppies. */
   nectarSpots: Vector3[];
+  /** Daisies in a dry summer: 0–1, how far the head nods over (0 upright). */
+  droop: number;
+  /** Daisies in a dry summer: petals going brown. */
+  browned: boolean;
 }
 /** A low spot where rain pools: a small clearing in the grass. */
 export interface PuddleSpot { x: number; z: number; radius: number }

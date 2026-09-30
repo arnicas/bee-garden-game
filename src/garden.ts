@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createMeadow, FIXED_FLOWERS, grassRainCover, meadowGroundHeight, rng } from './world';
-import { countSpecies, friendCounts, meadowDryness, nextBadSummers, nextCounts, planNextSummer, type DayOutcome, type FlowerSpot, type PastFlower, type SpeciesCounts, type SummerPlan } from './meadow-plan';
+import { countSpecies, friendCounts, meadowDryness, moistureShift, nextBadSummers, nextCounts, planNextSummer, type DayOutcome, type FlowerSpot, type PastFlower, type SpeciesCounts, type SummerPlan } from './meadow-plan';
 import { butterflyChangeLine, snailChangeLine, dayReport, flowerLessonLine, friendsChangeLine, queenLine, type DayReport, type SummerOutcome } from './day-report';
 import { createUI } from './ui';
 import { createBeeRig } from './bee';
@@ -27,7 +27,7 @@ import { createEnergyWash } from './energy-wash';
 import { createRainSplash } from './rain-splash';
 import { createPuddles } from './puddles';
 import { createSeededRandom } from './utils/random';
-import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type NightWeather, type WeatherPlan, moistureLine, nextMoisture, rollSeason, seasonNote, type Season } from './weather';
+import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type NightWeather, type WeatherPlan, moistureFriendsLine, moistureLine, nextMoisture, rollSeason, seasonNote, type Season } from './weather';
 import { edgeExposureAt, flightWindAt, MEADOW_EDGE_FULL, setWindGale, setWindVariation, surfaceHeight } from './wind';
 import type { Flower, GameUI, Meadow, Phase, Species, ViewState } from './types';
 
@@ -85,7 +85,7 @@ interface TestControl {
   /** Landed on a cornflower: steps to just behind floret i, facing it. */
   walkToFloret(index: number): void;
   setCargo(nectar: number, pollen: number, energy?: number): void;
-  flowers(): { id: number; species: Species; center: number[]; base: number[]; rotation: number[]; velocity: number[]; height: number; radius: number; pollenFraction: number; visiblePollen: number; pollenMatch: boolean }[];
+  flowers(): { id: number; species: Species; center: number[]; base: number[]; rotation: number[]; velocity: number[]; height: number; radius: number; pollenFraction: number; visiblePollen: number; pollenMatch: boolean; droop: number; browned: boolean }[];
   setDayProgress(value: number): void;
   setEndingTime(value: number): void;
   setChill(value: number): void;
@@ -454,16 +454,16 @@ export class Garden {
     this.rainFX = createRain(this.scene);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
     this.webs = createWebs(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
-    this.ladybirds = createLadybirds(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters, this.meadow.antNests.map(n => n.flowerId));
+    this.ladybirds = createLadybirds(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters, this.meadow.antNests.map(n => n.flowerId), this.groundMoisture);
     this.ants = createAnts(this.scene, this.seed, this.meadow.flowers, this.meadow.antNests, this.ladybirds.aphids);
-    this.ants.setRaidLimit(this.antRaidsOn ? 2 + meadowDryness(countSpecies(this.meadow.flowers)) * 2 : 0);
+    this.ants.setRaidLimit(this.antRaidsOn ? 2 + meadowDryness(countSpecies(this.meadow.flowers)) * 2 + moistureShift(this.groundMoisture).dry * 2 : 0);
     this.mushrooms = createMushrooms(this.scene, this.seed, this.meadow.fairyRings, this.meadow.mushroomPatches);
     this.petals = createPetals(this.scene, this.seed, this.meadow.flowers, this.meadow.petalSpots);
-    this.caterpillars = createCaterpillars(this.scene, this.seed, this.leafShelters.shelters);
-    this.butterflies = createButterflies(this.scene, this.seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers)).butterflies, this.leafShelters.shelters);
+    this.caterpillars = createCaterpillars(this.scene, this.seed, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).caterpillars);
+    this.butterflies = createButterflies(this.scene, this.seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).butterflies, this.leafShelters.shelters);
     this.puddles = createPuddles(this.scene, this.meadow.puddles); this.puddles.setMoisture(this.groundMoisture);
-    this.snails = createSnails(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers)).snails, this.meadow.puddles, this.meadow.mushroomPatches);
-    this.snailDryness = meadowDryness(countSpecies(this.meadow.flowers));
+    this.snails = createSnails(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).snails, this.meadow.puddles, this.meadow.mushroomPatches);
+    this.snailDryness = THREE.MathUtils.clamp(meadowDryness(countSpecies(this.meadow.flowers)) + moistureShift(this.groundMoisture).dry * .8, 0, 1);
     this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
     this.bee = createBeeRig(this.camera);
     this.energyWash = createEnergyWash(this.scene);
@@ -541,16 +541,16 @@ export class Garden {
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
     this.webs = createWebs(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
-    this.ladybirds = createLadybirds(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters, this.meadow.antNests.map(n => n.flowerId));
+    this.ladybirds = createLadybirds(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters, this.meadow.antNests.map(n => n.flowerId), this.groundMoisture);
     this.ants = createAnts(this.scene, seed, this.meadow.flowers, this.meadow.antNests, this.ladybirds.aphids);
-    this.ants.setRaidLimit(this.antRaidsOn ? 2 + meadowDryness(countSpecies(this.meadow.flowers)) * 2 : 0);
+    this.ants.setRaidLimit(this.antRaidsOn ? 2 + meadowDryness(countSpecies(this.meadow.flowers)) * 2 + moistureShift(this.groundMoisture).dry * 2 : 0);
     this.mushrooms = createMushrooms(this.scene, seed, this.meadow.fairyRings, this.meadow.mushroomPatches);
     this.petals = createPetals(this.scene, seed, this.meadow.flowers, this.meadow.petalSpots);
-    this.caterpillars = createCaterpillars(this.scene, seed, this.leafShelters.shelters);
-    this.butterflies = createButterflies(this.scene, seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers)).butterflies, this.leafShelters.shelters);
+    this.caterpillars = createCaterpillars(this.scene, seed, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).caterpillars);
+    this.butterflies = createButterflies(this.scene, seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).butterflies, this.leafShelters.shelters);
     this.puddles = createPuddles(this.scene, this.meadow.puddles); this.puddles.setMoisture(this.groundMoisture);
-    this.snails = createSnails(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers)).snails, this.meadow.puddles, this.meadow.mushroomPatches);
-    this.snailDryness = meadowDryness(countSpecies(this.meadow.flowers));
+    this.snails = createSnails(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).snails, this.meadow.puddles, this.meadow.mushroomPatches);
+    this.snailDryness = THREE.MathUtils.clamp(meadowDryness(countSpecies(this.meadow.flowers)) + moistureShift(this.groundMoisture).dry * .8, 0, 1);
     this.homecoming = createHomecoming(this.scene, this.meadow.flowers, HOME);
     this.resetSupply(); this.landed = null; this.landingAssist = null;
   }
@@ -572,7 +572,7 @@ export class Garden {
   }
   private advanceSummer(seed = randomSeed()): SummerPlan {
     const past = this.pastFlowers();
-    const plan = planNextSummer({ fixed: past.slice(0, FIXED_FLOWERS), seeded: past.slice(FIXED_FLOWERS), badSummers: this.badSummers, random: rng(seed) });
+    const plan = planNextSummer({ fixed: past.slice(0, FIXED_FLOWERS), seeded: past.slice(FIXED_FLOWERS), badSummers: this.badSummers, random: rng(seed), moisture: this.groundMoisture });
     this.badSummers = plan.badSummers; this.meadowGaps = plan.gaps;
     this.lastSummerCounts = countSpecies(past); this.lastSummerLadybirds = this.ladybirds.diagnostics().count; this.lastSummerButterflies = this.butterflies.diagnostics().count; this.lastSummerSnails = this.snails.diagnostics().count;
     this.lastSummerPollinated = countSpecies(past.filter(f => f.pollinated));
@@ -585,7 +585,7 @@ export class Garden {
     const after = countSpecies(this.meadow.flowers);
     return {
       summer: this.summerNumber, flowersLine: [moistureLine(this.groundMoisture), flowerLessonLine(this.lastSummerPollinated, this.lastSummerCounts, after)].filter(Boolean).join(' '), pollinated: this.lastSummerPollinated, before: this.lastSummerCounts, after,
-      friendsLine: [friendsChangeLine(this.lastSummerCounts, after), butterflyChangeLine(this.lastSummerCounts, after), snailChangeLine(this.lastSummerCounts, after)].filter(Boolean).join(' '), aphidsBefore: friendCounts(this.lastSummerCounts).aphidClusters, aphidsAfter: this.ladybirds.aphids.length,
+      friendsLine: moistureFriendsLine(this.groundMoisture) || [friendsChangeLine(this.lastSummerCounts, after), butterflyChangeLine(this.lastSummerCounts, after), snailChangeLine(this.lastSummerCounts, after)].filter(Boolean).join(' '), aphidsBefore: friendCounts(this.lastSummerCounts).aphidClusters, aphidsAfter: this.ladybirds.aphids.length,
       ladybirdsBefore: this.lastSummerLadybirds, ladybirdsAfter: this.ladybirds.diagnostics().count,
       butterfliesBefore: this.lastSummerButterflies, butterfliesAfter: this.butterflies.diagnostics().count,
       snailsBefore: this.lastSummerSnails, snailsAfter: this.snails.diagnostics().count,
@@ -595,9 +595,11 @@ export class Garden {
   private summerPreview(): ViewState['summerPreview'] {
     const past = this.pastFlowers(), fixed = countSpecies(past.slice(0, FIXED_FLOWERS));
     const pollinated = countSpecies(past.filter(f => f.pollinated));
-    const seeded = nextCounts(countSpecies(past.slice(FIXED_FLOWERS)), pollinated, nextBadSummers(this.badSummers, pollinated));
+    // The ground moisture next summer will have, once today's weather is counted.
+    const ground = nextMoisture(this.groundMoisture, this.weatherPlan);
+    const seeded = nextCounts(countSpecies(past.slice(FIXED_FLOWERS)), pollinated, nextBadSummers(this.badSummers, pollinated), ground);
     const next = { daisy: seeded.daisy + fixed.daisy, poppy: seeded.poppy + fixed.poppy, cornflower: seeded.cornflower + fixed.cornflower };
-    return { now: countSpecies(past), next, ladybirds: this.ladybirds.diagnostics().count, nextLadybirds: friendCounts(next).ladybirds, lastSummerLadybirds: this.lastSummerLadybirds };
+    return { now: countSpecies(past), next, ladybirds: this.ladybirds.diagnostics().count, nextLadybirds: friendCounts(next, ground).ladybirds, lastSummerLadybirds: this.lastSummerLadybirds };
   }
 
   /** Each day gets its own showers, hot spell and wind timing and direction. */
@@ -2111,7 +2113,7 @@ export class Garden {
       nectar: id => this.supplies.get(id)?.nectar ?? 0,
       ladybirds: () => this.ladybirds.birds.map(b => ({ id: b.id, perch: b.perch, position: b.position.toArray(), up: b.up.toArray(), seen: b.seen })),
       setWebs: enabled => { this.websEnabled = enabled; this.webs.setVisible(enabled); if (!enabled) this.caughtWeb = null; },
-      flowers: () => this.meadow.flowers.map(f => ({ id: f.id, species: f.species, center: f.center.toArray(), base: f.base.toArray(), rotation: f.rotation.toArray(), velocity: f.velocity.toArray(), height: f.height, radius: f.radius, pollenFraction: f.pollenFraction, visiblePollen: f.pollen.count, pollenMatch: f.pollenMatch })),
+      flowers: () => this.meadow.flowers.map(f => ({ id: f.id, species: f.species, center: f.center.toArray(), base: f.base.toArray(), rotation: f.rotation.toArray(), velocity: f.velocity.toArray(), height: f.height, radius: f.radius, pollenFraction: f.pollenFraction, visiblePollen: f.pollen.count, pollenMatch: f.pollenMatch, droop: f.droop, browned: f.browned })),
     };
   }
   private leafWet = 0;

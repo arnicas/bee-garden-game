@@ -27,6 +27,22 @@ for (const [name, moisture] of [['dry', .1], ['wet', .9]] as const) {
     await page.goto(`/?test&drops&moisture=${moisture}`);
     await startFlyingFixture(page);
     expect((await state(page)).moisture).toBeCloseTo(moisture, 5);
+    // Flowers and friends: daisies droop and brown in the dry; the wet is a snail-and-mushroom summer.
+    const flowers = await page.evaluate(() => window.__BEE_TEST__!.flowers());
+    const daisies = flowers.filter(f => f.species === 'daisy' && f.id !== 0), s = await state(page);
+    if (name === 'dry') {
+      expect(daisies.filter(f => f.droop > .3).length).toBeGreaterThan(daisies.length / 2);
+      expect(daisies.some(f => f.browned)).toBe(true);
+      expect(s.mushrooms.mushrooms).toBe(0);
+      expect(s.ants.colonies).toBeGreaterThanOrEqual(5);
+      expect(s.snails.count).toBeLessThanOrEqual(6);
+    } else {
+      expect(flowers.every(f => f.droop === 0 && !f.browned)).toBe(true);
+      expect(s.mushrooms.rings).toBeGreaterThanOrEqual(6);
+      expect(s.ants.colonies).toBeLessThanOrEqual(3);
+      expect(s.snails.count).toBeGreaterThanOrEqual(16);
+      expect(s.caterpillars.count).toBeGreaterThanOrEqual(7);
+    }
     const water = (await state(page)).water.puddles;
     if (name === 'dry') expect(water.canFill).toBeLessThan(water.count * .7);
     else expect(water.canFill).toBe(water.count);

@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { AntNestSpot, CarriedPollen, FairyRingSpot, MushroomPatchSpot, PetalSpot, Flower, Meadow, PuddleSpot, Species } from './types';
 import { flowerFlex, flowerSwayAt, flowerSwayGLSL, windGLSL, windUniforms } from './wind';
 import { createGroundPaint } from './ground-paint';
-import { EVEN_MIX, type FlowerSpot, type SpeciesMix } from './meadow-plan';
+import { moistureMix, type FlowerSpot, type SpeciesMix } from './meadow-plan';
 
 /** Authored botanical geometry, in art units (one unit is about 10 cm).
  * Plant placement is immutable; head poses and a shared shader clock own wind.
@@ -267,11 +267,11 @@ function bendFlowerStems(material: THREE.Material, clock: { value: number }): vo
   };
   material.customProgramCacheKey = () => `${cacheKey}-rooted-flower-v1`;
 }
-function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, petals: boolean, bend: boolean, pollenPulse = { value: 0 }): THREE.MeshStandardMaterial {
+function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, petals: boolean, bend: boolean, pollenPulse = { value: 0 }, wilt = { value: 0 }): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.18 });
   material.onBeforeCompile = shader => {
     shader.uniforms.uMeadowTime = clock; shader.uniforms.uMeadowUV = uvMode; Object.assign(shader.uniforms, windUniforms);
-    shader.uniforms.uPollenPulse = pollenPulse;
+    shader.uniforms.uPollenPulse = pollenPulse; shader.uniforms.uPetalWilt = wilt;
     shader.vertexShader = 'uniform float uMeadowTime; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition; varying float vPoppyWash; varying float vCornflowerWash;\n' + windGLSL + '\n' + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBotanicalUv = uv; vCornflowerWash = step(4.0, uv.y); vPoppyWash = step(2.0, uv.y) - vCornflowerWash; vBotanicalUv.y -= vPoppyWash * 2.0 + vCornflowerWash * 4.0; vBotanicalPosition = position;');
     if (bend) shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `
@@ -288,7 +288,7 @@ function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, 
       mvPosition = modelViewMatrix * mvPosition;
       gl_Position = projectionMatrix * mvPosition;
     `);
-    shader.fragmentShader = `uniform float uMeadowUV; uniform float uPollenPulse; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition; varying float vPoppyWash; varying float vCornflowerWash;
+    shader.fragmentShader = `uniform float uMeadowUV; uniform float uPollenPulse; uniform float uPetalWilt; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition; varying float vPoppyWash; varying float vCornflowerWash;
       float botanicalHash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7))) * 43758.5453); }
       float botanicalNoise(vec2 p) {
         vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
@@ -332,6 +332,9 @@ function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, 
           float pool = smoothstep(0.56, 0.70, reach) - smoothstep(0.72, 0.88, reach);
           diffuseColor.rgb *= 1.0 - pool * 0.075 + (wash - 0.5) * 0.09;
         }
+        // A dry summer: the petals brown from the tips in, unevenly, like a pale wash drying out.
+        float wilted = smoothstep(0.3, 0.95, vBotanicalUv.y + (wash - 0.5) * 0.35) * uPetalWilt;
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.58, 0.40, 0.21), wilted);
         float guide = (1.0 - smoothstep(0.1, 0.42, vBotanicalUv.y)) * uMeadowUV;
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.39,0.10,0.64), guide * 0.82);
         // A gold wash stays readable on pale daisies as well as colored petals.
@@ -465,6 +468,10 @@ export const FIXED_FLOWERS = 6;
  * each summer's planned layout is planted (see planNextSummer). */
 /** Straw and lush tints for the grass (instance colours multiply the blade's green). */
 const STRAW = new THREE.Color(1.55, 1.2, .72), LUSH = new THREE.Color(.84, 1.04, .86), NO_TINT = new THREE.Color(1, 1, 1);
+/** Dried oat grass: stalks and seed heads gone rusty brown. */
+const SEEDED = new THREE.Color(1.06, .76, .5);
+/** How far a fully drooped daisy head nods over (radians). */
+const DROOP_ANGLE = .78;
 
 /** Builds the meadow. `moisture` (0 parched – 1 sodden, .5 ordinary) is the ground
  * water carried over from summer to summer: a dry meadow has shorter, thinner,
@@ -478,7 +485,10 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   const visitedPetalMaterial = botanicalMaterial(clock, { value: 0 }, true, false);
   const pollenPulse = { value: 0 };
   const matchingPetalMaterial = botanicalMaterial(clock, uvMode, true, false, pollenPulse);
-  const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>([petalMaterial, visitedPetalMaterial, matchingPetalMaterial, plantMaterial, grassMaterial]);
+  // Dry summers: some daisies going brown (the same paint under a tan wash).
+  const wilt = { value: .9 };
+  const wiltedPetalMaterial = botanicalMaterial(clock, uvMode, true, false, { value: 0 }, wilt), wiltedVisitedMaterial = botanicalMaterial(clock, { value: 0 }, true, false, { value: 0 }, wilt);
+  const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>([petalMaterial, visitedPetalMaterial, matchingPetalMaterial, wiltedPetalMaterial, wiltedVisitedMaterial, plantMaterial, grassMaterial]);
   const stemDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   bendFlowerStems(plantMaterial, clock); bendFlowerStems(stemDepthMaterial, clock); materials.add(stemDepthMaterial);
   const keep = <T extends THREE.BufferGeometry>(g: T): T => { geometries.add(g); return g; };
@@ -524,6 +534,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   }
   const headDetail: number[] = [];
   const flowers: Flower[] = [], stems: THREE.Mesh[] = [], heights: number[] = [], twists: number[] = [];
+  const wiltRandom = rng(seed ^ 0xd7009), nods: (THREE.Quaternion | null)[] = [];
   function plant(species: Species, x: number, z: number, height: number, radius: number) {
     const id = flowers.length, base = new THREE.Vector3(x, heightAt(x, z), z), center = base.clone().add(new THREE.Vector3(0, height, 0));
     const group = new THREE.Group(); group.position.copy(center); group.name = `${species} ${id}`;
@@ -540,18 +551,25 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     stalkShape.setAttribute('stemShape', new THREE.BufferAttribute(shapeData, 2));
     stalkShape.boundingSphere!.radius += height * .32;
     const stalk = new THREE.Mesh(stalkShape, plantMaterial); stalk.position.copy(base); stalk.receiveShadow = true; stalk.customDepthMaterial = stemDepthMaterial; root.add(stalk);
-    const flower: Flower = { id, species, base, center, height, stalk: stalkCurve(height, id * 1.728), velocity: new THREE.Vector3(), radius, group, pollen, pollenFraction: 1, visited: false, pollenMatch: false, rotation: new THREE.Quaternion(), nectarSpots: head.nectarSpots.map(p => p.clone().multiplyScalar(radius)) };
+    // Dry summers: daisies droop, the head nodding over on its stem, and some go
+    // brown. Not the opening daisy, where the bee starts.
+    const nodRoll = wiltRandom(), brownRoll = wiltRandom(), nodYaw = wiltRandom() * TAU;
+    const droop = species === 'daisy' && id !== 0 ? dry * (.3 + .7 * nodRoll) : 0, browned = species === 'daisy' && id !== 0 && brownRoll < dry * .55;
+    nods.push(droop > .02 ? new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(Math.cos(nodYaw), 0, Math.sin(nodYaw)), droop * DROOP_ANGLE) : null);
+    const flower: Flower = { id, species, base, center, height, stalk: stalkCurve(height, id * 1.728), velocity: new THREE.Vector3(), radius, group, pollen, pollenFraction: 1, visited: false, pollenMatch: false, rotation: new THREE.Quaternion(), nectarSpots: head.nectarSpots.map(p => p.clone().multiplyScalar(radius)), droop, browned };
     flowers.push(flower); updatePollen(flower, 0);
     stems.push(stalk); heights.push(height); twists.push(random() * TAU); headDetail.push(0);
   }
   plant('daisy', 0, -3.5, 3.4, 1.03); plant('poppy', 3, -7, 4.2, 1.05); plant('cornflower', -3, -6, 3.8, 0.98);
   // Deliberately composed near blooms, then seeded, spaced habitat records.
   plant('poppy', -3.7, -1.4, 3.0, 0.9); plant('daisy', 4.7, -0.8, 3.45, 0.86); plant('cornflower', 2.8, -11.5, 4.9, 0.89);
+  const mix = moistureMix(moisture);
   if (spots) for (const spot of spots) plant(spot.species, spot.x, spot.z, spot.height, spot.radius);
+  // The first summer's mix leans with the ground (even when ordinary, which keeps each seed's layout).
   else for (let attempt = 0; flowers.length < 72 && attempt < 6000; attempt++) {
     const angle = random() * TAU, radius = 5.8 + Math.sqrt(random()) * 17.5, x = Math.cos(angle) * radius, z = Math.sin(angle) * radius - 3;
     if (flowers.some(f => Math.hypot(f.base.x - x, f.base.z - z) < 2.05)) continue;
-    const species = pickSpecies(random(), EVEN_MIX);
+    const species = pickSpecies(random(), mix);
     plant(species, x, z, 2.8 + random() * 2.1, 0.68 + random() * 0.36);
   }
   const terrain = keep(new THREE.PlaneGeometry(180, 180, 96, 96)); terrain.rotateX(-Math.PI / 2);
@@ -591,7 +609,8 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   const antRandom = rng(seed ^ 0xa11ce);
   const antHosts = flowers.filter(f => f.id !== 0 && f.species !== 'daisy' && Math.hypot(f.base.x, f.base.z + 3) < 19);
   const firstHost = antHosts.reduce<Flower | null>((best, f) => !best || Math.hypot(f.base.x + 2, f.base.z) < Math.hypot(best.base.x + 2, best.base.z) ? f : best, null);
-  for (let tries = 0; antNests.length < 4 && tries < 40 && antHosts.length; tries++) {
+  const nestsWanted = Math.round(4 + 2 * dry - wet);
+  for (let tries = 0; antNests.length < nestsWanted && tries < (nestsWanted > 4 ? 60 : 40) && antHosts.length; tries++) {
     const f = tries === 0 && firstHost ? firstHost : antHosts[Math.floor(antRandom() * antHosts.length)];
     if (antNests.some(n => n.flowerId === f.id)) continue;
     for (let attempt = 0; attempt < 14; attempt++) {
@@ -610,7 +629,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   const ringRandom = rng(seed ^ 0xfa1e7);
   // Only one full ring: they're a rare find. Most mushrooms come up as a few
   // together at the damp edge of a rain pool (below).
-  for (let attempt = 0; fairyRings.length < 1 && attempt < 600; attempt++) {
+  for (let attempt = 0; fairyRings.length < (dry > .6 ? 0 : 1) && attempt < 600; attempt++) {
     const first = false;
     const a = ringRandom() * TAU, r = first ? 3.5 + ringRandom() * 3.5 : 5 + Math.sqrt(ringRandom()) * 14, radius = .7 + ringRandom() * .6;
     const x = Math.cos(a) * r, z = Math.sin(a) * r - (first ? 0 : 3);
@@ -644,13 +663,14 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   // Grass blades lean up to about .3 from their roots, so the patch is wider than a petal.
   const onPetal = (x: number, z: number) => petalSpots.some(p => (x - p.x) ** 2 + (z - p.z) ** 2 < .55 ** 2);
   const mushroomPatches: MushroomPatchSpot[] = [];
+  const clumpChance = .45 * (1 - dry) + .45 * wet;
   for (const p of puddles) {
-    if (ringRandom() > .45) continue;
+    if (ringRandom() > clumpChance) continue;
     const a = ringRandom() * TAU, d = p.radius * 1.12 + .45 + ringRandom() * .15;
     const x = p.x + Math.cos(a) * d, z = p.z + Math.sin(a) * d;
     if (flowers.some(f => Math.hypot(f.base.x - x, f.base.z - z) < .35)) continue;
     if (antNests.some(n => Math.hypot(n.x - x, n.z - z) < .6)) continue;
-    mushroomPatches.push({ x, z, count: 3 + Math.floor(ringRandom() * 4) });
+    mushroomPatches.push({ x, z, count: 3 + Math.floor(ringRandom() * (4 + 3 * wet)) });
   }
   /** In the band of short grass along a fairy ring. */
   const inFairyRing = (x: number, z: number, margin: number) => fairyRings.some(q => Math.abs(Math.hypot(x - q.x, z - q.z) - q.radius) < margin);
@@ -717,11 +737,15 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
         cover.setColorAt(i,tint);
       }
       cover.instanceMatrix.needsUpdate=true;cover.computeBoundingSphere();cover.boundingSphere!.radius+=0.5;root.add(cover);pages.push({mesh:cover,x:px,z:pz,range:40});
-      const oatCount=4, oats=new THREE.InstancedMesh(oatGeometry,grassMaterial,oatCount);oats.name=`oat panicles ${gx}:${gz}`;
+      // A dry summer: more of the grass has gone to seed, and it has dried brown.
+      const oatCount=4+Math.round(dry*4), oats=new THREE.InstancedMesh(oatGeometry,grassMaterial,oatCount);oats.name=`oat panicles ${gx}:${gz}`;
       for(let i=0;i<oatCount;i++) {
         let x=px+(coverRandom()-0.5)*9;const z=pz+(coverRandom()-0.5)*9;
         if(Math.abs(x)<1.7&&z>-4.5&&z<5.5)x+=(x<0?-1:1)*2.1;
         dummy.position.set(x,heightAt(x,z),z);dummy.rotation.set(0,coverRandom()*TAU,0);dummy.scale.setScalar(0.75+coverRandom()*0.3);dummy.updateMatrix();oats.setMatrixAt(i,dummy.matrix);
+        const oatDry = dry * (.75 + .25 * waterRandom());
+        tint.copy(NO_TINT).lerp(SEEDED, oatDry).multiply(shade.copy(NO_TINT).lerp(LUSH, wet));
+        oats.setColorAt(i,tint);
       }
       oats.instanceMatrix.needsUpdate=true;oats.computeBoundingSphere();oats.boundingSphere!.radius+=1;root.add(oats);pages.push({mesh:oats,x:px,z:pz,range:44});
     }
@@ -747,13 +771,15 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       flower.center.copy(flower.base).add(offset); flower.center.y += h;
       tipDirection.set(offset.x * 2, h + offset.y * 2, offset.z * 2).normalize();
       twistRotation.setFromAxisAngle(UP, twists[i]);
-      flower.rotation.setFromUnitVectors(UP, tipDirection).multiply(twistRotation);
+      flower.rotation.setFromUnitVectors(UP, tipDirection);
+      if (nods[i]) flower.rotation.multiply(nods[i]!);
+      flower.rotation.multiply(twistRotation);
       flower.group.position.copy(flower.center); flower.group.quaternion.copy(flower.rotation);
       const distance = flower.center.distanceTo(cameraPosition), visible = distance < 48;
       flower.group.visible = visible; stems[i].visible = visible;
       const flowerMesh = flower.group.children[0] as THREE.Mesh;
       flower.pollenMatch = uv && !flower.visited && (carriedPollen?.[flower.species] ?? 0) > .01;
-      flowerMesh.material = flower.visited ? visitedPetalMaterial : flower.pollenMatch ? matchingPetalMaterial : petalMaterial;
+      flowerMesh.material = flower.visited ? (flower.browned ? wiltedVisitedMaterial : visitedPetalMaterial) : flower.pollenMatch ? matchingPetalMaterial : flower.browned ? wiltedPetalMaterial : petalMaterial;
       // 3.5-unit hysteresis prevents repeated toggling while hovering in gusts.
       const nextDetail = aerial ? 2 : headDetail[i] === 0 ? (distance > 17 ? 1 : 0) : (distance < 13.5 ? 0 : 1);
       if (nextDetail !== headDetail[i]) {

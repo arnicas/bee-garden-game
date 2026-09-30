@@ -36,14 +36,14 @@ const BODY_RADIUS = .017;
 const MAX_BITES = 3, BITE_START = .035, BITE_MAX = .15, EAT_RATE = .0011;
 const VISIBLE_RANGE = 11;
 
-export function createCaterpillars(scene: THREE.Scene, seed: number, shelters: readonly LeafShelter[]) {
+export function createCaterpillars(scene: THREE.Scene, seed: number, shelters: readonly LeafShelter[], count = 5) {
   const random = rng((seed ^ 0xca7e) >>> 0 || 19);
   const bites = leafUniforms.uLeafBites.value;
   const crawlers: Crawler[] = [];
   const leaves = shelters;
-  // Five leaves have one each, chosen by the seed.
+  // A few leaves have one each, chosen by the seed (five normally, more when the leaves are lush).
   const chosen = new Set<number>();
-  while (chosen.size < Math.min(5, leaves.length)) chosen.add(Math.floor(random() * leaves.length));
+  while (chosen.size < Math.min(count, leaves.length)) chosen.add(Math.floor(random() * leaves.length));
   for (const index of chosen) {
     const leaf = leaves[index];
     const side: 1 | -1 = random() < .5 ? 1 : -1;

@@ -63,11 +63,12 @@ const STEM_RADIUS = .03;
 const VISIBLE_RANGE = 14;
 const SHY_DISTANCE = .6;
 
-export function createLadybirds(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[], tended: readonly number[] = []) {
+export function createLadybirds(scene: THREE.Scene, seed: number, flowers: readonly Flower[], leaves: readonly LeafShelter[], tended: readonly number[] = [], moisture = .5) {
   const random = rng((seed ^ 0x1adb1d) >>> 0 || 11);
   const stems = flowers.filter(f => f.id !== 0);
   // Fewer poppies and cornflowers mean fewer aphids; fewer aphids and daisies, fewer ladybirds.
-  const { aphidClusters, ladybirds: birdCount } = friendCounts(countSpecies(flowers));
+  // Dry summers: aphids boom and more ladybirds follow; rain knocks aphids off.
+  const { aphidClusters, ladybirds: birdCount } = friendCounts(countSpecies(flowers), moisture);
   const birds: Bird[] = [];
   for (let id = 0; id < birdCount && stems.length; id++) {
     const roll = random();

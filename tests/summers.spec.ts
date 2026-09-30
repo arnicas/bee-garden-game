@@ -61,7 +61,7 @@ test('seedlings grow around the flowers that set seed, blow across the meadow, a
 });
 
 test('aphids and ladybirds follow the flowers', () => {
-  expect(friendCounts(counts(24, 24, 24))).toEqual({ aphidClusters: 14, ladybirds: 18, butterflies: 8, snails: 12 });
+  expect(friendCounts(counts(24, 24, 24))).toEqual({ aphidClusters: 14, ladybirds: 18, butterflies: 8, snails: 12, caterpillars: 5 });
   const thin = friendCounts(counts(18, 9, 4));
   expect(thin.aphidClusters).toBeLessThan(6);
   expect(thin.ladybirds).toBeLessThan(11);
@@ -116,4 +116,20 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   await expect(page.locator('[data-text="summer-delta-poppy"]')).toHaveText(/^[+−]\d+$|^same$/);
   await page.screenshot({ path: 'artifacts/summers-1/start-page.png' });
   expect(errors).toEqual([]);
+});
+
+test('ground moisture nudges the flowers and boldly changes the friends', () => {
+  const normal = counts(22, 22, 22), some = counts(2, 3, 3);
+  const mid = nextCounts(normal, some, none), dry = nextCounts(normal, some, none, .1), wet = nextCounts(normal, some, none, .9);
+  expect(nextCounts(normal, some, none, .5)).toEqual(mid);
+  // Poppies like dry, open ground; the daisies suffer in drought and do well in the wet.
+  expect(dry.poppy).toBeGreaterThan(mid.poppy); expect(dry.daisy).toBeLessThan(mid.daisy);
+  expect(wet.poppy).toBeLessThan(mid.poppy); expect(wet.daisy).toBeGreaterThan(mid.daisy);
+  // The bee still leads: a small nudge, not a swing.
+  expect(Math.abs(dry.poppy - mid.poppy)).toBeLessThanOrEqual(6);
+  const full = counts(24, 24, 24), d = friendCounts(full, .1), w = friendCounts(full, .9);
+  expect(w.snails).toBeGreaterThanOrEqual(d.snails * 3);
+  expect(d.aphidClusters).toBeGreaterThan(14); expect(d.ladybirds).toBeGreaterThan(18);
+  expect(w.aphidClusters).toBeLessThan(14); expect(w.butterflies).toBeLessThan(d.butterflies);
+  expect(w.caterpillars).toBeGreaterThan(d.caterpillars);
 });

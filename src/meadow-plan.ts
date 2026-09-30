@@ -60,6 +60,27 @@ export const MEADOW_PLAN = {
 const zero = (): SpeciesCounts => ({ daisy: 0, poppy: 0, cornflower: 0 });
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/** How far ground moisture (0 parched – 1 sodden, .5 ordinary) is from ordinary,
+ * each side 0–1. The meadow's look (world.ts) uses the same scale. */
+export function moistureShift(moisture = .5): { dry: number; wet: number } {
+  return { dry: clamp((.5 - moisture) / .4, 0, 1), wet: clamp((moisture - .5) / .4, 0, 1) };
+}
+/** Each kind's multiplier at full dry and full wet (see Seasons_Design.md).
+ * Poppies and cornflowers are annuals of open, well-drained ground; the oxeye
+ * daisy is a grassland perennial that suffers in drought. Small, so the bee's
+ * pollination still leads. */
+export const MOISTURE_SPECIES: Readonly<Record<Species, { dry: number; wet: number }>> = {
+  daisy: { dry: .8, wet: 1.15 }, poppy: { dry: 1.25, wet: .8 }, cornflower: { dry: 1.1, wet: 1 },
+};
+export function moistureFactor(species: Species, moisture = .5): number {
+  const { dry, wet } = moistureShift(moisture), k = MOISTURE_SPECIES[species];
+  return 1 + (k.dry - 1) * dry + (k.wet - 1) * wet;
+}
+/** The first summer's mix for this ground (even when ordinary). */
+export function moistureMix(moisture = .5): SpeciesMix {
+  return { daisy: moistureFactor('daisy', moisture), poppy: moistureFactor('poppy', moisture), cornflower: moistureFactor('cornflower', moisture) };
+}
+
 /** What a finished day leaves behind for the next one. */
 export interface DayOutcome {
   pollinatedBySpecies: SpeciesCounts;
@@ -90,16 +111,17 @@ export function nextBadSummers(previous: SpeciesCounts, pollinated: SpeciesCount
 /** How many seeded flowers of each kind grow next summer.
  * @param seeded this summer's seeded flowers (not the six opening ones)
  * @param pollinated flowers pollinated this summer, opening ones included
- * @param badSummers streaks after this summer (see nextBadSummers) */
-export function nextCounts(seeded: SpeciesCounts, pollinated: SpeciesCounts, badSummers: SpeciesCounts): SpeciesCounts {
+ * @param badSummers streaks after this summer (see nextBadSummers)
+ * @param moisture next summer's ground moisture, which nudges each kind (moistureFactor) */
+export function nextCounts(seeded: SpeciesCounts, pollinated: SpeciesCounts, badSummers: SpeciesCounts, moisture = .5): SpeciesCounts {
   const p = MEADOW_PLAN, out = zero();
   for (const s of SPECIES_ORDER) {
-    const helped = pollinated[s] ?? 0;
+    const helped = pollinated[s] ?? 0, ground = moistureFactor(s, moisture);
     if (ANNUAL[s]) {
       const streak = Math.min(3, badSummers[s] ?? 0);
-      out[s] = clamp(Math.round(p.normalEach * (p.annualBank[streak] + p.annualPerPollinated * helped)), p.annualMinimum[streak], p.maxEach);
+      out[s] = clamp(Math.round(p.normalEach * (p.annualBank[streak] + p.annualPerPollinated * helped) * ground), p.annualMinimum[streak], p.maxEach);
     } else {
-      const factor = Math.min(p.perennialMaxGrowth, p.perennialShrink + p.perennialPerPollinated * helped);
+      const factor = Math.min(p.perennialMaxGrowth, p.perennialShrink + p.perennialPerPollinated * helped) * ground;
       out[s] = clamp(Math.round((seeded[s] ?? 0) * factor), p.perennialMinimum, p.maxEach);
     }
   }
@@ -108,20 +130,26 @@ export function nextCounts(seeded: SpeciesCounts, pollinated: SpeciesCounts, bad
   return out;
 }
 
-/** Aphid clusters, ladybirds and butterflies for a meadow with these flower
- * counts (opening flowers included). A normal meadow has 14 clusters, 18
- * ladybirds, 8 butterflies and 12 snails. Butterflies want nectar only, so they follow the
- * daisies and cornflowers and leave a poppy-heavy meadow. */
-export function friendCounts(all: SpeciesCounts): { aphidClusters: number; ladybirds: number; butterflies: number; snails: number } {
-  const normal = MEADOW_PLAN.normalEach + MEADOW_PLAN.fixedEach;
+/** Aphid clusters, ladybirds, butterflies, snails and caterpillars for a meadow
+ * with these flower counts (opening flowers included) and ground moisture. A
+ * normal meadow in an ordinary summer has 14 clusters, 18 ladybirds, 8
+ * butterflies, 12 snails and 5 caterpillars. Butterflies want nectar only, so
+ * they follow the daisies and cornflowers and leave a poppy-heavy meadow.
+ * Moisture changes them boldly, so a summer's character shows within a minute:
+ * a dry one is an ant-and-ladybird summer (aphids boom, butterflies bask, snails
+ * seal up), a wet one a snail summer (rain knocks the aphids off, butterflies
+ * shelter, caterpillars find lush leaves). */
+export function friendCounts(all: SpeciesCounts, moisture = .5): { aphidClusters: number; ladybirds: number; butterflies: number; snails: number; caterpillars: number } {
+  const normal = MEADOW_PLAN.normalEach + MEADOW_PLAN.fixedEach, { dry, wet } = moistureShift(moisture);
   const hosts = (all.poppy ?? 0) + (all.cornflower ?? 0);
-  const aphidClusters = clamp(Math.round(14 * hosts / (2 * normal)), 2, 22);
-  const ladybirds = clamp(Math.round(18 * (.65 * aphidClusters / 14 + .35 * (all.daisy ?? 0) / normal)), 4, 26);
-  const butterflies = clamp(Math.round(8 * ((all.daisy ?? 0) + (all.cornflower ?? 0)) / (2 * normal)), 1, 14);
-  // Snails need the damp shade of a full meadow: 12 normally, fewer when it's thin.
+  const aphidClusters = clamp(Math.round(14 * hosts / (2 * normal) * (1 + .4 * dry - .35 * wet)), 2, 24);
+  const ladybirds = clamp(Math.round(18 * (.65 * aphidClusters / 14 + .35 * (all.daisy ?? 0) / normal)), 4, 28);
+  const butterflies = clamp(Math.round(8 * ((all.daisy ?? 0) + (all.cornflower ?? 0)) / (2 * normal) * (1 + .3 * dry - .4 * wet)), 1, 14);
+  // Snails need the damp shade of a full meadow: 12 normally, fewer when it's thin, and many more in a wet summer.
   const flowersTotal = (all.daisy ?? 0) + (all.poppy ?? 0) + (all.cornflower ?? 0);
-  const snails = clamp(Math.round(12 * flowersTotal / (3 * normal)), 4, 16);
-  return { aphidClusters, ladybirds, butterflies, snails };
+  const snails = clamp(Math.round(12 * flowersTotal / (3 * normal) * (1 - .55 * dry + .65 * wet)), 2, 20);
+  const caterpillars = Math.round(5 + 3 * wet - dry);
+  return { aphidClusters, ladybirds, butterflies, snails, caterpillars };
 }
 
 export interface SummerPlan {
@@ -136,11 +164,11 @@ export interface SummerPlan {
 /** Lays out next summer's meadow from this one.
  * @param fixed the six opening flowers (spacing only; pollinated ones also seed nearby)
  * @param seeded this summer's other flowers */
-export function planNextSummer(input: { fixed: readonly PastFlower[]; seeded: readonly PastFlower[]; badSummers: SpeciesCounts; random: () => number }): SummerPlan {
+export function planNextSummer(input: { fixed: readonly PastFlower[]; seeded: readonly PastFlower[]; badSummers: SpeciesCounts; random: () => number; moisture?: number }): SummerPlan {
   const { fixed, seeded, random } = input, p = MEADOW_PLAN;
   const pollinated = countSpecies([...fixed, ...seeded].filter(f => f.pollinated));
   const badSummers = nextBadSummers(input.badSummers, pollinated);
-  const counts = nextCounts(countSpecies(seeded), pollinated, badSummers);
+  const counts = nextCounts(countSpecies(seeded), pollinated, badSummers, input.moisture);
 
   const taken: { x: number; z: number }[] = fixed.map(f => ({ x: f.x, z: f.z }));
   const spots: FlowerSpot[] = [];

@@ -161,6 +161,12 @@ export function nextMoisture(moisture: number, plan: WeatherPlan): number {
 }
 
 /** One line for the summer start page, only when it isn't an ordinary summer. */
+/** How a dry or wet summer changes the meadow friends, or '' in an ordinary one. */
+export function moistureFriendsLine(moisture: number): string {
+  if (moisture < .3) return 'In the dry, ants and ladybirds thrive; the snails stay sealed up, and no mushrooms come up.';
+  if (moisture > .7) return 'In the damp, snails and mushrooms are everywhere and caterpillars feast; fewer butterflies are about.';
+  return '';
+}
 export function moistureLine(moisture: number): string {
   if (moisture < .3) return 'A dry summer: the grass has browned, and the pools are slow to fill.';
   if (moisture > .7) return 'A wet summer: the grass is tall and green, and the pools fill quickly.';
