@@ -152,15 +152,36 @@ export function weatherAt(daySeconds: number, out: MeadowWeather, plan: WeatherP
 /** How a finished day moves the meadow's ground moisture (0–1): rain and a wet
  * night raise it, heat and a dry night lower it, nearly half the way at most, so a
  * run of similar summers moves it a long way. See Seasons_Design.md. */
-export function nextMoisture(moisture: number, plan: WeatherPlan): number {
+export function nextMoisture(moisture: number, plan: WeatherPlan, cover = 1): number {
   const rainMinutes = plan.showers.reduce((sum, s) => sum + s.length, 0) / 60;
   const heatMinutes = Math.max(0, plan.heatEnd - plan.heatStart) / 60;
   const night = plan.night === 'wet' ? .25 : plan.night === 'dewy' ? .1 : -.15;
   const day = Math.max(-1, Math.min(1, rainMinutes / 4 + night - heatMinutes / 6));
-  return Math.max(0, Math.min(1, moisture + day * .45));
+  return Math.max(0, Math.min(1, moisture + day * .45 + coverMoisture(cover)));
+}
+
+/** How the meadow the bee leaves behind changes the ground's water over a summer.
+ * `cover` is next summer's flowers against a normal meadow (1): patchy, bare ground
+ * dries faster (a meadow half as full loses about .11 more), while a full one
+ * shades the soil and holds a little more. Smaller than the weather, so one poor
+ * day doesn't doom the meadow, but it adds up over summers. */
+export function coverMoisture(cover: number): number {
+  const c = MathUtils.clamp(cover, .3, 1.2);
+  return c < 1 ? -(1 - c) * .22 : (c - 1) * .2;
+}
+/** The meadow's cover as words, looking back (the start page) or ahead (the results), or ''. */
+export function coverLine(shift: number, ahead = false): string {
+  if (shift <= -.03) return ahead ? 'A patchy meadow will leave the ground drier.' : 'The meadow was patchy, so the ground dried out faster.';
+  if (shift >= .02) return ahead ? 'A full meadow will keep the ground damp.' : 'A full meadow kept the ground damp.';
+  return '';
 }
 
 /** One line for the summer start page, only when it isn't an ordinary summer. */
+/** A hot day: a long hot spell (about one ordinary day in five, most dry-summer
+ * days and every hot, dry one), when the hive needs water carried home to cool it. */
+export function hiveNeedsWater(plan: WeatherPlan): boolean {
+  return plan.heatEnd - plan.heatStart >= 185;
+}
 /** How a dry or wet summer changes the meadow friends, or '' in an ordinary one. */
 export function moistureFriendsLine(moisture: number): string {
   if (moisture < .3) return 'In the dry, ants and ladybirds thrive; the snails stay sealed up, and no mushrooms come up.';

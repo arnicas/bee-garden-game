@@ -27,12 +27,14 @@ export const cargoArt = {
     <defs>
       <linearGradient id="jar-glass" x1="25" y1="30" x2="81" y2="75" gradientUnits="userSpaceOnUse"><stop stop-color="#fffcdf" stop-opacity=".85"/><stop offset=".55" stop-color="#f4e8bc" stop-opacity=".4"/><stop offset="1" stop-color="#d5bf86" stop-opacity=".7"/></linearGradient>
       <linearGradient id="jar-honey" x1="30" y1="28" x2="76" y2="80" gradientUnits="userSpaceOnUse"><stop stop-color="#f7d477"/><stop offset=".4" stop-color="#e9b344"/><stop offset="1" stop-color="#c88a30"/></linearGradient>
+      <linearGradient id="jar-water" x1="30" y1="28" x2="76" y2="80" gradientUnits="userSpaceOnUse"><stop stop-color="#b9dcee"/><stop offset="1" stop-color="#6ea8cc"/></linearGradient>
       <clipPath id="jar-inside"><path d="M34 24h38c0 8 10 7 10 18l-2 30q0 7-9 8H34q-10-1-10-8l-2-30c0-11 12-10 12-18Z"/></clipPath>
     </defs>
     <ellipse cx="53" cy="84" rx="29" ry="4" fill="#4d593c" opacity=".12"/>
     <path d="M32 23h42c0 9 11 8 11 20l-2 30c-1 8-5 10-14 10H35c-10 0-14-3-14-11l-2-29c0-12 13-11 13-20Z" fill="url(#jar-glass)" stroke="#96835a" stroke-width="1.3"/>
     <g clip-path="url(#jar-inside)">
       <rect data-fill="nectar" x="20" y="80" width="66" height="0" fill="url(#jar-honey)"/>
+      <rect data-fill="water" x="20" y="80" width="66" height="0" fill="url(#jar-water)"/>
       <path data-honey-surface stroke="#f8d783" stroke-width="2.3" stroke-linecap="round"/>
       <path d="M75 34q4 20 0 39" stroke="#a96924" stroke-width="5" opacity=".13"/>
     </g>

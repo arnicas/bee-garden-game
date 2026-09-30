@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { nextMoisture, moistureLine, type WeatherPlan } from '../src/weather';
+import { coverLine, coverMoisture, nextMoisture, moistureLine, type WeatherPlan } from '../src/weather';
 import { startFlyingFixture } from './support/start';
 
 test.use({ viewport: { width: 1280, height: 720 } });
@@ -18,6 +18,21 @@ test('ground moisture carries over: wet days raise it, hot dry days lower it, a 
   expect(moistureLine(.2)).toContain('dry summer');
   expect(moistureLine(.8)).toContain('wet summer');
   expect(moistureLine(.5)).toBe('');
+});
+
+test('the meadow left behind holds water in the ground: a patchy one dries faster, a full one keeps it damp', () => {
+  const ordinary = plan('dewy', 120, 195);
+  expect(nextMoisture(.5, ordinary, 1)).toBe(nextMoisture(.5, ordinary));
+  // Half a meadow (little pollinated) loses about .11 more; enough to tip ordinary summers dry within three.
+  expect(nextMoisture(.5, ordinary) - nextMoisture(.5, ordinary, .5)).toBeCloseTo(.11, 2);
+  expect(nextMoisture(.5, ordinary, 1.15)).toBeGreaterThan(nextMoisture(.5, ordinary));
+  // Smaller than the weather: a wet day still wets a patchy meadow.
+  expect(nextMoisture(.5, plan('wet', 240, 0), .5)).toBeGreaterThan(.6);
+  let m = .5; for (let i = 0; i < 3; i++) m = nextMoisture(m, ordinary, .55);
+  expect(m).toBeLessThan(.3);
+  expect(coverLine(coverMoisture(.5))).toContain('patchy');
+  expect(coverLine(coverMoisture(.5), true)).toContain('drier');
+  expect(coverLine(coverMoisture(1))).toBe('');
 });
 
 for (const [name, moisture] of [['dry', .1], ['wet', .9]] as const) {

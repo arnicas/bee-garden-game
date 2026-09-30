@@ -144,8 +144,13 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
   const fill = new Float32Array(spots.length);
+  /** Groundwater: the level a pool holds without rain. Set each morning from the
+   * ground's moisture (deeper pools more), it sinks through the heat of the day. */
+  const spring = new Float32Array(spots.length);
   /** Ground moisture (0–1). In a dry summer only some pools hold water at all. */
   let moisture = .5;
+  /** 0–1: how bare and patchy the meadow is. Pools in open ground dry faster. */
+  let bare = 0;
   const canFill = (i: number) => seedData[i] < .35 + moisture * 1.3;
   const matrix = new THREE.Matrix4(), turn = new THREE.Quaternion(), at = new THREE.Vector3(), size = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   const clear = new THREE.Color('#d4e4ec'), grey = new THREE.Color('#c3ccd0');
@@ -170,8 +175,13 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
     /** Rain fills the pools; sun and heat dry them. */
     update(dt: number, time: number, rain: number, heat: number, cloudiness: number, enabled: boolean) {
       for (let i = 0; i < fill.length; i++) {
-        const gain = enabled && canFill(i) ? rain * .07 * (.6 + moisture * .8) : 0, loss = rain > .02 && canFill(i) ? 0 : (.003 + heat * .02 + (1 - cloudiness) * .002) * (1.5 - moisture);
+        const gain = enabled && canFill(i) ? rain * .07 * (.6 + moisture * .8) : 0, loss = rain > .02 && canFill(i) ? 0 : (.003 + heat * .02 + (1 - cloudiness) * .002) * (1.5 - moisture) * (1 + bare * .5);
+        spring[i] = Math.max(0, spring[i] - dt * heat * .0012 * (1.5 - moisture) * (1 + bare));
+        const before = fill[i];
         fill[i] = THREE.MathUtils.clamp(fill[i] + dt * (gain - loss), 0, 1);
+        // Groundwater keeps a pool from drying below its spring, and slowly seeps back after sipping.
+        if (before >= spring[i]) fill[i] = Math.max(fill[i], spring[i]);
+        else fill[i] = Math.min(spring[i], Math.max(fill[i], before + dt * .004));
       }
       material.uniforms.uTime.value = time; material.uniforms.uRain.value = rain;
       glintMaterial.uniforms.uTime.value = time; glintMaterial.uniforms.uSun.value = THREE.MathUtils.clamp(1 - cloudiness, 0, 1);
@@ -197,7 +207,18 @@ export function createPuddles(scene: THREE.Scene, spots: readonly PuddleSpot[]) 
     setFill(value: number) { for (let i = 0; i < fill.length; i++) fill[i] = canFill(i) ? THREE.MathUtils.clamp(value, 0, 1) : 0; pose(); },
     /** The summer's ground moisture: how many pools can fill, and how fast they fill and dry. */
     setMoisture(value: number) { moisture = THREE.MathUtils.clamp(value, 0, 1); },
-    diagnostics: () => ({ canFill: spots.filter((_, i) => canFill(i)).length, count: spots.length, visible: mesh.visible, wet: Array.from(fill).filter(f => f > .05).length, fill: Array.from(fill, f => Math.round(f * 100) / 100) }),
+    setBare(value: number) { bare = THREE.MathUtils.clamp(value, 0, 1); },
+    /** Morning groundwater from the ground's moisture: pools start part full, the
+     * deeper ones more; off clears it (the pools hold only rain). */
+    setSprings(on: boolean) {
+      const limit = .35 + moisture * 1.3;
+      for (let i = 0; i < fill.length; i++) {
+        spring[i] = on && canFill(i) ? THREE.MathUtils.clamp(.18 + (limit - seedData[i]) * .7, 0, .65) : 0;
+        fill[i] = Math.max(fill[i], spring[i]);
+      }
+      pose();
+    },
+    diagnostics: () => ({ canFill: spots.filter((_, i) => canFill(i)).length, count: spots.length, visible: mesh.visible, wet: Array.from(fill).filter(f => f > .05).length, springs: Array.from(spring, f => Math.round(f * 100) / 100), fill: Array.from(fill, f => Math.round(f * 100) / 100) }),
     dispose() { scene.remove(mesh, glints); geometry.dispose(); material.dispose(); mesh.dispose(); glintGeometry.dispose(); glintMaterial.dispose(); },
   };
 }

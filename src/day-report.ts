@@ -32,6 +32,9 @@ export interface DayStats {
   pollinatedBySpecies: Readonly<Record<Species, number>>;
   visited: number;
   flowerTotal: number;
+  /** On a hot day: water carried home to cool the hive, and how much it asked for (0 on other days). */
+  water?: number;
+  waterGoal?: number;
 }
 
 export interface DayReport {
@@ -95,6 +98,7 @@ export function dayReport(stats: DayStats): DayReport {
   const jar = Math.floor(Math.min(1, stats.nectar / t.nectarCapacity) * 100 + 1e-6), pouch = Math.floor(Math.min(1, stats.pollen / t.pollenGoal) * 100 + 1e-6);
   why.push(delivery === 'brimming' ? `Nectar jar brimming (${jar}%)` : `Jar ${jar}% full`);
   why.push(pollen >= t.pollenGoal ? 'Pollen pouch full' : `Pouch ${pouch}% full`);
+  if ((stats.waterGoal ?? 0) > 0) why.push((stats.water ?? 0) >= (stats.waterGoal ?? 0) - 1e-6 ? 'Water to cool the hive' : 'Too little water for the hive');
 
   // One tip, aimed at what most held the day back.
   const pollinationTip = missing.length && total > 0
@@ -236,7 +240,9 @@ export function nextSummerLine(preview: SummerPreview): string {
   }
   const bugs = trend(preview.ladybirds, preview.nextLadybirds);
   if (bugs === 'more') more.push('ladybirds'); else if (bugs === 'fewer') fewer.push('ladybirds');
-  const parts = [more.length ? `more ${list(more)}` : '', fewer.length ? `fewer ${list(fewer)}` : ''].filter(Boolean);
+  // The meadow left behind holds the ground's water, or lets it dry (see coverMoisture).
+  const shift = preview.coverShift ?? 0, ground = shift <= -.03 ? 'drier ground' : shift >= .02 ? 'damper ground' : '';
+  const parts = [more.length ? `more ${list(more)}` : '', fewer.length ? `fewer ${list(fewer)}` : '', ground].filter(Boolean);
   return parts.length ? `Next summer: ${parts.join(', ')}.` : 'Next summer, the meadow will look much the same.';
 }
 

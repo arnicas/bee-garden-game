@@ -295,6 +295,10 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .cargo-art { display: block; width: 100px; height: auto; margin: 0 auto; filter: drop-shadow(0 2px 2px #4350301c); }
 .meter-caption { display: flex; justify-content: center; align-items: baseline; gap: 5px; min-height: 18px; padding: 1px 4px; border-radius: 9px; background: #fbf5e5d9; font-size: 10px; line-height: 16px; white-space: nowrap; }
 .meter-caption b { font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* On a hot day: the water the hive asked for, under the jar. */
+.water-caption { margin-top: 3px; color: #37678c; background: #eaf3f6e8; }
+.water-caption[hidden] { display: none; }
+.water-caption.is-full { color: #fbf5e5; background: #5c8fb0; }
 .is-low .meter-caption { color: #a24c32; background: #fff0dfe8; }
 .energy-meter.is-chilled .meter-caption { color: #3f627d; background: #eaf2f3ed; }
 .energy-meter.is-hot .meter-caption { color: #945432; background: #fff0daed; }
@@ -608,3 +612,15 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 }
 /* Phones: the title back at the base size, so Garden fits. */
 @media (max-width: 520px) { .title-word { font-size: 1em; } .title-word.title-garden { font-size: 1.1em; } }
+
+/* Not on mobile yet: a card over the title meadow when Take flight is tapped on a phone or tablet. */
+.mobile-note { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(251, 245, 229, .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); pointer-events: auto; }
+.mobile-note[hidden] { display: none; }
+.mobile-note-card { max-width: 340px; padding: 28px 26px 24px; border-radius: 22px; background: var(--paper); box-shadow: 0 18px 40px rgba(52, 69, 55, .18), 0 0 0 1px rgba(52, 69, 55, .08); text-align: center; color: var(--ink); animation: mobile-note-in .35s ease-out both; }
+.mobile-note-bee { width: 54px; margin: 0 auto 6px; color: var(--rust); animation: title-bob 2.6s ease-in-out infinite alternate; }
+.mobile-note-bee svg { width: 100%; height: auto; }
+.mobile-note h2 { margin: 0 0 8px; font: 700 26px/1.1 'Fredoka', var(--serif); color: #c07a17; }
+.mobile-note p { margin: 0 0 8px; font: 19px/1.35 var(--serif); }
+.mobile-note small { display: block; margin-bottom: 18px; font-size: 13px; opacity: .72; }
+.mobile-note .mobile-note-close { width: auto; margin: 0 auto; justify-content: center; padding: 0 22px; }
+@keyframes mobile-note-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }

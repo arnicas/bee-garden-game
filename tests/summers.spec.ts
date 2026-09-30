@@ -103,6 +103,8 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.setState('complete'));
   await expect(page.locator('[data-text="result-eyebrow"]')).toContainText('SUMMER');
   await expect(page.locator('[data-text="result-next"]')).toContainText('Next summer');
+  // Nothing pollinated in a thin meadow: it will leave the ground drier.
+  await expect(page.locator('[data-text="result-next"]')).toContainText('drier');
   await expect(page.locator('[data-text="restart-label"]')).toHaveText('Next summer');
   // The next summer's start page shows how the meadow changed.
   await page.getByRole('button', { name: 'Next summer' }).click();

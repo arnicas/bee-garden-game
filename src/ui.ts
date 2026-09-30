@@ -108,6 +108,17 @@ const titleFlight = `<svg class="title-flight" viewBox="0 0 560 330" aria-hidden
 /** Paint: roughens the letters' edges like watercolour on paper. */
 const titlePaint = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="title-paint"><feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.5"/></filter></svg>';
 
+/** Phones and tablets: a mobile browser, an iPad (which reports a Mac), or touch
+ * with no mouse at all. ?mobile shows the note on any device; test pages never do otherwise. */
+function onMobile(): boolean {
+  const params = new URLSearchParams(location.search);
+  if (params.has('mobile')) return true;
+  if (params.has('test')) return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    || navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)
+    || matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+}
+
 export function createUI(actions: UIActions): GameUI {
   const root = document.querySelector<HTMLDivElement>('#ui')!;
   const stillTitle = () => { if (matchMedia('(prefers-reduced-motion: reduce)').matches) root.querySelector<SVGSVGElement>('.title-flight')?.pauseAnimations(); };
@@ -165,6 +176,7 @@ export function createUI(actions: UIActions): GameUI {
       <div class="cargo-meter nectar-meter" role="meter" tabindex="0" aria-label="Nectar stored" aria-valuemin="0" aria-describedby="nectar-detail">
         ${cargoArt.nectar}
         <div class="meter-caption"><span>Nectar</span><b data-text="nectar">0%</b></div>
+        <div class="meter-caption water-caption" data-water-caption hidden><span>Water</span><b data-text="water">0 / 15%</b></div>
         <div class="meter-detail" id="nectar-detail" role="tooltip"><strong>A little sweetness</strong><span><span data-text="nectar-goal"></span> <span data-text="home-fuel"></span></span><small>The green mark shows how much you need to bring home.</small></div>
       </div>
       <div class="cargo-meter pollen-meter" role="meter" tabindex="0" aria-label="Pollen collected" aria-valuemin="0" aria-describedby="pollen-detail">
@@ -186,6 +198,15 @@ export function createUI(actions: UIActions): GameUI {
       <span class="pollination-announcement" data-text="pollination-announcement"></span>
     </div>
     <div class="lower-right play-only"><span class="vision-label" hidden>THE WORLD THROUGH BEE EYES</span></div>
+    <div class="mobile-note" data-mobile-note role="dialog" aria-modal="true" aria-labelledby="mobile-note-title" hidden>
+      <div class="mobile-note-card">
+        <div class="mobile-note-bee" aria-hidden="true">${icons.bee}</div>
+        <h2 id="mobile-note-title">Not on mobile yet</h2>
+        <p>This game isn’t yet supported on mobile devices. Stay tuned!</p>
+        <small>For now it plays on a computer, with a keyboard and mouse.</small>
+        <button class="primary-button start-button mobile-note-close" data-action="mobile-close"><span>Back to the meadow</span></button>
+      </div>
+    </div>
     ${titlePaint}<section class="title-screen" aria-labelledby="game-title">
       <h1 id="game-title" aria-label="Bee Garden">${titleFlight}<span class="title-word" aria-hidden="true">${titleLetters(TITLE_BEE, 0)}</span><span class="title-word title-garden" aria-hidden="true">${titleLetters(TITLE_GARDEN, 3)}</span></h1>
       <p class="title-subtitle">A game about bees in a flower meadow.</p>
@@ -320,6 +341,7 @@ export function createUI(actions: UIActions): GameUI {
   };
   const fills = { energy: el<SVGPathElement>('[data-fill="energy"]'), nectar: el<SVGRectElement>('[data-fill="nectar"]'), pollen: el<SVGRectElement>('[data-fill="pollen"]') };
   const honeySurface = el<SVGPathElement>('[data-honey-surface]');
+  const waterFill = el<SVGRectElement>('[data-fill="water"]'), waterCaption = el('[data-water-caption]');
   const meters = { energy: el('.energy-meter'), nectar: el('.nectar-meter'), pollen: el('.pollen-meter') };
   const target = el('.target-marker');
   const flowerNote = el('.flower-note');
@@ -499,6 +521,17 @@ export function createUI(actions: UIActions): GameUI {
       return;
     }
     if (button.dataset.action === 'facts-close') { closeFacts(); return; }
+    // Not on mobile yet: a gentle note instead of starting the game.
+    if (button.dataset.action === 'start' && onMobile()) {
+      const note = el('[data-mobile-note]'); show(note, true);
+      el<HTMLButtonElement>('.mobile-note-close').focus({ preventScroll: true });
+      return;
+    }
+    if (button.dataset.action === 'mobile-close') {
+      show(el('[data-mobile-note]'), false);
+      el<HTMLButtonElement>('.title-screen .start-button').focus({ preventScroll: true });
+      return;
+    }
     const callbacks: Record<string, () => void> = { start: actions.start, explore: actions.explore, resume: actions.resume, pause: actions.pause, restart: actions.restart, sound: actions.toggleSound, uv: actions.toggleUV, photo: actions.photo, return: actions.returnHome, 'skip-return': actions.skipReturn, 'skip-night': actions.skipNight, rest: actions.toggleRest };
     callbacks[button.dataset.action!]?.();
     button.blur();
@@ -686,9 +719,12 @@ export function createUI(actions: UIActions): GameUI {
     }
     text('energy', `${Math.ceil(state.energy)}%`);
     text('feeding-status', resting ? 'Resting' : state.autoFeeding ? 'Eating' : state.drinking && state.energy < 99.5 ? 'Sipping' : '');
-    text('energy-note', overheated ? (state.shaded ? 'Cooling in the shade · nectar restores energy' : 'Heat drains energy · rest beneath a leaf or in dense grass') : shelterBeneath ? 'Leaf tops are exposed · E tucks beneath' : state.chilled ? (underLeaf ? 'Warming under a leaf · nectar restores energy' : grassSheltered ? 'Warming in dense grass · nectar restores energy' : exposedToRain ? (onGround ? 'Rain reaches this patch · walk into denser grass' : 'Cold rain drains energy · seek a leaf or dense grass') : 'Dry air warms your wings · nectar restores energy') : exposedFlower ? 'Flowers are exposed · leaves and dense grass offer shelter' : onGround && exposedToRain ? 'Rain reaches this patch · denser grass keeps you dry' : resting ? (state.energy >= 99.5 ? 'Resting · your wings are ready' : state.nectar > 0 ? 'Resting with stored nectar · energy rising' : 'No stored nectar · rest alone cannot restore energy') : state.autoFeeding ? 'Eating stored nectar · energy rising' : state.drinking && state.energy < 99.5 ? 'Nectar is restoring your energy' : state.energy < 25 ? 'Find nectar. Rest your wings.' : state.phase === 'flying' && state.flightMode === 'steady' ? 'Working to hold against the wind' : state.phase === 'flying' && state.flightMode === 'riding' ? 'Riding the breeze saves energy' : state.energy < 55 ? 'Nectar will restore your energy' : 'Your wings are rested');
+    text('energy-note', overheated ? (state.shaded ? 'Cooling in the shade · nectar restores energy' : state.thinShade ? 'The dry grass gives little shade · water cools you fastest' : 'Heat drains energy · rest beneath a leaf or in dense grass') : shelterBeneath ? 'Leaf tops are exposed · E tucks beneath' : state.chilled ? (underLeaf ? 'Warming under a leaf · nectar restores energy' : grassSheltered ? 'Warming in dense grass · nectar restores energy' : exposedToRain ? (onGround ? 'Rain reaches this patch · walk into denser grass' : 'Cold rain drains energy · seek a leaf or dense grass') : 'Dry air warms your wings · nectar restores energy') : exposedFlower ? 'Flowers are exposed · leaves and dense grass offer shelter' : onGround && exposedToRain ? 'Rain reaches this patch · denser grass keeps you dry' : resting ? (state.energy >= 99.5 ? 'Resting · your wings are ready' : state.nectar > 0 ? 'Resting with stored nectar · energy rising' : 'No stored nectar · rest alone cannot restore energy') : state.autoFeeding ? 'Eating stored nectar · energy rising' : state.drinking && state.energy < 99.5 ? 'Nectar is restoring your energy' : state.energy < 25 ? 'Find nectar. Rest your wings.' : state.phase === 'flying' && state.flightMode === 'steady' ? 'Working to hold against the wind' : state.phase === 'flying' && state.flightMode === 'riding' ? 'Riding the breeze saves energy' : state.energy < 55 ? 'Nectar will restore your energy' : 'Your wings are rested');
     text('nectar', `${share(state.nectar, state.nectarCapacity)}%`);
-    text('nectar-goal', `Hive goal ${share(state.nectarGoal, state.nectarCapacity)}%`);
+    text('nectar-goal', state.waterGoal > 0 ? `Hive goal ${share(state.nectarGoal, state.nectarCapacity)}% nectar, ${share(state.waterGoal, state.nectarCapacity)}% water` : `Hive goal ${share(state.nectarGoal, state.nectarCapacity)}%`);
+    text('water', `${Math.floor(state.water + 1e-6)} / ${Math.round(state.waterGoal)}%`);
+    show(waterCaption, state.waterGoal > 0);
+    waterCaption.classList.toggle('is-full', state.waterGoal > 0 && state.water >= state.waterGoal - 1e-6);
     text('pollen', `${share(state.pollen, state.pollenGoal)}%`);
     text('home-fuel', `+ ${Math.round(state.homeCost / state.nectarCapacity * 100)}% for home`);
     text('pollen-note', state.pollen >= state.pollenGoal ? 'A lovely harvest for the hive' : 'Gather as you crawl');
@@ -722,6 +758,10 @@ export function createUI(actions: UIActions): GameUI {
     attribute(fills.nectar, 'height', honeyHeight.toFixed(2));
     attribute(fills.nectar, 'y', honeyTop);
     attribute(honeySurface, 'd', honeyHeight > 0 ? `M22 ${honeyTop}q15-1.8 30 0t30 0` : '');
+    // Water for the hive sits above the honey, a pale blue wash.
+    const waterHeight = 52 * percent(state.water, state.nectarCapacity);
+    attribute(waterFill, 'height', waterHeight.toFixed(2));
+    attribute(waterFill, 'y', (80 - honeyHeight - waterHeight).toFixed(2));
     const pollenHeight = 42 * percent(state.pollen, state.pollenGoal);
     attribute(fills.pollen, 'height', pollenHeight.toFixed(2));
     attribute(fills.pollen, 'y', (77 - pollenHeight).toFixed(2));

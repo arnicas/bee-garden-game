@@ -54,6 +54,8 @@ export interface SummerPreview {
   nextLadybirds: number;
   /** 0 in the first summer. */
   lastSummerLadybirds: number;
+  /** How the meadow left behind moves the ground's water (see coverMoisture). */
+  coverShift?: number;
 }
 /** The start page of a new summer: how the meadow changed since the last one. */
 export interface SummerStart {
@@ -116,6 +118,11 @@ export interface ViewState {
   pollen: number;
   nectarGoal: number;
   nectarCapacity: number;
+  /** Water carried for the hive (jar percent), and today's request (0 when it isn't a hot day). */
+  water: number;
+  waterGoal: number;
+  /** Hot, in dry grass that gives little shade. */
+  thinShade: boolean;
   autoFeeding: boolean;
   pollenGoal: number;
   homeCost: number;
