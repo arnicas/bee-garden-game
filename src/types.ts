@@ -64,6 +64,8 @@ export interface SummerStart {
   summer: number;
   /** What last summer's pollination did to the flowers (a lesson, not just a count). */
   flowersLine: string;
+  /** The summer's weather and ground (not the bee's doing), shown on its own above the counts, or ''. */
+  weatherLine: string;
   /** Flowers pollinated last summer. */
   pollinated: Record<Species, number>;
   before: Record<Species, number>;

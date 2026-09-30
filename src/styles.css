@@ -128,6 +128,9 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 [data-trend="more"] > .summer-delta { color: #52703c; }
 [data-trend="fewer"] > .summer-delta { color: var(--rust); }
 .summer-lesson { margin: 8px auto 0; max-width: 470px; font: italic 14px/1.4 var(--serif); color: #57664b; }
+/* The summer's weather: set apart from the counts, since it isn't the bee's doing. */
+.summer-weather { margin: 0 auto 14px; max-width: 470px; padding: 7px 14px; border-radius: 12px; background: #e9eef0; color: #3f5563; font: italic 14px/1.4 var(--serif); }
+.summer-weather[hidden] { display: none; }
 .learning-controls { margin-top: 6px; }
 .learning-controls > summary { width: max-content; margin: 0 auto; padding: 4px 10px; cursor: pointer; font-size: 12px; color: var(--muted); border-radius: 8px; }
 .learning-controls > summary:hover, .learning-controls > summary:focus-visible { color: inherit; background: #efe6c9; }

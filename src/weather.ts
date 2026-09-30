@@ -182,10 +182,12 @@ export function coverLine(shift: number, ahead = false): string {
 export function hiveNeedsWater(plan: WeatherPlan): boolean {
   return plan.heatEnd - plan.heatStart >= 185;
 }
-/** How a dry or wet summer changes the meadow friends, or '' in an ordinary one. */
+/** How a dry or wet summer changes the meadow friends, or '' in an ordinary one. It
+ * says what they do, not how many there are: the counts beside it also follow the
+ * flowers, so a thin meadow can have fewer ladybirds even in a dry summer. */
 export function moistureFriendsLine(moisture: number): string {
-  if (moisture < .3) return 'In the dry, ants and ladybirds thrive; the snails stay sealed up, and no mushrooms come up.';
-  if (moisture > .7) return 'In the damp, snails and mushrooms are everywhere and caterpillars feast; fewer butterflies are about.';
+  if (moisture < .3) return 'In the dry, the snails stay sealed up and no mushrooms come up, while ants and aphids do well.';
+  if (moisture > .7) return 'In the damp, snails come out, mushrooms come up by the pools, and the butterflies shelter more.';
   return '';
 }
 export function moistureLine(moisture: number): string {

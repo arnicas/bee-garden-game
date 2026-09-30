@@ -217,6 +217,7 @@ export function createUI(actions: UIActions): GameUI {
         <div class="learning-flower">${pollinationFlowers.daisy}</div>
         <h2 id="learning-title" tabindex="-1">Your summer day begins on a flower.</h2>
         <section class="learning-summer" aria-label="How the meadow changed since last summer" hidden>
+          <p class="summer-weather" data-text="summer-weather-line" hidden></p>
           <div class="summer-group"><h3>Flowers <span>change since last summer</span></h3>
             <div class="learning-summer-counts">${summerKinds.map(([species, name]) => `<div data-summer-kind="${species}"><span class="summer-art">${pollinationFlowers[species]}</span><span class="summer-name">${name}</span><span class="summer-delta" data-text="summer-delta-${species}"></span><span class="summer-change"><span data-text="summer-was-${species}"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-${species}"></b></span></div>`).join('')}</div>
             <p class="summer-lesson" data-text="summer-flowers-line"></p></div>
@@ -692,6 +693,8 @@ export function createUI(actions: UIActions): GameUI {
       if (controlsFoldedFor !== summer) { controlsFoldedFor = summer; learningControls.open = !start; }
       if (start) {
         text('summer-flowers-line', start.flowersLine);
+        text('summer-weather-line', start.weatherLine);
+        show(el('[data-text="summer-weather-line"]'), start.weatherLine !== '');
         text('summer-friends-line', start.friendsLine || 'The aphids and ladybirds are much as they were.');
         const rows: [string, number, number][] = [...summerKinds.map(([s]) => [s, start.before[s], start.after[s]] as [string, number, number]), ['aphid', start.aphidsBefore, start.aphidsAfter], ['ladybird', start.ladybirdsBefore, start.ladybirdsAfter], ['butterfly', start.butterfliesBefore, start.butterfliesAfter], ['snail', start.snailsBefore, start.snailsAfter]];
         for (const [kind, before, after] of rows) {
@@ -870,9 +873,8 @@ export function createUI(actions: UIActions): GameUI {
         ].filter(Boolean);
         text('result-finds', parts.join(' · '));
         show(el('[data-result-finds]'), parts.length > 0); }
-      const water = state.waterSips > 1.5 ? 'You carried water home to cool the hive. ' : '';
-      text('result-next', preview ? water + nextSummerLine(preview) : water);
-      show(el('[data-text="result-next"]'), !!preview || !!water);
+      text('result-next', preview ? nextSummerLine(preview) : '');
+      show(el('[data-text="result-next"]'), !!preview);
       text('result-pollinated', String(state.pollinated));
       text('result-pollinated-label', state.pollinated === 1 ? 'flower pollinated' : 'flowers pollinated');
       for (const { species, name, element } of resultSpeciesPetals) {

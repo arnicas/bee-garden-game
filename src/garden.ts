@@ -622,7 +622,7 @@ export class Garden {
     if (!this.lastSummerCounts) return null;
     const after = countSpecies(this.meadow.flowers);
     return {
-      summer: this.summerNumber, flowersLine: [moistureLine(this.groundMoisture), coverLine(this.lastCoverShift), flowerLessonLine(this.lastSummerPollinated, this.lastSummerCounts, after)].filter(Boolean).join(' '), pollinated: this.lastSummerPollinated, before: this.lastSummerCounts, after,
+      summer: this.summerNumber, weatherLine: [moistureLine(this.groundMoisture), coverLine(this.lastCoverShift)].filter(Boolean).join(' '), flowersLine: [flowerLessonLine(this.lastSummerPollinated, this.lastSummerCounts, after)].filter(Boolean).join(' '), pollinated: this.lastSummerPollinated, before: this.lastSummerCounts, after,
       friendsLine: moistureFriendsLine(this.groundMoisture) || [friendsChangeLine(this.lastSummerCounts, after), butterflyChangeLine(this.lastSummerCounts, after), snailChangeLine(this.lastSummerCounts, after)].filter(Boolean).join(' '), aphidsBefore: friendCounts(this.lastSummerCounts).aphidClusters, aphidsAfter: this.ladybirds.aphids.length,
       ladybirdsBefore: this.lastSummerLadybirds, ladybirdsAfter: this.ladybirds.diagnostics().count,
       butterfliesBefore: this.lastSummerButterflies, butterfliesAfter: this.butterflies.diagnostics().count,
