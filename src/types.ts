@@ -122,6 +122,8 @@ export interface ViewState {
   pollen: number;
   nectarGoal: number;
   nectarCapacity: number;
+  /** On a lost day: how many days in a row have ended this way, this one included (0 otherwise). */
+  lossStreak: number;
   /** Water carried for the hive (jar percent), and today's request (0 when it isn't a hot day). */
   water: number;
   waterGoal: number;

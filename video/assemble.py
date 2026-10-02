@@ -101,8 +101,21 @@ def main():
     text_png(f'{OUT}/cards/end-play.png', 'Play free in your browser', 52, 'Palatino-Italic', y=60, gravity='center')
     text_png(f'{OUT}/cards/end-link.png', LINK, 38, 'Avenir-Next-Medium', y=140, gravity='center')
     text_png(f'{OUT}/cards/end-credit.png', CREDIT, 34, 'Palatino-Italic', y=205, gravity='center')
-    run('magick', f'{OUT}/cards/end-title.png', f'{OUT}/cards/end-play.png', '-composite', f'{OUT}/cards/end-link.png', '-composite',
-        f'{OUT}/cards/end-credit.png', '-composite', f'{OUT}/cards/end.png')
+    letters = f'{OUT}/cards/title-letters.png'
+    black, white = f'{OUT}/cards/title-letters-black.png', f'{OUT}/cards/title-letters-white.png'
+    if os.path.exists(black) and os.path.exists(white):
+        # Transparency from the shots over black and white: alpha = 1 - (white - black), colour = black / alpha.
+        run('magick', black, white, '-fx', 'u+(1-v)>0 ? 1 : 0', '-alpha', 'off', f'{OUT}/cards/mask-tmp.png')
+        run('magick', black, white, '-compose', 'difference', '-composite', '-colorspace', 'gray', '-negate', f'{OUT}/cards/alpha.png')
+        run('magick', black, f'{OUT}/cards/alpha.png', '-fx', 'v.r > 0.004 ? u / v.r : 0', f'{OUT}/cards/colour.png')
+        run('magick', f'{OUT}/cards/colour.png', f'{OUT}/cards/alpha.png', '-alpha', 'off', '-compose', 'copy-opacity', '-composite', letters)
+    if os.path.exists(letters):
+        # The game's painted title (captured by the 'showcase title card' test) above the words.
+        run('magick', f'{OUT}/cards/end-play.png', f'{OUT}/cards/end-link.png', '-composite', f'{OUT}/cards/end-credit.png', '-composite',
+            '(', letters, '-resize', '620x', ')', '-gravity', 'center', '-geometry', '+0-175', '-composite', f'{OUT}/cards/end.png')
+    else:
+        run('magick', f'{OUT}/cards/end-title.png', f'{OUT}/cards/end-play.png', '-composite', f'{OUT}/cards/end-link.png', '-composite',
+            f'{OUT}/cards/end-credit.png', '-composite', f'{OUT}/cards/end.png')
 
     # Captions over absolute time ranges.
     starts = {s['shot']: s for s in timeline}
@@ -115,8 +128,7 @@ def main():
         path = f'{OUT}/cards/caption-{i}.png'
         text_png(path, text, 60, y=lift[0] if lift else 118)
         captions.append((path, a, b))
-    if 'title' in starts:
-        captions.insert(0, (f'{OUT}/cards/title.png', .5, starts['title']['duration'] - .2))
+    # The title shot is the game's own title screen now, so it needs no card over it.
     captions.append((f'{OUT}/cards/end.png', last['start'] + 1.6, total + 1))
 
     # Soundtrack, matched to the timeline.

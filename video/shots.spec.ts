@@ -50,6 +50,18 @@ const drift = (page: Page, a: V3, b: V3, at: readonly number[]) => async (_: num
   await hooks(page).pose(p, yaw, pitch);
 };
 
+/** Holds the page's CSS animations (the title's letters) and the title's flying bee
+ * at t seconds, so they keep time with the captured frames: rendering runs far
+ * slower than real time, and left alone they would race. */
+const holdAnimations = (page: Page, t: number) => page.evaluate(t => {
+  for (const a of document.getAnimations()) { a.pause(); a.currentTime = t * 1000; }
+  document.querySelectorAll<SVGSVGElement>('svg.title-flight').forEach(svg => { svg.pauseAnimations(); svg.setCurrentTime(t); });
+}, t);
+const releaseAnimations = (page: Page) => page.evaluate(() => {
+  for (const a of document.getAnimations()) a.play();
+  document.querySelectorAll<SVGSVGElement>('svg.title-flight').forEach(svg => svg.unpauseAnimations());
+});
+
 async function openGame(page: Page, extra = '') {
   await page.goto(`/?test&friends&summers${extra}`);
   await expect(page.locator('.title-screen')).toBeVisible();
@@ -60,9 +72,11 @@ test('showcase shots', async ({ page }) => {
   await openGame(page);
 
   if (wanted('title')) {
-    await h.hud(false);
+    // The title screen itself: the painted letters sprout, bob and jiggle, and the bee flies its loop.
     await settle(page, 20);
-    await shoot(page, 'title', 4.5 * FPS);
+    await holdAnimations(page, 0);
+    await shoot(page, 'title', 5 * FPS, i => holdAnimations(page, i / FPS));
+    await releaseAnimations(page);
   }
   await h.hud(true);
   await page.evaluate(() => window.__BEE_TEST__!.endCapture());
@@ -107,7 +121,9 @@ test('showcase shots', async ({ page }) => {
     await page.evaluate(() => window.__BEE_TEST__!.setDayProgress(.36));
     await settle(page, 30);
     for (let i = 0; i < 40 && (await h.state()).weather.rain < .6; i++) await settle(page, 15);
-    const other = poppies[1].center;
+    // A cornflower in the shower (the flight and landing already show a poppy).
+    const cornflower = flowers.filter(f => f.species === 'cornflower').sort((a, b) => Math.hypot(a.center[0], a.center[2] + 6) - Math.hypot(b.center[0], b.center[2] + 6))[0];
+    const other = cornflower.center;
     const a: V3 = [other[0] + 2.6, other[1] + .5, other[2] + 3.4], b: V3 = [other[0] + 1.3, other[1] + .35, other[2] + 2.3];
     const look = [other[0] - .6, other[1] - .1, other[2] - 1.5];
     await settle(page, 10, drift(page, a, a, look).bind(null, 0, 0));
@@ -193,4 +209,31 @@ test('showcase night', async ({ page }) => {
   const ma: V3 = [-4.5, 5.6, 9], mb: V3 = [2.5, 5.1, 7];
   await settle(page, 20, drift(page, ma, ma, look).bind(null, 0, 0));
   await shoot(page, 'summer', 4 * FPS, drift(page, ma, mb, look));
+});
+
+test('showcase title card', async ({ browser }) => {
+  // The painted title alone, on a transparent background, for the end titles.
+  test.skip(!wanted('title') && !wanted('card'), 'not requested');
+  const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2, baseURL: 'http://127.0.0.1:4188' });
+  const page = await context.newPage();
+  await page.goto('/?test');
+  await expect(page.locator('#game-title')).toBeVisible();
+  await holdAnimations(page, 2.4);
+  // Only the letters show: everything else is hidden (its washes too), and the shot is cropped to them.
+  const box = await page.evaluate(() => {
+    const style = document.createElement('style');
+    style.textContent = 'body { background: transparent !important; } body * { visibility: hidden !important; } #game-title, #game-title * { visibility: visible !important; } .title-flight { display: none !important; }';
+    document.head.append(style);
+    const rects = Array.from(document.querySelectorAll('#game-title .title-letter, #game-title .title-wings'), e => e.getBoundingClientRect());
+    const pad = 26, x = Math.min(...rects.map(r => r.left)) - pad, y = Math.min(...rects.map(r => r.top)) - pad;
+    return { x, y, width: Math.max(...rects.map(r => r.right)) + pad - x, height: Math.max(...rects.map(r => r.bottom)) + pad - y };
+  });
+  // Shot over black and over white; assemble.py works out the transparency from the two
+  // (a transparent page loses the letters' clipped watercolour fill).
+  await mkdir('video/out/cards', { recursive: true });
+  for (const [name, colour] of [['black', '#000'], ['white', '#fff']]) {
+    await page.evaluate(c => { document.documentElement.style.setProperty('background', c, 'important'); }, colour);
+    await page.screenshot({ path: `video/out/cards/title-letters-${name}.png`, clip: box });
+  }
+  await context.close();
 });

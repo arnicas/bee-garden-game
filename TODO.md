@@ -76,13 +76,14 @@ was built and where. Tidied 2026-09-28.
 
 - [ ] Vary the sky and sunsets (Lynn, 2026-09-27). Ready: `atmosphere.ts` takes a `SkyLook` per day (haze, fair / high / no clouds and their amount, and a golden, rose, ember or pale sunset). Left to do: roll a look from each day's weather plan so it reads as the same day (clear pale blue; high haze; fair-weather clouds; a mackerel sky or clouds building before a shower; flat grey on a showery day; clearing with bright edges after rain; golden after a hot day, pink and lilac after a clear one, streaked orange after showers, pale after late rain); morning mist after a wet night, burning off; a crisp clear start after a dry one. Keep the daylight strip and watercolor edges readable against every sky; let the flowers' colours shift a little with the light.
 - [ ] Night between summers, still to do: a reduced-motion version (three stills: dusk, the night's weather, dawn, with short fades; today reduced motion skips the night); the day's wind streaks at night; a few moths drifting round the flowers by moonlight; the moon's phase moving on each summer.
-- [ ] Showcase video: in the rain shot ("Shelter from the rain and the heat"), film a cornflower or daisy close-up instead of the poppy (the poppy already has its own shot). The camera is in `video/shots.spec.ts` (it uses `poppies[1]`); `video/README.md` explains how to remake the video.
+- [x] (2026-10-01, the nearest cornflower, in the shower) Showcase video: in the rain shot ("Shelter from the rain and the heat"), film a cornflower or daisy close-up instead of the poppy (the poppy already has its own shot). The camera is in `video/shots.spec.ts` (it uses `poppies[1]`); `video/README.md` explains how to remake the video.
 
 ### Lower priority
 
 - [ ] Tune flower landing distance further. The E cue now needs reach 1.85 past the petals and 2.8 above them (was 2.25 / 3.2); the difference felt small in play. Adjust `FLOWER_LANDING_REACH` / `FLOWER_LANDING_CLEARANCE` in `src/garden.ts`.
 
 ### Nice to have
+- [ ] Credit and repo link, more prominent in the game (Lynn, 2026-09-30; details not decided yet). Today the game shows no credit or link at all (only the showcase video's end titles have "A game by Lynn Cherny / @arnicas"). Options to weigh: a small "A game by Lynn Cherny" line with a link on the title screen (under Take flight, or a corner), the pause menu or the Bee and Meadow Facts, and/or the results screen; a link to the GitHub repo (github.com/arnicas/bee-garden-game) and to her site or socials. Keep it quiet, not a banner.
 
 - [ ] Show stored nectar turning into energy (idea, 2026-09-25). Reorder the sidebar cargo: pollen pouch on top, nectar jar in the middle, energy plate below, and when the bee sips from the jar (resting, or auto-feeding), a small stream pours from the jar onto the plate. Not realistic, just a visual tip that stored nectar is what refills energy. Keep it brief and quiet (respect reduced motion: a simple fill instead of the pour).
 

@@ -988,11 +988,11 @@ export class Garden {
     // at full exposure, .18 (warning) to .5 is about seven seconds for cold.
     // The steep drain then ramps smoothly; ordinary flight still spends fuel.
     this.coldDrain = this.rainExposure * (.3 + THREE.MathUtils.smoothstep(this.chill, .5, 1) * (1.1 + this.chill * 6.2)) + this.chill * .35;
-    if (previousChill < .18 && this.chill >= .18) this.notify('Cold rain is draining your energy. Follow the leaf to shelter.', 6);
+    if (previousChill < .18 && this.chill >= .18) this.notify('Cold rain is draining your energy · Shelter under a leaf, or hold Ctrl to drop into the grass.', 6);
     this.updateRaindrops(dt);
     this.puddles.update(dt, this.time, this.weather.rain, this.weather.sunHeat, this.weather.cloudiness, this.raindropsOn);
     this.meadow.setHollows(this.puddles.hollows(moistureShift(this.groundMoisture).dry));
-    if (previousChill < .62 && this.chill >= .62) this.notify('You are getting soaked. A broad leaf will stop the rain.', 6);
+    if (previousChill < .62 && this.chill >= .62) this.notify('You are getting soaked · Hold Ctrl to drop into the grass, or tuck under a broad leaf.', 6);
     const previousHeat = this.heat;
     // Short exposure has a grace period. Dense grass and the existing moving
     // canopy cover stop solar heating; leaf tops and blossoms stay exposed.
@@ -1001,11 +1001,11 @@ export class Garden {
     // Heat gets the same delayed escalation: about nine seconds from its first
     // warning to the ramp, with the orange wash already visible while reacting.
     this.heatDrain = this.heatExposure * THREE.MathUtils.smoothstep(this.heat, .5, 1) * (1.1 + this.heat * 5.8) + this.heat * .15;
-    if (previousHeat < .18 && this.heat >= .18) this.notify(this.grassShade() < .9 ? 'Too much sun · The dry grass gives little shade. Rest beneath a leaf, or sip water.' : 'Too much sun · Rest beneath a leaf or in the grass', 5);
-    if (previousHeat < .65 && this.heat >= .65) this.notify('Your wings are overheating · Find shade', 5);
+    if (previousHeat < .18 && this.heat >= .18) this.notify(this.grassShade() < .9 ? 'Too much sun · The dry grass gives little shade. Rest beneath a leaf, or sip water.' : 'Too much sun · Rest beneath a leaf, or hold Ctrl to drop into the grass', 5);
+    if (previousHeat < .65 && this.heat >= .65) this.notify(this.grassShade() < .9 ? 'Your wings are overheating · Find a leaf\'s shade, or water' : 'Your wings are overheating · Find shade: a leaf, or Ctrl down into the grass', 5);
     if (this.weather.stage !== previousWeather) {
-      if (this.weather.stage === 'approaching') this.notify('A little cloud is gathering. Broad leaves offer shelter.', 7);
-      else if (this.weather.stage === 'rain') this.notify('A passing shower. Follow the leaf and press E to tuck underneath.', 7);
+      if (this.weather.stage === 'approaching') this.notify('A little cloud is gathering · Broad leaves and the grass (Ctrl) give shelter.', 7);
+      else if (this.weather.stage === 'rain') this.notify('A passing shower · Follow the leaf and press E to tuck underneath, or hold Ctrl to drop into the grass.', 7);
       else if (this.weather.stage === 'clearing') this.notify('The shower is passing. The meadow is brightening.', 5);
     }
     if (previousGale < .2 && this.weather.gale >= .2) this.notify('Heavy wind is rising · Fly low, perch or shelter in the grass to save energy.', 7);
@@ -1274,6 +1274,8 @@ export class Garden {
   private load(): number { return THREE.MathUtils.clamp(((this.nectar + this.water) / NECTAR_CAPACITY + this.pollen / POLLEN_GOAL) * .5, 0, 1); }
   /** How much shade the grass gives: full in an ordinary or wet summer, little when it's thin and dry. */
   private grassShade(): number { return 1 - .7 * moistureShift(this.groundMoisture).dry; }
+  /** Days in a row, just before this one, that ended with the bee lost. */
+  private trailingLosses(): number { let n = 0; for (let i = this.outcomes.length - 1; i >= 0 && this.outcomes[i] === 'lost'; i--) n++; return n; }
   /** In dry grass that shades too little, on a hot day. */
   private thinShade(): boolean { return this.grassCover > .99 && !this.rainCover && this.grassShade() < .9; }
   private needsShade(): boolean { return this.weather.sunHeat > .18 || this.heat > .18; }
@@ -1998,7 +2000,7 @@ export class Garden {
     if (this.knockdown > 0) hint = 'Knocked down by the rain…';
     else if (this.phase === 'landed' && this.wetness > WET_WINGS && (this.landed || this.onLeaf)) hint = 'Wings too wet to fly · Space to drop down into the grass';
     else if (this.phase === 'landed' && this.wetness > WET_WINGS && !this.resting) hint = 'Wings wet · Grooming them dry · E to rest and dry faster';
-    else if (this.phase === 'flying' && this.wetness > .2 && this.weather.rain > .05 && !this.canLand && this.rainExposure > .05) hint = 'Wet wings are heavy · Tuck under a leaf or into the grass';
+    else if (this.phase === 'flying' && this.wetness > .2 && this.weather.rain > .05 && !this.canLand && this.rainExposure > .05) hint = 'Wet wings are heavy · Tuck under a leaf, or hold Ctrl to drop into the grass';
     if (this.heat > .18 && this.shade > .99) hint = 'Cooling in the shade · E to rest · Space to fly when ready';
     const view: ViewState = {
       reducedMotion: this.reducedMotion, dayProgress: this.dayProgress(), resting: this.resting, restProgress: this.restAge / REST_DURATION, endingStage: this.homecoming.stage, endingFade: this.homecoming.fade,
@@ -2009,7 +2011,7 @@ export class Garden {
       weatherStage: this.weather.stage, rain: this.weather.rain, cloudiness: this.weather.cloudiness, rainExposure: this.rainExposure,
       heat: this.heat, sunHeat: this.weather.sunHeat, gale: this.weather.gale, heatExposure: this.heatExposure, shaded: this.shade > .99, needsShade: this.needsShade(),
       cold: this.coldVignette(), chilled: this.chill > .1, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight,
-      phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, water: this.water, waterGoal: this.waterGoal, thinShade: this.thinShade(), pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
+      phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, lossStreak: this.phase === 'lost' ? 1 + this.trailingLosses() : 0, water: this.water, waterGoal: this.waterGoal, thinShade: this.thinShade(), pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
       homeCost, homeDistance: distance * .1, homeBearing: this.yaw - Math.atan2(-(HOME_EXIT.x - this.position.x), -(HOME_EXIT.z - this.position.z)),
       homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
       canReturn,
@@ -2141,7 +2143,20 @@ export class Garden {
       approachFlower: (id: number) => { const f = this.meadow.flowers.find(f => f.id === id); if (!f) throw new Error('Unknown flower'); this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.copy(f.center).add(new THREE.Vector3(0, .55, f.radius + .5)); this.previousPosition.copy(this.position); this.yaw = 0; this.pitch = -.32; this.velocity.set(0,0,0); this.takeoffCooldown = 0; },
       shelters: () => this.leafShelters.shelters.map(leaf => ({ id: leaf.id, center: leaf.center.toArray(), perch: leaf.perch.toArray(), topPerch: leaf.topPerch.toArray(), rotation: leaf.rotation.toArray(), root: leaf.root.toArray(), radius: leaf.radius })),
       approachShelter: id => { const leaf = this.leafShelters.shelters.find(leaf => leaf.id === id); if (!leaf) throw new Error('Unknown shelter'); this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.copy(leaf.perch).add(new THREE.Vector3(0, -.1, leaf.radius + 1.1)); this.previousPosition.copy(this.position); this.yaw = 0; this.pitch = .03; this.velocity.set(0, 0, 0); this.takeoffCooldown = 0; },
-      setPollination: counts => { this.pollinatedBySpecies = { poppy: counts.poppy ?? 0, daisy: counts.daisy ?? 0, cornflower: counts.cornflower ?? 0 }; this.pollinated = Object.values(this.pollinatedBySpecies).reduce((a, b) => a + b, 0); },
+      setPollination: counts => {
+        this.pollinatedBySpecies = { poppy: counts.poppy ?? 0, daisy: counts.daisy ?? 0, cornflower: counts.cornflower ?? 0 }; this.pollinated = Object.values(this.pollinatedBySpecies).reduce((a, b) => a + b, 0);
+        // Marks that many real flowers of each kind too, so the results and next summer's meadow agree with the counts.
+        for (const species of ['poppy', 'daisy', 'cornflower'] as const) {
+          let left = counts[species] ?? 0;
+          for (const f of this.meadow.flowers) {
+            const supply = this.supplies.get(f.id);
+            if (!supply || f.species !== species) continue;
+            supply.pollinated = left-- > 0;
+            if (supply.pollinated) supply.visited = true;
+          }
+        }
+        this.visited = Array.from(this.supplies.values()).filter(s => s.visited).length;
+      },
       setCargo: (nectar, pollen, energy = 100, water = 0) => { this.nectar = nectar; this.pollen = pollen; this.energy = energy; this.water = water; },
       setChill: value => { this.chill = THREE.MathUtils.clamp(value, 0, 1); },
       setRaindrops: on => { this.raindropsOn = on; },

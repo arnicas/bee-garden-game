@@ -12,7 +12,11 @@ captions and a soft synthesized soundtrack.
    ```
 
    Re-take some shots only: `SHOTS=flight,rain npx playwright test -c video/playwright.config.ts`
-   (shots: title, flight, poppy, rain, finds, home, night, summer).
+   (shots: title, flight, poppy, rain, finds, home, results, night, summer; card re-takes only
+   the painted title for the end titles).
+
+   The title shot is the game's own title screen: its CSS animations and the flying bee are
+   held to the capture clock each frame (`holdAnimations`), so they keep time with the film.
 
 2. Assemble (needs ffmpeg and ImageMagick):
 
