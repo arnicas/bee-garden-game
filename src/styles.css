@@ -653,3 +653,6 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .pause-footer .lore-toggle[aria-pressed="false"] { color: var(--muted); }
 /* By night the card is lit like paper by a lamp: a little dimmer and warmer, with a deeper shadow. */
 #ui[data-phase="night"] .lore-card { filter: brightness(.8) sepia(.12) drop-shadow(0 8px 16px rgba(4, 8, 14, .45)); }
+
+/* Nectar the stem's aphids are taking: a faded, hatched stretch past what's left. */
+.supply-bar .supply-sapped { position: absolute; inset: 0 auto 0 0; width: calc(var(--sapped, 0) * 100%); border-radius: 3px; background: repeating-linear-gradient(-45deg, rgba(110, 140, 60, .85) 0 1.5px, rgba(217, 143, 38, .38) 1.5px 3.5px); transition: width .25s ease-out; }

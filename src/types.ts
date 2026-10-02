@@ -177,6 +177,9 @@ export interface ViewState {
   flowerName: string;
   flowerSpecies: Species | null;
   flowerNectar: number;
+  /** Nectar this flower's aphids are taking (shown faded on the bar), and whether a ladybird is eating them. */
+  flowerSapped?: number;
+  flowerAphids?: 'sapping' | 'eating' | null;
   flowerPollen: number;
   /** Usable nectar/pollen in a fresh flower of the richest kind, for the panel's bars. */
   flowerNectarMax: number;

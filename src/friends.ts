@@ -298,6 +298,10 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
   return {
     birds: birds as readonly Ladybird[],
     aphids: clusters as readonly AphidCluster[],
+    /** Whether a ladybird is eating the aphids on this flower's stem right now. */
+    eatingOn(flowerId: number): boolean { return birds.some(b => b.eating && b.flower?.id === flowerId); },
+    /** Test hook: sets how much of a cluster is there (0–1). */
+    setAphids(clusterId: number, population: number): void { const c = clusters[clusterId]; if (c) c.population = Math.max(0, Math.min(1, population)); },
     /** Moves and places the ladybirds near the camera. */
     update(time: number, bee: THREE.Vector3, camera: THREE.Vector3, reducedMotion: boolean): void {
       const dt = Math.min(.1, Math.max(0, time - lastTime)); lastTime = time;
@@ -308,7 +312,9 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
       for (const bird of birds) {
         bird.eating = false;
         const near = bird.position.lengthSq() === 0 || bird.position.distanceTo(camera) < VISIBLE_RANGE;
-        const shy = bird.position.distanceTo(bee) < SHY_DISTANCE;
+        const atCluster = bird.perch === 'stem' && !!bird.flower && (clusterOn.get(bird.flower.id)?.population ?? 0) > .02 && Math.abs(clusterOn.get(bird.flower.id)!.u - bird.u) < .03;
+        // A ladybird busy at the aphids keeps eating, even with a bee on the flower above.
+        const shy = bird.position.distanceTo(bee) < SHY_DISTANCE && !atCluster;
         if (near && !reducedMotion && dt > 0) {
           if (bird.perch === 'flying' && bird.flight) {
             bird.flight.t += dt / 1.4;

@@ -144,7 +144,7 @@ export function createUI(actions: UIActions): GameUI {
       </div>
       <div class="flower-note" hidden>
         <span class="flower-number" data-text="flower-number"></span><h2 data-text="flower-name"></h2>
-        <div class="flower-resources"><span class="supply supply-nectar">${icons.nectar}<span class="supply-bar" data-supply="nectar" role="img" aria-label="Nectar here"><i></i></span><small>nectar</small></span><span class="supply supply-pollen">${icons.pollen}<span class="supply-bar" data-supply="pollen" role="img" aria-label="Pollen here"><i></i></span><small>pollen</small></span></div>
+        <div class="flower-resources"><span class="supply supply-nectar">${icons.nectar}<span class="supply-bar" data-supply="nectar" role="img" aria-label="Nectar here"><b class="supply-sapped"></b><i></i></span><small>nectar</small></span><span class="supply supply-pollen">${icons.pollen}<span class="supply-bar" data-supply="pollen" role="img" aria-label="Pollen here"><i></i></span><small>pollen</small></span></div>
         <p class="flower-guidance" data-text="flower-guidance" hidden></p>
         <p class="flower-forage" data-text="flower-forage" hidden></p>
         <p class="flower-pollinated" hidden>${flowerTypes.map(([species]) => `<span class="flower-pollinated-mark" data-flower-pollinated="${species}" hidden>${pollinationFlowers[species]}</span>`).join('')}<span>Pollinated by you</span></p>
@@ -819,12 +819,14 @@ export function createUI(actions: UIActions): GameUI {
     show(flowerNote, state.phase === 'landed' && (leafPerch || onGround || !!state.flowerName));
     show(flowerResources, !leafPerch && !onGround);
     show(flowerForage, state.phase === 'landed' && !leafPerch && !onGround && !!state.flowerName);
-    text('flower-forage', state.flowerSpecies === 'poppy' ? 'Move to collect pollen.' : 'Move to collect pollen, F for nectar.');
+    text('flower-forage', state.flowerSpecies === 'poppy' ? 'Move to collect pollen.' : state.flowerAphids === 'eating' ? 'A ladybird is eating the aphids: nectar coming back.' : state.flowerAphids === 'sapping' ? 'Aphids on the stem take some of its nectar.' : 'Move to collect pollen, F for nectar.');
     text('flower-number', onGround ? (grassSheltered ? 'A LITTLE SHELTER' : 'AT GROUND LEVEL') : underLeaf ? 'A LITTLE SHELTER' : onLeaf ? 'A LEAFY PERCH' : '');
     text('flower-name', onGround ? 'Among the grass' : underLeaf ? 'Under a leaf' : onLeaf ? 'On a leaf' : state.flowerName);
     // What this flower still offers, on one scale per resource: the richest kind
     // (cornflower nectar, poppy pollen) fills the bar, so differences show.
-    supplyBar(nectarBar, state.flowerNectar / state.flowerNectarMax, `Nectar here: ${Math.ceil(state.flowerNectar / state.nectarCapacity * 100 - 1e-6)}% of a jar`);
+    const sapped = state.flowerSapped ?? 0;
+    supplyBar(nectarBar, state.flowerNectar / state.flowerNectarMax, `Nectar here: ${Math.ceil(state.flowerNectar / state.nectarCapacity * 100 - 1e-6)}% of a jar${sapped > .05 ? ', less than it would have: aphids on the stem take some' : ''}`);
+    nectarBar.style.setProperty('--sapped', Math.max(0, Math.min(1, (state.flowerNectar + sapped) / state.flowerNectarMax)).toFixed(3));
     supplyBar(pollenBar, state.flowerPollen / state.flowerPollenMax, `Pollen here: ${Math.ceil(state.flowerPollen / state.pollenGoal * 100 - 1e-6)}% of a pouch`);
     const guidance = cooling ? 'Cooling in the shade. Nectar restores energy.' : overheated ? (shelterBeneath ? 'Hot sun falls here. E tucks into shade.' : 'Open to the hot sun. Leaves or dense grass offer shade.') : onGround ? (grassSheltered ? (state.chilled ? 'Your wings are warming. Nectar restores energy.' : 'Sheltered by the grass. Nectar restores energy.') : exposedToRain ? 'Rain reaches this patch. Denser grass offers shelter.' : 'A quiet place to rest. Stored nectar restores energy.') : underLeaf ? (state.chilled ? 'Shelter beneath a leaf. Your wings are warming.' : 'Shelter beneath a leaf. Look up with ↑: ladybirds sometimes walk the underside.') : onLeaf ? (shelterBeneath ? (state.rain > .05 ? 'Rain falls here. Tuck beneath to get dry.' : 'Hot sun falls here. E tucks into shade.') : 'A quiet perch. Stored nectar restores energy.') : exposedFlower ? 'Open to cold rain. Leaves or dense grass offer shelter.' : '';
     text('flower-guidance', guidance);

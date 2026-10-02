@@ -67,6 +67,10 @@ const POLLEN_SUPPLY: Record<Species, number> = { poppy: 42, daisy: 28, cornflowe
 // Flower supplies track visible material; counters track usable harvest.
 // Keep contact/depletion lively while asking for more flower visits per day.
 const POLLEN_YIELD = .5, NECTAR_YIELD = .5;
+/** Aphids drink a plant's sap, so a stem heavy with them leaves its flower less nectar:
+ * up to this share of each sip, from a cluster about half full (none below that).
+ * Ladybirds eating the aphids bring it back. Poppies have no nectar to lose. */
+const APHID_SAP_MAX = .35, APHID_SAP_FROM = .4, APHID_SAP_FULL = .85;
 // How close the bee must be for the E landing cue on a flower: reach beyond the petal radius,
 // and height above the petal surface. (Previously 2.25 and 3.2.)
 const FLOWER_LANDING_REACH = 1.85;
@@ -141,6 +145,8 @@ interface TestControl {
   /** Nectar left in a flower (supply units). */
   nectar(flowerId: number): number;
   aphids(): { id: number; flowerId: number; population: number; position: number[]; facing: number[] }[];
+  /** Sets how much of an aphid cluster is there (0–1). */
+  setAphids(clusterId: number, population: number): void;
   /** Ends the summer as if these flowers were pollinated and grows the next meadow. */
   nextSummer(pollinatedIds?: number[]): { counts: Record<Species, number>; badSummers: Record<Species, number>; gaps: number; ladybirds: number; aphidClusters: number };
 }
@@ -351,6 +357,10 @@ export class Garden {
   private resting = false;
   private restAge = 0;
   private quietAge = 0;
+  /** Aphids sapping nectar (off in tests unless ?aphids), and whether their notes have shown today. */
+  private readonly aphidSapOn = (() => { const p = new URLSearchParams(location.search); return !p.has('test') || p.has('aphids'); })();
+  private aphidNoteShown = false;
+  private ladybirdHelpNoteShown = false;
   /** Bee lore cards while time passes (off in tests unless ?lore, which may name a card). */
   private readonly loreAllowed = (() => { const p = new URLSearchParams(location.search); return !p.has('test') || p.has('lore'); })();
   private lore = createLore(Math.random, new URLSearchParams(location.search).get('lore') || undefined);
@@ -703,7 +713,7 @@ export class Garden {
     this.pollinationSpecies = null; this.pollinationUntil = 0; this.pollinationFX.reset();
     this.elapsed = 0; this.time = 0; this.landed = null; this.landingAssist = null; this.drinking = false; this.autoFeeding = false; this.satiated = false; this.crawlDistance = 0; this.uv = false; this.resultScore = 0;
     this.dayElapsed = 0; this.stopRest(); this.clearShelter(); this.returnDayStart = 0; this.homecoming.reset();
-    this.quietAge = 0; this.restView.reset(); this.lore.newDay(); this.loreView = null; this.quietHeldKeys.clear(); this.suppressQuietClick = false; this.quietUnlockExpected = false;
+    this.quietAge = 0; this.restView.reset(); this.aphidNoteShown = false; this.ladybirdHelpNoteShown = false; this.lore.newDay(); this.loreView = null; this.quietHeldKeys.clear(); this.suppressQuietClick = false; this.quietUnlockExpected = false;
     this.waterSips = 0; this.sippingWater = false; this.dustCleared = 0; this.puddles?.setFill(0);
     this.wetness = 0; this.dripTimer = 3; this.dropTimer = 1.5; this.dropStrikes = 0; this.dropJolt = 0; this.knockdown = 0; this.knockedDown = false; this.groom = 0; this.rainSplash?.clear();
     this.chill = 0; this.coldDrain = 0; this.heat = 0; this.heatExposure = 0; this.heatDrain = 0; this.shade = 0;
@@ -1549,6 +1559,10 @@ export class Garden {
     const reach = this.temp.length();
     this.canDrink = !this.satiated && f.species !== 'poppy' && supply.nectar > .01 && !this.antsAtNectar(f)
       && (florets.length ? this.nectarFloret >= 0 : reach < f.radius * .95 + .20 && this.temp.normalize().dot(this.forward) > .92);
+    if (!this.ladybirdHelpNoteShown && this.aphidNoteShown && this.landingAge > 1.5 && this.aphidSap(f) > 0 && this.ladybirds.eatingOn(f.id)) {
+      this.ladybirdHelpNoteShown = true;
+      this.notify('It is eating the aphids on this stem. As they go, the flower’s nectar comes back.', 6, 'A ladybird below you!');
+    }
     if (this.canDrink && (this.keys.has('KeyF') || this.mouseDown) && this.landingAge > .3) {
       this.drinking = true;
       // Some of the sip feeds the bee; the remainder is stored for the hive.
@@ -1556,7 +1570,7 @@ export class Garden {
       const appetite = Math.min(100 - this.energy, dt * SIP_ENERGY_RATE) / ENERGY_PER_NECTAR;
       const available = florets.length ? florets[this.nectarFloret] : supply.nectar;
       const amount = Math.min(available, dt * (florets.length ? FLORET_SIP_RATE : 9), (NECTAR_CAPACITY - this.water - this.nectar + appetite) / NECTAR_YIELD);
-      const harvest = amount * NECTAR_YIELD;
+      const harvest = amount * NECTAR_YIELD * (1 - this.aphidSap(f));
       const eaten = Math.min(harvest, appetite);
       this.energy = Math.min(100, this.energy + eaten * ENERGY_PER_NECTAR);
       this.nectar = Math.min(NECTAR_CAPACITY - this.water, this.nectar + (harvest - eaten));
@@ -1566,6 +1580,12 @@ export class Garden {
       this.drinkChime += amount;
       if (this.drinkChime > 9) { this.audio.chime('nectar'); this.drinkChime = 0; }
     }
+  }
+  /** The share of a flower's nectar its stem's aphids take (0 to APHID_SAP_MAX). */
+  private aphidSap(f: Flower | null | undefined): number {
+    if (!f || !this.aphidSapOn || f.species === 'poppy') return 0;
+    const cluster = this.ladybirds.aphids.find(c => c.flowerId === f.id);
+    return cluster ? APHID_SAP_MAX * THREE.MathUtils.smoothstep(cluster.population, APHID_SAP_FROM, APHID_SAP_FULL) : 0;
   }
   /** A party of ants crowding this flower's nectar: the bee can't sip past them. */
   private antsAtNectar(f: Flower): boolean { return f.species !== 'poppy' && this.ants.feedingOn(f.id) >= 2; }
@@ -1655,6 +1675,10 @@ export class Garden {
       // Nothing left here: Bee Vision shows the flowers still worth a visit.
       this.audio.chime('land');
       this.notify(this.uv ? 'Fresh flowers glow in Bee Vision. Look for one that still shows its bright centre.' : 'Turn on Bee Vision (Q) to see the flowers that still have pollen or nectar.', 6, 'This flower is empty.');
+    } else if (!this.aphidNoteShown && this.aphidSap(f) > .1 && supply.nectar > 1) {
+      this.aphidNoteShown = true;
+      this.audio.chime('land');
+      this.notify('They drink the plant’s sap, so this flower has less nectar for you. Ladybirds eat aphids, and the nectar comes back.', 7, 'Aphids on the stem.');
     } else {
       this.audio.chime('land');
       this.notify(this.satiated ? 'All topped up. Walk through the center for pollen.' : f.species === 'poppy' ? 'A pollen feast. Crawl toward the dark anthers; poppies offer almost no nectar.' : f.species === 'cornflower' ? 'A cornflower. Its nectar hides deep in the small florets at the centre: walk to a gold bead and hold F.' : 'Your feet have found a petal. Crawl with WASD; aim at the golden nectar and hold F.', 6);
@@ -2037,7 +2061,7 @@ export class Garden {
       canReturn,
       wind: this.wind.length(), windBearing: this.yaw - Math.atan2(-this.wind.x, -this.wind.z), flightMode: this.flightMode, sheltered: !!this.underLeaf || this.position.y < 3.7, edgeGust,
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
-      flowerName: target ? NAMES[target.species] : '', flowerSpecies: target?.species ?? null, flowerNectar: (supply?.nectar ?? 0) * NECTAR_YIELD, flowerNectarMax: Math.max(...Object.values(NECTAR_SUPPLY)) * NECTAR_YIELD, flowerPollenMax: Math.max(...Object.values(POLLEN_SUPPLY)) * POLLEN_YIELD, flowerPollen: (supply?.pollen ?? 0) * POLLEN_YIELD,
+      flowerName: target ? NAMES[target.species] : '', flowerSpecies: target?.species ?? null, flowerNectar: (supply?.nectar ?? 0) * NECTAR_YIELD * (1 - this.aphidSap(target)), flowerSapped: (supply?.nectar ?? 0) * NECTAR_YIELD * this.aphidSap(target), flowerAphids: this.aphidSap(target) > 0 && (supply?.nectar ?? 0) > .01 ? (target && this.landed === target && this.ladybirds.eatingOn(target.id) ? 'eating' : 'sapping') : null, flowerNectarMax: Math.max(...Object.values(NECTAR_SUPPLY)) * NECTAR_YIELD, flowerPollenMax: Math.max(...Object.values(POLLEN_SUPPLY)) * POLLEN_YIELD, flowerPollen: (supply?.pollen ?? 0) * POLLEN_YIELD,
       targetX: x, targetY: y, targetVisible, canLand: this.canLand, landing: !!(this.landingAssist || this.shelterAssist), canDrink: this.canDrink, drinking: this.drinking, satiated: this.satiated,
       dust: Math.min(1, Math.max(0, this.carriedPollenAmount() - (this.dustCleared = Math.min(this.dustCleared, this.carriedPollenAmount()))) * .55), pollinated: this.pollinated, visited: this.visited, flowerTotal: this.supplies.size,
       pollinatedBySpecies: this.pollinatedBySpecies,
@@ -2196,6 +2220,7 @@ export class Garden {
         return { counts: countSpecies(this.meadow.flowers), badSummers: plan.badSummers, gaps: this.meadowGaps.length, ladybirds: this.ladybirds.diagnostics().count, aphidClusters: this.ladybirds.aphids.length };
       },
       aphids: () => this.ladybirds.aphids.map(c => ({ id: c.id, flowerId: c.flowerId, population: c.population, position: c.position.toArray(), facing: c.facing.toArray() })),
+      setAphids: (clusterId: number, population: number) => this.ladybirds.setAphids(clusterId, population),
       snails: () => this.snails.snails.map(s => ({ id: s.id, state: s.state, perch: s.perch, position: s.position.toArray(), extension: s.extension, seen: s.seen })),
       ants: () => this.ants.colonies.map(c => ({ id: c.id, flowerId: c.flowerId, nest: c.nest.toArray(), seen: c.seen })),
       antsOf: (colony: number) => this.ants.antsOf(colony),

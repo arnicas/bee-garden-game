@@ -110,10 +110,10 @@ export const beeFacts: readonly BeeFact[] = [
   },
   {
     id: 'ladybirds', section: 'meadow', label: 'Aphids & ladybirds', title: 'Small hunters on the stems.', scope: 'Ladybirds (lady beetles) & aphids',
-    nature: 'Aphids suck sap from plant stems, often gathering in clusters on cornflowers and poppies. Ladybirds, adults and larvae alike, eat them in large numbers. When aphids run short, adult ladybirds also take pollen and nectar from shallow, open flowers, or move on to find more prey.',
-    game: 'Aphid clusters live on poppy and cornflower stems; ladybirds walk to them and eat them down, and use daisies as backup food. A summer with more of those flowers brings more aphids, and more ladybirds follow.',
+    nature: 'Aphids suck sap from plant stems, often gathering in clusters on cornflowers and poppies. Sap is the sugar a plant would otherwise spend on its flowers: in one study, honeysuckle flowers on stems damaged by aphids made no nectar at all. Ladybirds, adults and larvae alike, eat them in large numbers. When aphids run short, adult ladybirds also take pollen and nectar from shallow, open flowers, or move on to find more prey.',
+    game: 'Aphid clusters live on poppy and cornflower stems (and now and then a daisy’s); ladybirds walk to them and eat them down, and use daisies as backup food. A stem heavy with aphids leaves its flower less nectar: up to about a third of each sip, shown as a faded stretch of the flower’s nectar bar. When a ladybird eats them down, the nectar comes back. A summer with more of those flowers brings more aphids, and more ladybirds follow.',
     spotting: 'Look low on the stems of poppies and cornflowers, below the flower heads: green aphid clusters on cornflowers, dark ones on poppies, and the ladybirds nearby. Press Ctrl to drop down and fly slowly past the stems. When aphids are scarce, check the daisy faces too. Fly within a bee’s length or so of one to count it.',
-    sources: [{ label: 'Lady beetles · Colorado State University Extension', url: 'https://extension.colostate.edu/resource/lady-beetles/' }],
+    sources: [{ label: 'Lady beetles · Colorado State University Extension', url: 'https://extension.colostate.edu/resource/lady-beetles/' }, { label: 'Phloem-feeding herbivores and floral development (Rojas-Nossa et al., Plants, 2021)', url: 'https://www.mdpi.com/2223-7747/10/4/815' }],
   },
   {
     id: 'butterflies', section: 'meadow', label: 'Butterflies', title: 'Warmed by the sun.', scope: 'Meadow butterflies',
