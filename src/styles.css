@@ -334,7 +334,7 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .message-toast { position: absolute; top: 102px; left: 50%; transform: translateX(-50%); max-width: min(420px, calc(100vw - 550px)); display: flex; align-items: center; gap: 10px; color: var(--ink); font-family: var(--serif); font-size: 14px; text-align: center; background: rgba(251,245,229,.8); padding: 10px 17px; border-radius: 3px; animation: note-in .4s ease-out; }
 .message-toast .message-lead { font-weight: 600; }
 /* The night between summers: only the sky and meadow, and a quiet caption. */
-#ui[data-phase="night"] > :not(.night-caption):not(.day-timeline) { visibility: hidden !important; }
+#ui[data-phase="night"] > :not(.night-caption):not(.day-timeline):not(.lore-card) { visibility: hidden !important; }
 #ui[data-phase="night"] > .day-timeline.play-only { opacity: 1; visibility: visible; }
 #ui[data-phase="night"] .day-timeline::before { opacity: .6; }
 .night-caption { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; font-family: var(--serif); font-size: 14px; color: rgba(246,241,226,.82); letter-spacing: .4px; animation: note-in 1.2s ease-out; }
@@ -627,3 +627,29 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .mobile-note small { display: block; margin-bottom: 18px; font-size: 13px; opacity: .72; }
 .mobile-note .mobile-note-close { width: auto; margin: 0 auto; justify-content: center; padding: 0 22px; }
 @keyframes mobile-note-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* Bee lore cards: centred low over the view, above the hint line, clear of the bee's-eye centre. */
+.lore-card { --lore-scale: .9; position: absolute; left: 50%; bottom: 94px; margin-left: -150px; z-index: 7; width: 300px; height: 196px; pointer-events: none; opacity: 0; transform-origin: 50% 100%; transform: translateY(calc((1 - var(--lore-in, 1)) * 12px)) scale(var(--lore-scale)) rotate(calc(var(--lore-tilt, 0deg) - (1 - var(--lore-in, 1)) * 3deg)); filter: drop-shadow(0 7px 12px rgba(28, 38, 24, .2)); }
+.lore-card[hidden] { display: none; }
+.lore-card.is-still { transform: scale(var(--lore-scale)) rotate(var(--lore-tilt, 0deg)); }
+@media (max-width: 1100px), (max-height: 640px) { .lore-card { --lore-scale: .78; bottom: 86px; } }
+.lore-frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.lore-text { position: absolute; display: flex; flex-direction: column; align-items: center; text-align: center; color: var(--ink); font-family: var(--serif); }
+.lore-label { font-family: inherit; font-size: 9.5px; font-weight: 700; letter-spacing: 2.2px; text-transform: uppercase; color: #7a6a3a; }
+.lore-line { margin: 0; font-size: 14.5px; line-height: 1.38; text-wrap: balance; }
+.lore-source { margin-top: auto; font-size: 11.5px; font-style: italic; color: var(--muted); }
+.lore-belief { --lore-tilt: -1.4deg; }
+.lore-belief .lore-text { inset: 36px 36px 36px; justify-content: center; gap: 8px; }
+.lore-belief .lore-source { margin-top: 2px; }
+.lore-thought { --lore-tilt: 1.1deg; }
+.lore-thought .lore-text { inset: 40px 36px 30px; }
+.lore-thought .lore-label { color: #b96043; margin-bottom: 20px; }
+.lore-verse { --lore-tilt: -.7deg; }
+.lore-verse .lore-text { inset: 31px 24px 24px 98px; align-items: flex-start; text-align: left; }
+.lore-verse .lore-label { color: #5b6b36; }
+.lore-verse .lore-line { margin-top: 15px; font-style: italic; font-size: 14px; line-height: 1.36; display: flex; flex-direction: column; }
+.lore-verse .lore-source { font-style: normal; }
+.pause-footer .lore-toggle { margin-left: auto; }
+.pause-footer .lore-toggle[aria-pressed="false"] { color: var(--muted); }
+/* By night the card is lit like paper by a lamp: a little dimmer and warmer, with a deeper shadow. */
+#ui[data-phase="night"] .lore-card { filter: brightness(.8) sepia(.12) drop-shadow(0 8px 16px rgba(4, 8, 14, .45)); }

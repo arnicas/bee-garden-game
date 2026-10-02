@@ -81,8 +81,12 @@ export interface SummerStart {
   snailsBefore: number;
   snailsAfter: number;
 }
+export interface LoreCardView { id: string; kind: 'belief' | 'thought' | 'verse'; lines: string[]; source: string; opacity: number; }
 export interface ViewState {
   phase: Phase;
+  /** The bee lore card beside the sleeping bee, if one is showing. */
+  lore?: LoreCardView | null;
+  loreOn?: boolean;
   dayProgress: number;
   reducedMotion: boolean;
   resting: boolean;
@@ -220,6 +224,8 @@ export interface UIActions {
   /** Skips the night between summers to the next morning. */
   skipNight(): void;
   toggleRest(): void;
+  /** Turns the bee lore cards on or off. */
+  toggleLore(): void;
 }
 export interface GameUI {
   update(state: ViewState): void;
