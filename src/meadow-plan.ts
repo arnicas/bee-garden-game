@@ -65,7 +65,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export function moistureShift(moisture = .5): { dry: number; wet: number } {
   return { dry: clamp((.5 - moisture) / .4, 0, 1), wet: clamp((moisture - .5) / .4, 0, 1) };
 }
-/** Each kind's multiplier at full dry and full wet (see Seasons_Design.md).
+/** Each kind's multiplier at full dry and full wet (see docs/design/Seasons_Design.md).
  * Poppies and cornflowers are annuals of open, well-drained ground; the oxeye
  * daisy is a grassland perennial that suffers in drought. Small, so the bee's
  * pollination still leads. */

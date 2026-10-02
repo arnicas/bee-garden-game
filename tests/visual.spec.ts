@@ -88,7 +88,7 @@ test('real input flies, lands, gathers, takes off and delivers a balanced harves
   await expect.poll(async () => Math.abs((await snapshot(page)).localPosition[0] - landed.localPosition[0]), { intervals: [30] }).toBeLessThan(.02);
   await page.keyboard.up('d');
   await page.keyboard.down('f');
-  // A daisy now gives 13 nectar per visit (see Flower_Facts.md), part of it eaten for energy.
+  // A daisy now gives 13 nectar per visit (see docs/research/Flower_Facts.md), part of it eaten for energy.
   await expect.poll(async () => (await snapshot(page)).nectar, { timeout: 20_000 }).toBeGreaterThan(8);
   await page.keyboard.up('f');
   await walkForPollen(page, s => s.pollen > 10);

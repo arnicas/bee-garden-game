@@ -1,6 +1,6 @@
 # Meadow Fact Check
 
-A check of `Pollination_Impact.md` and `Meadow_Health.md` against sources, with what each finding means for the game. Checked 2026-09-25 by Claude. Numbers are from the sources listed at the end. The game uses one unit to about 10 cm.
+A check of `../design/Pollination_Impact.md` and `../design/Meadow_Health.md` against sources, with what each finding means for the game. Checked 2026-09-25 by Claude. Numbers are from the sources listed at the end. The game uses one unit to about 10 cm.
 
 Verdicts: **True**, **Mostly true** (right idea, a detail off), **Not supported** (reads well but the sources say otherwise), **Unchecked** (general ecology, not verified here).
 

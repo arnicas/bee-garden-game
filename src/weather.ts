@@ -16,7 +16,7 @@ export type NightWeather = 'wet' | 'dewy' | 'dry';
 /** One day's weather: the night before, none to two showers and a hot spell, never overlapping. */
 export interface WeatherPlan { night: NightWeather; showers: Shower[]; heatStart: number; heatEnd: number; gales: Shower[]; }
 
-/** The summer's kind of weather, which biases each day's plan (see Seasons_Design.md). */
+/** The summer's kind of weather, which biases each day's plan (see docs/design/Seasons_Design.md). */
 export type Season = 'wet' | 'ordinary' | 'dry' | 'hotdry';
 
 interface SeasonShape {
@@ -151,7 +151,7 @@ export function weatherAt(daySeconds: number, out: MeadowWeather, plan: WeatherP
 
 /** How a finished day moves the meadow's ground moisture (0–1): rain and a wet
  * night raise it, heat and a dry night lower it, nearly half the way at most, so a
- * run of similar summers moves it a long way. See Seasons_Design.md. */
+ * run of similar summers moves it a long way. See docs/design/Seasons_Design.md. */
 export function nextMoisture(moisture: number, plan: WeatherPlan, cover = 1): number {
   const rainMinutes = plan.showers.reduce((sum, s) => sum + s.length, 0) / 60;
   const heatMinutes = Math.max(0, plan.heatEnd - plan.heatStart) / 60;

@@ -28,3 +28,14 @@ captions and a soft synthesized soundtrack.
    are at the top of `assemble.py`; the soundtrack is `soundtrack.py`.
 
 Frames are large (about 300 KB each); delete `video/out/frames/` when done.
+
+## README images
+
+`readme-images.spec.ts` retakes the title, results, next-summer and bee lore pictures in
+`docs/images/` (the other pictures there were taken by hand):
+
+```sh
+npm run build
+npx playwright test -c video/playwright.config.ts video/readme-images.spec.ts
+sips -Z 800 -s formatOptions 82 artifacts/readme-images/*.jpg --out docs/images/
+```

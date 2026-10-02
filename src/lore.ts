@@ -1,5 +1,5 @@
 // Bee lore: short cards from old beliefs, old science and old verse (sources in
-// Bee_Folklore.md). They appear low in the middle of the view while time passes: during an
+// docs/research/Bee_Folklore.md). They appear low in the middle of the view while time passes: during an
 // E rest, once the quiet overhead view has settled, and in the night between summers. Never
 // with a button, and never twice until all have been seen.
 

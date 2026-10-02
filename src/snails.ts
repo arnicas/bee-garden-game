@@ -12,7 +12,7 @@ import type { Flower, PuddleSpot } from './types';
  * lid. Their tentacles pull in when the bee comes close; they never flee. They
  * eat only dead plant matter. How many there are, and how many stay sealed,
  * follows how full the meadow is (friendCounts in meadow-plan.ts).
- * See Snails_Design.md. Four instanced draws: shells, bodies, lids, trails.
+ * See docs/design/Snails_Design.md. Four instanced draws: shells, bodies, lids, trails.
  */
 export type SnailState = 'crawling' | 'feeding' | 'tucked' | 'climbing' | 'sealed';
 export type SnailPerch = 'ground' | 'stem' | 'leaf';

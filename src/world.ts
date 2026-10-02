@@ -475,7 +475,7 @@ const DROOP_ANGLE = .78;
 
 /** Builds the meadow. `moisture` (0 parched – 1 sodden, .5 ordinary) is the ground
  * water carried over from summer to summer: a dry meadow has shorter, thinner,
- * straw-tinted grass; a wet one taller, denser and deeper green. See Seasons_Design.md. */
+ * straw-tinted grass; a wet one taller, denser and deeper green. See docs/design/Seasons_Design.md. */
 export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly FlowerSpot[] | null = null, moisture = .5): Meadow {
   const dry = THREE.MathUtils.clamp((.5 - moisture) / .4, 0, 1), wet = THREE.MathUtils.clamp((moisture - .5) / .4, 0, 1), shade = new THREE.Color();
   const root = new THREE.Group(); root.name = 'the living meadow'; scene.add(root);

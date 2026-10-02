@@ -59,7 +59,7 @@ const START_ENERGY = 60;
 
 const DAY_DURATION = 600, DUSK_START = 540, NIGHT_LOSS_DURATION = 6;
 // Per-flower supplies before the 0.5 harvest yield, matched to real flowers (see
-// Flower_Facts.md): cornflowers for nectar, poppies for pollen, daisies in between.
+// docs/research/Flower_Facts.md): cornflowers for nectar, poppies for pollen, daisies in between.
 const NECTAR_SUPPLY: Record<Species, number> = { poppy: 0, daisy: 26, cornflower: 56 };
 /** Nectar a raiding ant drinks from a flower each second (a party of seven empties a daisy in about a minute and a half). */
 const ANT_NECTAR_RATE = .04;
@@ -428,7 +428,7 @@ export class Garden {
   /** This summer's kind of weather (test pages keep the fixed day, so 'ordinary'). */
   private season: Season = 'ordinary';
   /** Ground moisture, 0 parched – 1 sodden: the water the meadow remembers from summer
-   * to summer (see Seasons_Design.md). Dev: ?moisture=0.1 starts dry. */
+   * to summer (see docs/design/Seasons_Design.md). Dev: ?moisture=0.1 starts dry. */
   private groundMoisture = (() => { const m = Number(new URLSearchParams(location.search).get('moisture')); return Number.isFinite(m) && new URLSearchParams(location.search).has('moisture') ? THREE.MathUtils.clamp(m, 0, 1) : .5; })();
   /** How each finished summer ended, oldest first, for the Queen's memory. */
   private outcomes: SummerOutcome[] = [];
@@ -1314,7 +1314,7 @@ export class Garden {
     }
     this.grassCover = this.landed || this.onLeaf ? 0 : grassRainCover(this.position.x, this.position.y, this.position.z);
     this.rainExposure = this.rainCover ? 0 : this.weather.rain * (1 - this.grassCover);
-    // Thin, dry grass shades less (Seasons_Design.md): in a dry summer, hiding in it isn't enough.
+    // Thin, dry grass shades less (docs/design/Seasons_Design.md): in a dry summer, hiding in it isn't enough.
     this.shade = this.rainCover ? 1 : this.grassCover * this.grassShade();
     this.heatExposure = this.weather.sunHeat * (1 - this.shade);
   }
