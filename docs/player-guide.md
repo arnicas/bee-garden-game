@@ -23,7 +23,8 @@ How to play, then the full rules and numbers. Back to the [README](../README.md)
   the hot spell overheats you. Tuck under a broad leaf or down into the grass.
   Sip from dew, raindrops and rain pools to cool off.
 - **Go home.** Once the jar and pouch hold enough, a marker points to the
-  meadow edge nearest the hive. You can also head home early with **R**.
+  meadow edge nearest the hive. You can also head home early with **R**,
+  or by flying out past that edge, where the hive arrow (top right) points.
   If you stay out past sunset, the day ends without you.
 
 The results screen tells you how the day went. It also shows how your

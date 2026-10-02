@@ -156,6 +156,8 @@ export interface ViewState {
   waterSips: number;
   /** Chose to fly home before the harvest goal. */
   headingHome: boolean;
+  /** Near the hive edge facing out, before heading home: the marker shows the way. */
+  nearHomeEdge?: boolean;
   /** Carries enough nectar for the flight home. */
   canHeadHome: boolean;
   /** Summers played this session (each round is one day that stands for a summer). */

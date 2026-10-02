@@ -188,7 +188,7 @@ export function createUI(actions: UIActions): GameUI {
       </div>
     </section>
     </aside>
-    <div class="home-marker" hidden aria-hidden="true"><span>${icons.hive}</span><b>WAY HOME</b><small>Fly to the meadow edge</small></div>
+    <div class="home-marker" hidden aria-hidden="true"><span>${icons.hive}</span><b>WAY HOME</b><small data-text="home-marker-note">Fly to the meadow edge</small></div>
     <div class="target-marker" hidden aria-hidden="true"><kbd>E</kbd></div>
     <div class="aim play-only" aria-hidden="true"><i></i><span></span></div>
     <div class="center-note play-only"><span class="interaction-label" data-text="interaction"></span><p data-text="hint"></p></div>
@@ -813,7 +813,8 @@ export function createUI(actions: UIActions): GameUI {
     show(homeReady, homeward && playing);
     // R works any time there is nectar for the flight; the button appears once homeward.
     returnButton.disabled = !state.canHeadHome;
-    show(homeMarker, homeward && playing && state.homeVisible);
+    show(homeMarker, (homeward || !!state.nearHomeEdge) && playing && state.homeVisible);
+    text('home-marker-note', homeward ? 'Fly to the meadow edge' : 'Keep flying to go home');
     homeMarker.style.left = `${state.homeX * 100}%`;
     homeMarker.style.top = `${state.homeY * 100}%`;
     show(flowerNote, state.phase === 'landed' && (leafPerch || onGround || !!state.flowerName));

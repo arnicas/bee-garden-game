@@ -37,6 +37,9 @@ const HOME = new THREE.Vector3(0, 4, 46);
 const HOME_EXIT = new THREE.Vector3(0, 4, 30);
 const HOME_EXIT_HALF_WIDTH = 8;
 const HOME_RETURN_FUEL = 5;
+/** Flying out at the hive edge without R: the marker shows from this far in, and the bee
+ * heads home after flying on past the edge for this long (W held, facing out). */
+const HOME_APPROACH_DEPTH = 6, HOME_EDGE_HOLD = 1;
 const START = new THREE.Vector3(0, 4.6, 3.5);
 const FIXED = 1 / 60;
 const NECTAR_GOAL = 45, POLLEN_GOAL = 140;
@@ -445,6 +448,9 @@ export class Garden {
   private queenSays = '';
   /** The player chose to fly home before the harvest goal (R). */
   private headingHome = false;
+  /** Seconds spent flying out past the hive edge (toward going home without R), and whether its note has shown today. */
+  private edgeHold = 0;
+  private edgeNoteShown = false;
   /** How the last day at the hive went (set when the bee gets home). */
   private report: DayReport | null = null;
   /** The last finished day, which shapes the next meadow's species mix. */
@@ -706,7 +712,7 @@ export class Garden {
     this.rollDayWeather();
     this.waterGoal = this.waterPlayOn && (this.hiveWaterAsked || hiveNeedsWater(this.weatherPlan)) ? WATER_GOAL : 0;
     this.water = 0; this.waterGoalMet = false; this.jarFullNoteShown = false;
-    this.headingHome = false; this.report = null;
+    this.headingHome = false; this.edgeHold = 0; this.edgeNoteShown = false; this.report = null;
     this.phase = 'flying'; this.position.copy(START); this.previousPosition.copy(START); this.velocity.set(0, 0, 0);
     this.yaw = 0; this.pitch = -.13; this.energy = START_ENERGY; this.nectar = 0; this.pollen = 0;
     this.pollinated = 0; this.visited = 0; this.loose = {}; this.pollenOrder = []; this.previousFlowerBySpecies = {};
@@ -1174,6 +1180,7 @@ export class Garden {
     this.energy = Math.max(0, this.energy);
     if (this.energy <= 0) this.beginLoss();
     else if (this.canReturn()) this.returnHome();
+    else this.flyOutHome(dt);
     if ((this.phase === 'flying' || this.phase === 'landed') && this.dayElapsed >= DAY_DURATION && !this.nightfallChecked) {
       this.nightfallChecked = true;
       if (!this.harvestReady()) this.beginLoss(true);
@@ -1780,6 +1787,25 @@ export class Garden {
   // ends the day by itself once the harvest goal is met; before that, only
   // after the player has chosen to head home (R), so the edge isn't a trap.
   private canReturn(): boolean { return this.phase === 'flying' && !this.landingAssist && !this.shelterAssist && this.atHomeEdge() && this.canHeadHome() && (this.harvestReady() || this.headingHome); }
+  /** Near the hive edge, facing out (not yet homeward): the way home is right ahead. */
+  private nearHomeEdge(): boolean {
+    return this.phase === 'flying' && !this.harvestReady() && !this.headingHome && !this.landingAssist && !this.shelterAssist
+      && this.position.z >= HOME_EXIT.z - HOME_APPROACH_DEPTH && Math.abs(this.position.x - HOME_EXIT.x) <= HOME_EXIT_HALF_WIDTH + 2 && -Math.cos(this.yaw) > .3;
+  }
+  /** Flying on out past the hive edge goes home early, as R would: the marker there gives
+   * its arrow a reason before the player has found R. Only with W held facing out, so
+   * hovering or drifting by the edge never ends the day by surprise. */
+  private flyOutHome(dt: number): void {
+    const pushing = this.nearHomeEdge() && this.keys.has('KeyW') && -Math.cos(this.yaw) > .5;
+    if (!pushing) { this.edgeHold = 0; return; }
+    if (!this.edgeNoteShown && this.position.z >= HOME_EXIT.z - HOME_APPROACH_DEPTH + 2) {
+      this.edgeNoteShown = true;
+      this.notify(this.canHeadHome() ? 'Keep flying this way to end your day early: the hive gets whatever you carry. (R heads home from anywhere.)' : `You need a little nectar in your jar (${HOME_RETURN_FUEL}%) for the flight home.`, 6, 'The way home.');
+    }
+    if (!this.atHomeEdge() || !this.canHeadHome()) { this.edgeHold = 0; return; }
+    this.edgeHold += dt;
+    if (this.edgeHold >= HOME_EDGE_HOLD) { this.edgeHold = 0; this.headingHome = true; this.returnHome(); }
+  }
   private returnHome(): void {
     if (this.phase !== 'flying' && this.phase !== 'landed') return;
     if (!this.canHeadHome()) { this.notify(`You need a little nectar in your jar (${HOME_RETURN_FUEL}%) for the flight home.`, 5); return; }
@@ -2028,6 +2054,7 @@ export class Garden {
     else if (this.target && this.position.distanceTo(this.target.center) < 3.5) hint = this.landingHint;
     if (edgeGust && this.phase === 'flying') hint = 'An outer gust is carrying you back toward the flowers';
     if (harvestReady && this.phase === 'flying' && !this.canLand && !edgeGust) hint = 'A good day’s work · You’re hauling a lot! Follow the hive marker home';
+    else if (this.nearHomeEdge() && !this.canLand) hint = this.canHeadHome() ? 'The way home · Keep flying out to end your day early' : 'The way home · You need a little nectar for the flight';
     else if (this.headingHome && this.phase === 'flying' && !this.canLand && !edgeGust) hint = this.canHeadHome() ? 'Heading home early · Follow the hive marker' : 'Heading home · You need a little nectar for the flight';
     if (this.landingAssist) hint = 'Settling onto the flower · Space to cancel';
     if (this.underLeaf) hint = this.weather.rain > .05 ? 'Shelter beneath a leaf · E to rest through the shower · Space to fly out' : 'Shelter beneath a leaf · E to rest · Space to fly out';
@@ -2057,7 +2084,7 @@ export class Garden {
       cold: this.coldVignette(), chilled: this.chill > .1, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight,
       phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, lossStreak: this.phase === 'lost' ? 1 + this.trailingLosses() : 0, water: this.water, waterGoal: this.waterGoal, thinShade: this.thinShade(), pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
       homeCost, homeDistance: distance * .1, homeBearing: this.yaw - Math.atan2(-(HOME_EXIT.x - this.position.x), -(HOME_EXIT.z - this.position.z)),
-      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
+      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, nearHomeEdge: this.nearHomeEdge(), canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
       canReturn,
       wind: this.wind.length(), windBearing: this.yaw - Math.atan2(-this.wind.x, -this.wind.z), flightMode: this.flightMode, sheltered: !!this.underLeaf || this.position.y < 3.7, edgeGust,
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
@@ -2169,7 +2196,7 @@ export class Garden {
       hideDebugUi: (_value: boolean) => { /* No debug panels in the player interface. */ },
     };
     window.__BEE_TEST__ = {
-      snapshot: () => ({ season: this.season, weatherPlan: this.weatherPlan, moisture: this.groundMoisture, outcomes: this.outcomes, queenLine: this.queenSays, nightAge: this.nightAge, previousDay: this.previousDay, night: this.weatherPlan.night, leafWet: this.leafWet, butterflies: this.butterflies.diagnostics(), snails: this.snails.diagnostics(), ants: this.ants.diagnostics(), mushrooms: this.mushrooms.diagnostics(), petals: this.petals.diagnostics(), caterpillars: this.caterpillars.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), lore: this.lore.diagnostics(), loreOn: this.loreOn, restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), water: { sips: this.waterSips, carried: this.water, goal: this.waterGoal, grassShade: this.grassShade(), sipping: this.sippingWater, near: this.waterNear, flower: this.landed ? this.flowerRain.waterOn(this.landed.id) : 0, puddles: this.puddles.diagnostics() }, raindrops: { on: this.raindropsOn, wetness: this.wetness, strikes: this.dropStrikes, count: this.dropCount, drips: this.dripCount, knockdown: this.knockdown, knockedDown: this.knockedDown, groom: this.bee.groomAmount(), splash: this.rainSplash.diagnostics() }, nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
+      snapshot: () => ({ season: this.season, weatherPlan: this.weatherPlan, moisture: this.groundMoisture, outcomes: this.outcomes, queenLine: this.queenSays, nightAge: this.nightAge, previousDay: this.previousDay, night: this.weatherPlan.night, leafWet: this.leafWet, butterflies: this.butterflies.diagnostics(), snails: this.snails.diagnostics(), ants: this.ants.diagnostics(), mushrooms: this.mushrooms.diagnostics(), petals: this.petals.diagnostics(), caterpillars: this.caterpillars.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), lore: this.lore.diagnostics(), loreOn: this.loreOn, restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), water: { sips: this.waterSips, carried: this.water, goal: this.waterGoal, grassShade: this.grassShade(), sipping: this.sippingWater, near: this.waterNear, flower: this.landed ? this.flowerRain.waterOn(this.landed.id) : 0, puddles: this.puddles.diagnostics() }, raindrops: { on: this.raindropsOn, wetness: this.wetness, strikes: this.dropStrikes, count: this.dropCount, drips: this.dripCount, knockdown: this.knockdown, knockedDown: this.knockedDown, groom: this.bee.groomAmount(), splash: this.rainSplash.diagnostics() }, nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), nearHomeEdge: this.nearHomeEdge(), edgeHold: this.edgeHold, homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
       setPose: (p, yaw = 0, pitch = -.35, velocity = [0, 0, 0]) => { this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.fromArray(p); this.previousPosition.copy(this.position); this.yaw = yaw; this.pitch = pitch; this.velocity.fromArray(velocity); },
       walkToFloret: (index: number) => {
         const f = this.landed, spot = f?.nectarSpots[index];
