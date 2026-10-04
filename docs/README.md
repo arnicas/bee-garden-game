@@ -9,6 +9,9 @@
 - [Snails](design/Snails_Design.md): banded snails in the damp.
 - [Meadow health](design/Meadow_Health.md): what makes the meadow thrive or thin.
 - [Pollination across summers](design/Pollination_Impact.md): how pollinated flowers seed the next summer.
+- [A French version](design/French_Version.md): plan for playing in French, AZERTY key labels, and the decisions to make.
+- [Game controllers](design/Game_Controller.md): plan for playing with an Xbox, PlayStation or Switch controller, and the decisions to make.
+- [Phones and tablets](design/Mobile_Controls.md): plan for touch controls (move stick, look drag, a contextual action button), speed and layout on mobile.
 
 ## Research
 
