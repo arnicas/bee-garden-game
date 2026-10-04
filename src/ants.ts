@@ -533,6 +533,14 @@ export function createAnts(scene: THREE.Scene, seed: number, flowers: readonly F
       return found ? { colony: found, distance, at, antsOut: found.ants.some(ant => !ant.inside) } : null;
     },
     markSeen(id: number): void { const colony = colonies[id]; if (colony) colony.seen = true; },
+    /** What of a colony can be seen: its mound, and every few ants out on the trail. */
+    sightPoints(id: number): THREE.Vector3[] {
+      const colony = colonies[id];
+      if (!colony) return [];
+      const points = [colony.nest];
+      colony.ants.forEach((ant, i) => { if (!ant.inside && i % 3 === 0) points.push(ant.position); });
+      return points;
+    },
     /** How many raiding ants are at a flower's nectar now (0 if none). */
     feedingOn(flowerId: number): number {
       const raid = raids.find(r => r.flower.id === flowerId);

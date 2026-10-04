@@ -885,6 +885,7 @@ export function createUI(actions: UIActions): GameUI {
       const lastSummer = preview?.lastSummerLadybirds ? ` (${preview.lastSummerLadybirds} last summer)` : '';
       const friends = [
         state.friendsFound ? (preview ? `${state.friendsFound} of ${preview.ladybirds} ladybirds${lastSummer}` : plural(state.friendsFound, 'ladybird', 'ladybirds')) : '',
+        state.aphidsFound ? plural(state.aphidsFound, 'aphid cluster', 'aphid clusters') : '',
         state.butterfliesFound ? plural(state.butterfliesFound, 'butterfly', 'butterflies') : '',
         state.snailsFound ? plural(state.snailsFound, 'snail', 'snails') : '',
         state.antTrailsFound ? plural(state.antTrailsFound, 'ant trail', 'ant trails') : '',

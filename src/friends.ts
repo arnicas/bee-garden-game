@@ -27,6 +27,8 @@ export interface AphidCluster {
   /** Middle of the cluster on the stem surface, and the direction it faces. */
   position: THREE.Vector3;
   facing: THREE.Vector3;
+  /** Spotted by the bee today. */
+  seen: boolean;
 }
 export interface Ladybird {
   id: number;
@@ -107,7 +109,7 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
     const flower = id < tendedStems.length ? tendedStems[id] : pool[Math.floor(random() * pool.length)];
     if (clusterOn.has(flower.id)) continue;
     const cluster: Cluster = {
-      id: clusters.length, flowerId: flower.id, flower, population: .6 + random() * .4, position: new THREE.Vector3(), facing: new THREE.Vector3(),
+      id: clusters.length, flowerId: flower.id, flower, seen: false, population: .6 + random() * .4, position: new THREE.Vector3(), facing: new THREE.Vector3(),
       u: underHead(flower, random()), angle: random() * Math.PI * 2,
       aphids: Array.from({ length: APHIDS_PER_CLUSTER }, () => ({ du: (random() - .5) * .07, da: (random() - .5) * 1.4, size: .7 + random() * .5, turn: (random() - .5) * .6 })),
     };
@@ -399,9 +401,11 @@ export function createLadybirds(scene: THREE.Scene, seed: number, flowers: reado
       return found ? { bird: found, distance } : null;
     },
     markSeen(id: number): void { const bird = birds[id]; if (bird) bird.seen = true; },
+    markAphidsSeen(id: number): void { const c = clusters[id]; if (c) c.seen = true; },
+    aphidsSeenCount(): number { return clusters.filter(c => c.seen).length; },
     seenCount(): number { return birds.filter(b => b.seen).length; },
     reset(): void { for (const bird of birds) bird.seen = false; },
-    diagnostics() { return { count: birds.length, seen: birds.filter(b => b.seen).length, flying: birds.filter(b => b.perch === 'flying').length, eating: birds.filter(b => b.eating).length, aphids: clusters.reduce((sum, c) => sum + c.population, 0) }; },
+    diagnostics() { return { count: birds.length, seen: birds.filter(b => b.seen).length, flying: birds.filter(b => b.perch === 'flying').length, eating: birds.filter(b => b.eating).length, aphids: clusters.reduce((sum, c) => sum + c.population, 0), aphidsSeen: clusters.filter(c => c.seen).length }; },
     dispose(): void {
       scene.remove(bodies, wings, aphidMesh); bodyGeometry.dispose(); bodyMaterial.dispose(); wingGeometry.dispose(); wingMaterial.dispose(); bodies.dispose(); wings.dispose();
       aphidGeometry.dispose(); aphidMaterial.dispose(); aphidMesh.dispose();

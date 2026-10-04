@@ -70,6 +70,33 @@ const POLLEN_SUPPLY: Record<Species, number> = { poppy: 42, daisy: 28, cornflowe
 // Flower supplies track visible material; counters track usable harvest.
 // Keep contact/depletion lively while asking for more flower visits per day.
 const POLLEN_YIELD = .5, NECTAR_YIELD = .5;
+/** How much a top-of-screen notice matters: a passing count, an ordinary note, a discovery or
+ * weather change, or a danger to the bee. */
+const NOTICE = { chatter: 0, info: 1, discovery: 2, urgent: 3 } as const;
+type NoticePriority = typeof NOTICE[keyof typeof NOTICE];
+interface QueuedNotice { message: string; duration: number; lead: string; priority: NoticePriority; by: number; }
+/** Seconds a notice is left up before anything but a more urgent one replaces it, and how long a waiting one stays worth showing. */
+const NOTICE_READ_TIME = 3, NOTICE_QUEUE_WAIT = 20, NOTICE_COUNT_WAIT = 8;
+/** Seeing small creatures. One counts once it is big enough to make out (at least this many
+ * pixels on a 720-pixel-high view), towards the middle of the view (within this share of
+ * the half-width and half-height), within reach, not behind a broad leaf and not deep in
+ * the grass, for about a third of a second. Then it counts from the air as well as up close. */
+const SIGHT_MIN_PIXELS = 14, SIGHT_FIELD_X = .88, SIGHT_FIELD_Y = .85, SIGHT_MAX_RANGE = 8;
+/** How long a look takes depends on how big it looks: at SIGHT_REF_PIXELS a creature counts
+ * after SIGHT_NEEDED seconds; twice as big, in half the time (at most SIGHT_FASTEST times
+ * faster); a speck at the minimum size takes about three times as long. A flicker out of
+ * view shorter than SIGHT_GRACE doesn't restart the look. */
+const SIGHT_REF_PIXELS = 40, SIGHT_NEEDED = .5, SIGHT_FASTEST = 2.5, SIGHT_SLOWEST = .3, SIGHT_GRACE = .4;
+/** The dense grass layer's top above the ground, and how much of it a look can pass through. */
+const SIGHT_GRASS_TOP = 1.1, SIGHT_GRASS_DEPTH = .7;
+/** About how big each kind looks (art units, one about 10 cm). An aphid cluster is a smudge of
+ * specks; a trail is a line of ants; a mound is a heap of bare soil. */
+const SIGHT_SIZE = { ladybird: .085, aphids: .045, snail: .13, caterpillar: .22, butterfly: .32, antTrail: .12, antMound: .35 } as const;
+/** Right beside a creature (this close to the eye) the bee notices it wherever she is looking,
+ * unless a leaf is in the way: an ant mound by her feet sits below the view. */
+const SIGHT_NEARBY = { ladybird: .35, aphids: .3, snail: .5, caterpillar: .6, butterfly: 1.1, antTrail: .5, antMound: 1.1 } as const;
+/** Open ground round a creature, where no grass stands in the way: an ant mound, its trail, a pool's rim. */
+const SIGHT_CLEARING = { antMound: .5, antTrail: .25, poolRim: .45 } as const;
 /** Aphids drink a plant's sap, so a stem heavy with them leaves its flower less nectar:
  * up to this share of each sip, from a cluster about half full (none below that).
  * Ladybirds eating the aphids bring it back. Poppies have no nectar to lose. */
@@ -147,9 +174,12 @@ interface TestControl {
   caterpillars(): { id: number; leafId: number; position: number[]; seen: boolean }[];
   /** Nectar left in a flower (supply units). */
   nectar(flowerId: number): number;
-  aphids(): { id: number; flowerId: number; population: number; position: number[]; facing: number[] }[];
+  aphids(): { id: number; flowerId: number; population: number; position: number[]; facing: number[]; seen: boolean }[];
   /** Sets how much of an aphid cluster is there (0–1). */
   setAphids(clusterId: number, population: number): void;
+  antColonies(): { id: number; nest: number[]; seen: boolean }[];
+  /** Why a point can or can't be made out from the view now (for tuning). */
+  sight(point: number[], size: number): Record<string, unknown>;
   /** Ends the summer as if these flowers were pollinated and grows the next meadow. */
   nextSummer(pollinatedIds?: number[]): { counts: Record<Species, number>; badSummers: Record<Species, number>; gaps: number; ladybirds: number; aphidClusters: number };
 }
@@ -206,6 +236,9 @@ export class Garden {
   private ringNoteShown = this.friendNoteShown;
   private mushroomNoteShown = this.friendNoteShown;
   private caterpillarNoteShown = this.friendNoteShown;
+  private aphidSeenNoteShown = this.friendNoteShown;
+  /** A butterfly on the flower the bee has just landed on: met for sure. */
+  private butterflyUnderfoot: { id: number; seen: boolean } | null = null;
   private petalNotesShown = new Set<string>(this.friendNoteShown ? ['poppy', 'daisy'] : []);
   /** Test pages keep flower supplies still unless ?friends is given. */
   private butterfliesSip = !this.friendNoteShown || !new URLSearchParams(location.search).has('test');
@@ -276,7 +309,8 @@ export class Garden {
     return this.skyOverride ?? undefined;
   }
   /** A friend or find counts only once it has been in view for a moment. */
-  private sightings = new Map<string, { id: number; time: number }>();
+  private sightings = new Map<string, { id: number; time: number; lost?: number }>();
+  private headUp = new THREE.Vector3();
   private viewPoint = new THREE.Vector3();
   private leafFrom = new THREE.Vector3();
   private leafTo = new THREE.Vector3();
@@ -537,11 +571,80 @@ export class Garden {
    * behind a broad leaf) for about a third of a second. */
   /** A friend found after the first: a short count for the day, when nothing else is being said. */
   private foundAgain(lead: string, count: number, one: string, many: string): void {
-    if (this.friendCountsOn && this.noticeUntil <= this.time) this.notify(`${count} ${count === 1 ? one : many} found today`, 3, lead);
+    if (this.friendCountsOn) this.notify(`${count} ${count === 1 ? one : many} found today`, 3, lead, NOTICE.chatter);
   }
-  private spotted(kind: string, id: number, at: THREE.Vector3, dt: number): boolean {
+  /** Whether a small creature of this size at this point can be made out from the bee's view. */
+  private sightable(at: THREE.Vector3, size: number, clearing = 0): boolean { return this.sightPixels(at, size, clearing) > 0; }
+  /** How big a creature looks on a 720-pixel-high view, or 0 if it can't be made out: off to
+   * the side, too small, behind a broad leaf or a flower head, or deep in the grass. */
+  private sightPixels(at: THREE.Vector3, size: number, clearing = 0, nearby = 0): number {
+    const eye = this.camera.position, distance = eye.distanceTo(at);
+    if (distance < nearby && !this.behindLeaf(eye, at)) return SIGHT_REF_PIXELS * 2;
+    if (distance > SIGHT_MAX_RANGE) return 0;
+    const pixels = size / Math.max(.05, distance) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    if (pixels < SIGHT_MIN_PIXELS) return 0;
+    const p = this.viewPoint.copy(at).project(this.camera);
+    if (p.z < -1 || p.z > 1 || Math.abs(p.x) > SIGHT_FIELD_X || Math.abs(p.y) > SIGHT_FIELD_Y) return 0;
+    return this.hiddenInGrass(eye, at, clearing) || this.behindLeaf(eye, at) || this.behindFlowerHead(eye, at) ? 0 : pixels;
+  }
+  /** Whether a flower head stands between the eye and a point: the look crosses the head's
+   * disc. Seen from above, the head hides what's on the stem beneath it; from the side, it doesn't. */
+  private behindFlowerHead(from: THREE.Vector3, to: THREE.Vector3): boolean {
+    const length = from.distanceTo(to);
+    for (const f of this.meadow.flowers) {
+      if (this.landed === f) continue;
+      const t = THREE.MathUtils.clamp(this.leafProbe.subVectors(f.center, from).dot(this.leafTo.subVectors(to, from)) / Math.max(1e-6, length * length), 0, 1);
+      if (this.leafProbe.copy(from).addScaledVector(this.leafTo, t).distanceTo(f.center) > f.radius) continue;
+      const up = this.headUp.set(0, 1, 0).applyQuaternion(f.rotation);
+      const a = this.leafProbe.subVectors(from, f.center).dot(up), b = this.viewPoint.subVectors(to, f.center).dot(up);
+      if (a * b >= 0) continue; // both on one side of the head
+      const s = a / (a - b);
+      const hit = this.leafProbe.copy(from).lerp(to, s);
+      if (hit.distanceTo(f.center) < f.radius * .8 && to.distanceTo(f.center) > f.radius * .25) return true;
+    }
+    return false;
+  }
+  /** Low in the grass, a creature is hidden unless the look passes through only a little of it:
+   * from above, steeply down onto it; from inside the grass, close by. */
+  private hiddenInGrass(from: THREE.Vector3, to: THREE.Vector3, clearing = 0): boolean {
+    const low = to.y - meadowGroundHeight(to.x, to.z);
+    if (low >= SIGHT_GRASS_TOP) return false;
+    const eye = from.y - meadowGroundHeight(from.x, from.z), across = Math.hypot(to.x - from.x, to.z - from.z);
+    const inGrass = eye <= SIGHT_GRASS_TOP ? across : across * (SIGHT_GRASS_TOP - low) / Math.max(.01, eye - low);
+    return inGrass - clearing > SIGHT_GRASS_DEPTH;
+  }
+  /** Open ground round a point at a pool's rim (no grass in the way there). */
+  private rimClearing(at: THREE.Vector3): number {
+    const pool = this.puddles.nearest(at, this.poolPoint);
+    return pool && pool.distance < .6 ? SIGHT_CLEARING.poolRim : 0;
+  }
+  /** Of all the unseen creatures of a kind, the one most centred in view that can be made out;
+   * returned once it has stayed in sight a moment. A sighting already under way is kept. */
+  private spotAmong<T extends { id: number; seen: boolean }>(kind: string, items: readonly T[], at: (item: T) => THREE.Vector3 | THREE.Vector3[], size: number, dt: number, clearing: (point: THREE.Vector3) => number = () => 0, nearby = 0): T | null {
     const sighting = this.sightings.get(kind);
-    if (!this.inView(at)) { if (sighting && sighting.id === id) this.sightings.delete(kind); return false; }
+    let pick: T | null = null, pickPixels = 0;
+    for (const item of items) {
+      if (item.seen) continue;
+      const points = at(item);
+      let pixels = 0;
+      for (const point of Array.isArray(points) ? points : [points]) if (point.lengthSq() > 0) pixels = Math.max(pixels, this.sightPixels(point, size, clearing(point), nearby));
+      if (!pixels) continue;
+      if (sighting && sighting.id === item.id) { pick = item; pickPixels = pixels; break; }
+      if (pixels > pickPixels) { pick = item; pickPixels = pixels; }
+    }
+    // Out of sight for a moment (a sway, a blade of grass): the look carries on for a little.
+    if (!pick || sighting && sighting.id !== pick.id && (sighting.lost ?? 0) < SIGHT_GRACE && sighting.time > 0) {
+      if (sighting) { sighting.lost = (sighting.lost ?? 0) + dt; if (sighting.lost >= SIGHT_GRACE) this.sightings.delete(kind); }
+      return null;
+    }
+    if (!sighting || sighting.id !== pick.id) { this.sightings.set(kind, { id: pick.id, time: 0, lost: 0 }); return null; }
+    sighting.lost = 0;
+    sighting.time += dt * THREE.MathUtils.clamp(pickPixels / SIGHT_REF_PIXELS, SIGHT_SLOWEST, SIGHT_FASTEST);
+    return sighting.time >= SIGHT_NEEDED ? pick : null;
+  }
+  private spotted(kind: string, id: number, at: THREE.Vector3, dt: number, size?: number): boolean {
+    const sighting = this.sightings.get(kind);
+    if (!(size ? this.sightable(at, size) : this.inView(at))) { if (sighting && sighting.id === id) this.sightings.delete(kind); return false; }
     if (!sighting || sighting.id !== id) { this.sightings.set(kind, { id, time: 0 }); return false; }
     sighting.time += dt;
     return sighting.time >= .35;
@@ -577,7 +680,43 @@ export class Garden {
     return false;
   }
   /** A line in the status toast; a discovery's name goes in bold at the front. */
-  private notify(message: string, duration = 4, lead = ''): void { this.notice = message; this.noticeLead = lead; this.noticeUntil = this.time + duration; }
+  /** Top-of-screen notices take turns. A new one replaces the current one only when it matters
+   * more, or the current one has had time to be read; otherwise a discovery or weather note
+   * waits its turn (and plainer ones are dropped). A discovery or weather note cut short by
+   * something more urgent comes back afterwards, so a first sighting is never lost to a gust. */
+  private notify(message: string, duration = 4, lead = '', priority: NoticePriority = NOTICE.info): void {
+    const showing = this.noticeUntil > this.time, shownFor = this.time - this.noticeStart;
+    if (showing && message === this.notice) { this.noticeUntil = Math.max(this.noticeUntil, this.time + duration); return; }
+    // The newest danger, or ordinary note, replaces one of its own kind; discoveries take turns.
+    const replaces = !showing || priority > this.noticePriority || shownFor >= NOTICE_READ_TIME || priority === this.noticePriority && priority !== NOTICE.discovery;
+    if (!replaces) {
+      if ((priority >= NOTICE.discovery || priority === NOTICE.chatter) && !this.noticeQueue.some(n => n.message === message && n.lead === lead))
+        this.queueNotice({ message, duration, lead, priority, by: this.time + (priority === NOTICE.chatter ? NOTICE_COUNT_WAIT : NOTICE_QUEUE_WAIT) });
+      return;
+    }
+    // A discovery or weather note cut short comes back with its remaining time.
+    if (showing && this.noticePriority === NOTICE.discovery && shownFor < NOTICE_READ_TIME)
+      this.queueNotice({ message: this.notice, duration: Math.max(NOTICE_READ_TIME, this.noticeUntil - this.time), lead: this.noticeLead, priority: this.noticePriority, by: this.time + NOTICE_QUEUE_WAIT }, true);
+    this.notice = message; this.noticeLead = lead; this.noticeUntil = this.time + duration; this.noticeStart = this.time; this.noticePriority = priority;
+  }
+  private queueNotice(notice: QueuedNotice, first = false): void {
+    if (first) this.noticeQueue.unshift(notice); else this.noticeQueue.push(notice);
+    this.noticeQueue.sort((a, b) => b.priority - a.priority);
+    this.noticeQueue.length = Math.min(this.noticeQueue.length, 4);
+  }
+  /** Shows the next waiting notice once the screen is clear (those waiting too long are dropped). */
+  private nextNotice(): void {
+    if (this.noticeUntil > this.time) return;
+    while (this.noticeQueue.length) {
+      const next = this.noticeQueue.shift()!;
+      if (next.by < this.time) continue;
+      this.notice = next.message; this.noticeLead = next.lead; this.noticeUntil = this.time + next.duration; this.noticeStart = this.time; this.noticePriority = next.priority;
+      return;
+    }
+  }
+  private noticeStart = 0;
+  private noticePriority: NoticePriority = NOTICE.info;
+  private noticeQueue: QueuedNotice[] = [];
   private noticeLead = '';
   /** Replaces the meadow and everything built on its flowers. */
   private rebuildMeadow(seed: number, spots: readonly FlowerSpot[] | null): void {
@@ -728,7 +867,7 @@ export class Garden {
     this.flightMode = 'riding'; this.flightEffort = 0; this.loadSway = 0; this.heavyWobble = 0; this.heavyStrain = 0; this.heavyKick = 0; this.lookRoll = 0;
     this.windFX.reset(this.position, this.time);
     this.returnAge = 0; this.returnFuel = 0; this.windDrain = 0; this.takeoffCooldown = 0; this.accumulator = 0; this.keys.clear(); this.closingHeldKeys.clear(); this.mouseDown = false;
-    this.pausedCapture = false; this.resetSupply(); this.pollenFX.reset(); this.particleAmount = 0; this.notice = ''; this.noticeUntil = 0; this.lowEnergyWarned = 0;
+    this.pausedCapture = false; this.resetSupply(); this.pollenFX.reset(); this.particleAmount = 0; this.notice = ''; this.noticeUntil = 0; this.noticeQueue.length = 0; this.lowEnergyWarned = 0;
     this.webs.reset(); this.ladybirds.reset(); this.ants.reset(); this.mushrooms.reset(); this.petals.reset(); this.caterpillars.reset(); this.butterflies.reset(); this.snails.reset(); this.applyNight(); this.butterflyTime = 0; this.caughtWeb = null; this.webStruggle = 0; this.webShake = 0; this.webGrace = 0;
     void this.audio.start().catch(() => this.notify('Sound is unavailable. You can still play.'));
     this.canvas.focus({ preventScroll: true });
@@ -742,7 +881,7 @@ export class Garden {
       const flower = this.meadow.flowers[0];
       this.position.copy(flower.center).add(new THREE.Vector3(0, .55, 1));
       this.land(flower); this.phase = 'learning';
-      this.notice = ''; this.noticeUntil = 0;
+      this.notice = ''; this.noticeUntil = 0; this.noticeQueue.length = 0;
       this.bee.snapPose(true); this.camera.fov = 66; this.camera.updateProjectionMatrix();
       this.updateView(0);
     }
@@ -751,7 +890,7 @@ export class Garden {
    * dusk, the moon and the night's weather pass, then settles on the first daisy. */
   private static readonly NIGHT_DURATION = 18;
   private startNight(): void {
-    this.phase = 'night'; this.nightAge = 0; this.clearInput(); this.noticeUntil = 0;
+    this.phase = 'night'; this.nightAge = 0; this.clearInput(); this.noticeUntil = 0; this.noticeQueue.length = 0;
     this.nightFrom.copy(this.camera.position); this.nightFromTurn.copy(this.camera.quaternion);
     // What a wet night leaves (full pools, mushrooms) happens during it, as it rains.
     if (this.weatherPlan.night === 'wet') { if (this.raindropsOn) this.puddles.setFill(0); this.mushrooms.setGrowth(0); }
@@ -792,9 +931,9 @@ export class Garden {
     // Only the night before is mentioned as the day starts (the Queen's morning line was too much text).
     // The season (when it isn't ordinary) leads the morning note, then the night before.
     const morning = this.nightLine(), season = seasonNote(this.season);
-    if (this.waterGoal > 0) this.notify('The hive will need water to keep cool. Hold F at a pool or on wet petals to carry some home.', 10, season?.lead ?? 'A hot day ahead.');
-    else if (season) this.notify([season.text, morning].filter(Boolean).join(' '), 10, season.lead);
-    else if (morning) this.notify(morning, 9);
+    if (this.waterGoal > 0) this.notify('The hive will need water to keep cool. Hold F at a pool or on wet petals to carry some home.', 10, season?.lead ?? 'A hot day ahead.', NOTICE.discovery);
+    else if (season) this.notify([season.text, morning].filter(Boolean).join(' '), 10, season.lead, NOTICE.discovery);
+    else if (morning) this.notify(morning, 9, '', NOTICE.discovery);
     this.canvas.focus({ preventScroll: true });
     this.updateView(0);
   }
@@ -999,6 +1138,7 @@ export class Garden {
       return;
     }
     if (this.phase !== 'flying' && this.phase !== 'landed') return;
+    this.nextNotice();
     this.elapsed += dt; this.landingAge += dt; this.takeoffCooldown = Math.max(0, this.takeoffCooldown - dt);
     // Only the daylight clock speeds up: wind, flower sway and metabolic
     // costs keep their ordinary pace while the bee takes a quiet moment.
@@ -1007,7 +1147,7 @@ export class Garden {
     if (previousDay < DUSK_START && this.dayElapsed >= DUSK_START) {
       // Wake at sunset so a rest cannot silently skip the final minute.
       this.dayElapsed = DUSK_START; this.stopRest(); this.quietAge = 0; this.restView.reset();
-      this.notify(this.harvestReady() || this.headingHome ? 'Sunset · Follow the hive marker home.' : 'Sunset · One minute of daylight. Keep gathering, or press R to head home with what you have.', 9);
+      this.notify(this.harvestReady() || this.headingHome ? 'Sunset · Follow the hive marker home.' : 'Sunset · One minute of daylight. Keep gathering, or press R to head home with what you have.', 9, '', NOTICE.urgent);
     }
     const previousWeather = this.weather.stage, previousGale = this.weather.gale, neededShelter = this.needsLeafShelter();
     this.sampleWeather();
@@ -1023,11 +1163,11 @@ export class Garden {
     // at full exposure, .18 (warning) to .5 is about seven seconds for cold.
     // The steep drain then ramps smoothly; ordinary flight still spends fuel.
     this.coldDrain = this.rainExposure * (.3 + THREE.MathUtils.smoothstep(this.chill, .5, 1) * (1.1 + this.chill * 6.2)) + this.chill * .35;
-    if (previousChill < .18 && this.chill >= .18) this.notify('Cold rain is draining your energy · Shelter under a leaf, or hold Ctrl to drop into the grass.', 6);
+    if (previousChill < .18 && this.chill >= .18) this.notify('Cold rain is draining your energy · Shelter under a leaf, or hold Ctrl to drop into the grass.', 6, '', NOTICE.urgent);
     this.updateRaindrops(dt);
     this.puddles.update(dt, this.time, this.weather.rain, this.weather.sunHeat, this.weather.cloudiness, this.raindropsOn);
     this.meadow.setHollows(this.puddles.hollows(moistureShift(this.groundMoisture).dry));
-    if (previousChill < .62 && this.chill >= .62) this.notify('You are getting soaked · Hold Ctrl to drop into the grass, or tuck under a broad leaf.', 6);
+    if (previousChill < .62 && this.chill >= .62) this.notify('You are getting soaked · Hold Ctrl to drop into the grass, or tuck under a broad leaf.', 6, '', NOTICE.urgent);
     const previousHeat = this.heat;
     // Short exposure has a grace period. Dense grass and the existing moving
     // canopy cover stop solar heating; leaf tops and blossoms stay exposed.
@@ -1036,15 +1176,15 @@ export class Garden {
     // Heat gets the same delayed escalation: about nine seconds from its first
     // warning to the ramp, with the orange wash already visible while reacting.
     this.heatDrain = this.heatExposure * THREE.MathUtils.smoothstep(this.heat, .5, 1) * (1.1 + this.heat * 5.8) + this.heat * .15;
-    if (previousHeat < .18 && this.heat >= .18) this.notify(this.grassShade() < .9 ? 'Too much sun · The dry grass gives little shade. Rest beneath a leaf, or sip water.' : 'Too much sun · Rest beneath a leaf, or hold Ctrl to drop into the grass', 5);
-    if (previousHeat < .65 && this.heat >= .65) this.notify(this.grassShade() < .9 ? 'Your wings are overheating · Find a leaf\'s shade, or water' : 'Your wings are overheating · Find shade: a leaf, or Ctrl down into the grass', 5);
+    if (previousHeat < .18 && this.heat >= .18) this.notify(this.grassShade() < .9 ? 'Too much sun · The dry grass gives little shade. Rest beneath a leaf, or sip water.' : 'Too much sun · Rest beneath a leaf, or hold Ctrl to drop into the grass', 5, '', NOTICE.urgent);
+    if (previousHeat < .65 && this.heat >= .65) this.notify(this.grassShade() < .9 ? 'Your wings are overheating · Find a leaf\'s shade, or water' : 'Your wings are overheating · Find shade: a leaf, or Ctrl down into the grass', 5, '', NOTICE.urgent);
     if (this.weather.stage !== previousWeather) {
-      if (this.weather.stage === 'approaching') this.notify('A little cloud is gathering · Broad leaves and the grass (Ctrl) give shelter.', 7);
-      else if (this.weather.stage === 'rain') this.notify('A passing shower · Follow the leaf and press E to tuck underneath, or hold Ctrl to drop into the grass.', 7);
-      else if (this.weather.stage === 'clearing') this.notify('The shower is passing. The meadow is brightening.', 5);
+      if (this.weather.stage === 'approaching') this.notify('A little cloud is gathering · Broad leaves and the grass (Ctrl) give shelter.', 7, '', NOTICE.discovery);
+      else if (this.weather.stage === 'rain') this.notify('A passing shower · Follow the leaf and press E to tuck underneath, or hold Ctrl to drop into the grass.', 7, '', NOTICE.discovery);
+      else if (this.weather.stage === 'clearing') this.notify('The shower is passing. The meadow is brightening.', 5, '', NOTICE.discovery);
     }
-    if (previousGale < .2 && this.weather.gale >= .2) this.notify('Heavy wind is rising · Fly low, perch or shelter in the grass to save energy.', 7);
-    else if (previousGale >= .2 && this.weather.gale < .2) this.notify('The wind is easing.', 4);
+    if (previousGale < .2 && this.weather.gale >= .2) this.notify('Heavy wind is rising · Fly low, perch or shelter in the grass to save energy.', 7, '', NOTICE.discovery);
+    else if (previousGale >= .2 && this.weather.gale < .2) this.notify('The wind is easing.', 4, '', NOTICE.discovery);
     if (this.keys.has('ArrowLeft')) this.yaw += dt * 1.35;
     if (this.keys.has('ArrowRight')) this.yaw -= dt * 1.35;
     if (this.keys.has('ArrowUp')) this.pitch = Math.min(1.25, this.pitch + dt);
@@ -1066,33 +1206,44 @@ export class Garden {
       // Sharing a leaf with one counts too: perched, the view looks out over the
       // blade, so a ladybird by the bee's feet is below the frame.
       const sharingLeaf = !!this.onLeaf && near?.bird.perch === 'leaf' && near.distance < 1.1;
-      if (near && near.distance < 1.2 && !near.bird.seen && (sharingLeaf || this.spotted('ladybird', near.bird.id, near.bird.position, dt))) {
-        this.ladybirds.markSeen(near.bird.id);
-        if (!this.friendNoteShown) { this.friendNoteShown = true; this.notify('Ladybirds eat aphids, which helps the meadow’s flowers.', 6, 'A ladybird!'); }
+      const bird = sharingLeaf && near && !near.bird.seen ? near.bird : this.spotAmong('ladybird', this.ladybirds.birds, b => b.position, SIGHT_SIZE.ladybird, dt, undefined, SIGHT_NEARBY.ladybird);
+      if (bird) {
+        this.ladybirds.markSeen(bird.id);
+        if (!this.friendNoteShown) { this.friendNoteShown = true; this.notify('Ladybirds eat aphids, which helps the meadow’s flowers.', 6, 'A ladybird!', NOTICE.discovery); }
         else this.foundAgain('A ladybird!', this.ladybirds.seenCount(), 'ladybird', 'ladybirds');
       } }
-    { const near = this.butterflies.nearest(this.position);
-      if (near && near.distance < 1.6 && !near.butterfly.seen && this.spotted('butterfly', near.butterfly.id, near.butterfly.position, dt)) {
-        this.butterflies.markSeen(near.butterfly.id);
-        if (!this.butterflyNoteShown) { this.butterflyNoteShown = true; this.notify('Butterflies sip nectar from daisies and cornflowers too, so a flower may be emptier after one visits.', 6, 'A butterfly!'); }
+    // Aphid clusters on the stems: counted like the friends, by sight.
+    { const cluster = this.spotAmong('aphids', this.ladybirds.aphids.filter(c => c.population > .15), c => c.position, SIGHT_SIZE.aphids, dt, undefined, SIGHT_NEARBY.aphids);
+      if (cluster) {
+        this.ladybirds.markAphidsSeen(cluster.id);
+        if (!this.aphidSeenNoteShown) { this.aphidSeenNoteShown = true; this.notify('They drink the plant’s sap. Ladybirds eat them, and ants guard them for their sweet honeydew.', 6, 'Aphids!', NOTICE.discovery); }
+        else this.foundAgain('Aphids!', this.ladybirds.aphidsSeenCount(), 'aphid cluster', 'aphid clusters');
+      } }
+    { const butterfly = this.butterflyUnderfoot ?? this.spotAmong('butterfly', this.butterflies.butterflies, b => b.position, SIGHT_SIZE.butterfly, dt, undefined, SIGHT_NEARBY.butterfly);
+      this.butterflyUnderfoot = null;
+      if (butterfly) {
+        this.butterflies.markSeen(butterfly.id);
+        if (!this.butterflyNoteShown) { this.butterflyNoteShown = true; this.notify('Butterflies sip nectar from daisies and cornflowers too, so a flower may be emptier after one visits.', 6, 'A butterfly!', NOTICE.discovery); }
         else this.foundAgain('A butterfly!', this.butterflies.seenCount(), 'butterfly', 'butterflies');
       } }
-    { const near = this.snails.nearest(this.position);
-      if (near && near.distance < 1 && !near.snail.seen && this.spotted('snail', near.snail.id, near.snail.position, dt)) {
-        this.snails.markSeen(near.snail.id);
-        if (!this.snailNoteShown) { this.snailNoteShown = true; this.notify('Snails come out when it’s damp, and seal themselves in when it’s hot.', 6, 'A snail!'); }
+    { const snail = this.spotAmong('snail', this.snails.snails, s => s.position, SIGHT_SIZE.snail, dt, p => this.rimClearing(p), SIGHT_NEARBY.snail);
+      if (snail) {
+        this.snails.markSeen(snail.id);
+        if (!this.snailNoteShown) { this.snailNoteShown = true; this.notify('Snails come out when it’s damp, and seal themselves in when it’s hot.', 6, 'A snail!', NOTICE.discovery); }
         else this.foundAgain('A snail!', this.snails.seenCount(), 'snail', 'snails');
       } }
     // A flower with ants at its nectar comes first: then the note is about the nectar, not the ants in general.
     const raidNear = this.ants.raids().some(raid => raid.feeding >= 2 && (this.meadow.flowers.find(x => x.id === raid.flowerId)?.center.distanceTo(this.position) ?? Infinity) < 1.6);
-    { const near = this.ants.nearest(this.position);
-      if (near && !raidNear && near.distance < 1 && !near.colony.seen && this.spotted('ants', near.colony.id, near.at, dt)) {
+    { const mound = raidNear ? null : this.spotAmong('antMound', this.ants.colonies, c => c.nest, SIGHT_SIZE.antMound, dt, () => SIGHT_CLEARING.antMound, SIGHT_NEARBY.antMound);
+      const colony = mound ?? (raidNear ? null : this.spotAmong('ants', this.ants.colonies, c => this.ants.sightPoints(c.id).slice(1), SIGHT_SIZE.antTrail, dt, () => SIGHT_CLEARING.antTrail, SIGHT_NEARBY.antTrail));
+      const near = colony ? { colony, antsOut: this.ants.sightPoints(colony.id).length > 1 } : null;
+      if (near) {
         this.ants.markSeen(near.colony.id);
         // After rain the ants may all be indoors: then it's their nest that's found.
         if (!this.antNoteShown) {
           this.antNoteShown = true;
-          this.notify(near.antsOut ? 'They trail up a stem to tend aphids for their sweet honeydew.' : 'Their nest mound. The ants are inside out of the wet, and trail out again when it dries.', 6, 'Ants!');
-        }
+          this.notify(near.antsOut ? 'They trail up a stem to tend aphids for their sweet honeydew.' : 'Their nest mound. The ants are inside out of the wet, and trail out again when it dries.', 6, 'Ants!', NOTICE.discovery);
+        } else this.foundAgain('Ants!', this.ants.seenCount(), 'ant colony', 'ant colonies');
       } }
     // Ants raiding a flower's nectar: they drink it down, and are noticed once, close up.
     this.drainRaids(dt);
@@ -1101,7 +1252,7 @@ export class Garden {
       const f = this.meadow.flowers.find(x => x.id === raid.flowerId);
       if (f && f.center.distanceTo(this.position) < 1.4 && this.spotted('raid', f.id, f.center, dt)) {
         this.raidNoteShown = true;
-        this.notify('Ants are drinking this flower’s nectar and keeping you from it. They take it without pollinating. Try another flower, or gather pollen here.', 8, 'Nectar thieves!');
+        this.notify('Ants are drinking this flower’s nectar and keeping you from it. They take it without pollinating. Try another flower, or gather pollen here.', 8, 'Nectar thieves!', NOTICE.discovery);
         break;
       }
     }
@@ -1110,28 +1261,29 @@ export class Garden {
       if (near && near.distance < 1.1 && !near.ring.seen && this.spotted('ring', near.ring.id, near.at, dt)) {
         this.mushrooms.markSeen(near.ring.id);
         if (near.ring.kind === 'ring') this.audio.chime('pollinate');
-        if (near.ring.kind === 'ring' && !this.ringNoteShown) { this.ringNoteShown = true; this.notify('The fungus grows outward underground, so its mushrooms come up in a circle.', 8, 'A fairy ring, a rare find!'); }
-        else if (near.ring.kind === 'patch' && !this.mushroomNoteShown) { this.mushroomNoteShown = true; this.notify('They come up after rain, shrivel in the heat, and revive when it rains again.', 7, 'Mushrooms by the water.'); }
+        if (near.ring.kind === 'ring' && !this.ringNoteShown) { this.ringNoteShown = true; this.notify('The fungus grows outward underground, so its mushrooms come up in a circle.', 8, 'A fairy ring, a rare find!', NOTICE.discovery); }
+        else if (near.ring.kind === 'patch' && !this.mushroomNoteShown) { this.mushroomNoteShown = true; this.notify('They come up after rain, shrivel in the heat, and revive when it rains again.', 7, 'Mushrooms by the water.', NOTICE.discovery); }
       } }
     { const near = this.petals.nearest(this.position);
       if (near && near.distance < .75 && !near.petal.seen && this.spotted('petal', near.petal.id, near.petal.position, dt)) {
         this.petals.markSeen(near.petal.id);
         if (!this.petalNotesShown.has(near.petal.kind)) {
           this.petalNotesShown.add(near.petal.kind);
-          this.notify(near.petal.kind === 'poppy' ? 'A poppy flower lasts only a day or so; then its seed head ripens.' : 'Each white “petal” of a daisy is really a whole tiny flower.', 6, near.petal.kind === 'poppy' ? 'A fallen poppy petal.' : 'A fallen daisy petal.');
+          this.notify(near.petal.kind === 'poppy' ? 'A poppy flower lasts only a day or so; then its seed head ripens.' : 'Each white “petal” of a daisy is really a whole tiny flower.', 6, near.petal.kind === 'poppy' ? 'A fallen poppy petal.' : 'A fallen daisy petal.', NOTICE.discovery);
         }
       } }
     { const near = this.caterpillars.nearest(this.position);
       // On (or under) the leaf it's eating counts too: perched, it's usually below the frame.
       const leafHere = this.onLeaf ?? this.underLeaf, sharingLeaf = !!leafHere && near?.caterpillar.leafId === leafHere.id;
-      if (near && !near.caterpillar.seen && (sharingLeaf || near.distance < 1 && this.spotted('caterpillar', near.caterpillar.id, near.caterpillar.position, dt))) {
-        this.caterpillars.markSeen(near.caterpillar.id);
-        if (!this.caterpillarNoteShown) { this.caterpillarNoteShown = true; this.notify('It eats its way in from the leaf edge, and will become a moth.', 6, 'A caterpillar!'); }
+      const found = sharingLeaf && near && !near.caterpillar.seen ? near.caterpillar : this.spotAmong('caterpillar', this.caterpillars.caterpillars, c => c.position, SIGHT_SIZE.caterpillar, dt, undefined, SIGHT_NEARBY.caterpillar);
+      if (found) {
+        this.caterpillars.markSeen(found.id);
+        if (!this.caterpillarNoteShown) { this.caterpillarNoteShown = true; this.notify('It eats its way in from the leaf edge, and will become a moth.', 6, 'A caterpillar!', NOTICE.discovery); }
         else this.foundAgain('A caterpillar!', this.caterpillars.seenCount(), 'caterpillar', 'caterpillars');
       } }
     if (!this.poolNoteShown && this.raindropsOn && (this.phase === 'flying' || this.phase === 'landed') && this.position.y - meadowGroundHeight(this.position.x, this.position.z) < 2.5) {
       const pool = this.puddles.nearest(this.position, this.poolPoint);
-      if (pool && pool.distance < 1.4) { this.poolNoteShown = true; this.notify('Bees sip water here, and the snails love its damp rim.', 7, 'A little rain pool!'); }
+      if (pool && pool.distance < 1.4) { this.poolNoteShown = true; this.notify('Bees sip water here, and the snails love its damp rim.', 7, 'A little rain pool!', NOTICE.discovery); }
     }
     this.drinking = false;
     if (this.phase === 'landed' && this.landed && !this.resting) this.forage(dt);
@@ -1162,11 +1314,11 @@ export class Garden {
         this.lowEnergyWarned = 1;
         this.notify(this.nectar > 2
           ? 'Energy is getting low · Stored nectar will help for a while. Sip from a daisy or cornflower to refuel.'
-          : 'Energy is getting low · Find a daisy or cornflower and hold F to sip nectar.', 7);
+          : 'Energy is getting low · Find a daisy or cornflower and hold F to sip nectar.', 7, '', NOTICE.urgent);
       }
       if (this.lowEnergyWarned < 2 && this.energy < 18) {
         this.lowEnergyWarned = 2;
-        this.notify('Almost out of energy · Land on the nearest daisy or cornflower and sip nectar now.', 8);
+        this.notify('Almost out of energy · Land on the nearest daisy or cornflower and sip nectar now.', 8, '', NOTICE.urgent);
       }
     }
     if (this.resting) {
@@ -1184,7 +1336,7 @@ export class Garden {
     if ((this.phase === 'flying' || this.phase === 'landed') && this.dayElapsed >= DAY_DURATION && !this.nightfallChecked) {
       this.nightfallChecked = true;
       if (!this.harvestReady()) this.beginLoss(true);
-      else this.notify('The last light · Your harvest is ready. Follow the hive marker home.', 9);
+      else this.notify('The last light · Your harvest is ready. Follow the hive marker home.', 9, '', NOTICE.urgent);
     }
     const safePerch = this.phase === 'landed' && this.dayElapsed < DUSK_START && this.energy > 35 && this.chill < .18 && this.rainExposure < .05 && this.heat < .18 && this.heatExposure < .18;
     const idle = safePerch && ![...this.keys].some(code => !MODIFIER_KEYS.has(code)) && !this.quietHeldKeys.size && !this.mouseDown && !this.dragging && !this.drinking && !this.suppressQuietClick;
@@ -1228,7 +1380,7 @@ export class Garden {
     this.rainSplash.hit(.5 + this.dropSide * (.12 + this.dropRandom() * .26), .38 + this.dropRandom() * .38, .07 + this.dropRandom() * .06);
     this.audio.dropHit();
     if (this.dropStrikes >= 4) this.startKnockdown();
-    else if (!this.dropNoteShown) { this.dropNoteShown = true; this.notify('A raindrop hit you! Drops are heavy for a bee, and wet wings fly poorly. Tuck under a leaf or into the grass.', 6); }
+    else if (!this.dropNoteShown) { this.dropNoteShown = true; this.notify('A raindrop hit you! Drops are heavy for a bee, and wet wings fly poorly. Tuck under a leaf or into the grass.', 6, '', NOTICE.discovery); }
   }
   /** Dew or raindrops on a flower's petals (when there's no nectar in reach), or a
    * pool on the ground: hold F to sip. Water cools the bee; it isn't food. */
@@ -1262,7 +1414,7 @@ export class Garden {
       else this.water = Math.min(this.waterGoal, this.water + Math.min(room, dt * WATER_CARRY_RATE));
       if (!this.waterGoalMet && this.water >= this.waterGoal - 1e-6) { this.waterGoalMet = true; this.audio.chime('nectar'); this.notify('Water for the hive · Carry it home with your harvest', 5); }
     }
-    if (!this.waterNoteShown) { this.waterNoteShown = true; this.notify('Water! Bees sip it to cool down, and carry it home to cool the hive on hot days.', 6); }
+    if (!this.waterNoteShown) { this.waterNoteShown = true; this.notify('Water! Bees sip it to cool down, and carry it home to cool the hive on hot days.', 6, '', NOTICE.discovery); }
   }
   private grassDrip(): void {
     this.dripCount++;
@@ -1272,13 +1424,13 @@ export class Garden {
     // No splash on the view during the rest's scenic view; the drip still wets.
     if (this.restView.amount < .01) this.rainSplash.hit(.5 + this.dropSide * (.1 + this.dropRandom() * .3), .45 + this.dropRandom() * .35, .04 + this.dropRandom() * .025);
     this.audio.dropHit(.45);
-    if (!this.dripNoteShown && !this.resting) { this.dripNoteShown = true; this.notify('A drip from the grass blades. The grass keeps off most of the rain, but a broad leaf is drier.', 6); }
+    if (!this.dripNoteShown && !this.resting) { this.dripNoteShown = true; this.notify('A drip from the grass blades. The grass keeps off most of the rain, but a broad leaf is drier.', 6, '', NOTICE.discovery); }
   }
   private startKnockdown(): void {
     this.knockdown = 4; this.knockedDown = true; this.dropStrikes = 0;
     this.wetness = Math.max(this.wetness, .8);
     this.stopRest(); this.landingAssist = null; this.shelterAssist = null;
-    this.notify('Knocked down by the rain! Your wings are soaked · Groom and dry off in the grass, E to rest.', 7);
+    this.notify('Knocked down by the rain! Your wings are soaked · Groom and dry off in the grass, E to rest.', 7, '', NOTICE.urgent);
   }
   private lossDuration(): number { return this.reducedMotion ? QUIET_LOSS_DURATION : this.lossFromNight ? NIGHT_LOSS_DURATION : LOSS_DURATION; }
   private lossProgress(): number { return this.phase === 'lost' ? 1 : Math.min(1, this.lossAge / this.lossDuration()); }
@@ -1295,7 +1447,7 @@ export class Garden {
     this.stopRest(); this.phase = 'failing'; this.lossAge = 0;
     this.landingAssist = null; this.shelterAssist = null;
     this.drinking = false; this.canDrink = false; this.autoFeeding = false; this.uv = false;
-    this.velocity.set(0, 0, 0); this.clearInput(); this.noticeUntil = 0;
+    this.velocity.set(0, 0, 0); this.clearInput(); this.noticeUntil = 0; this.noticeQueue.length = 0;
     this.audio.chime('fail');
     if (document.pointerLockElement) document.exitPointerLock();
   }
@@ -1568,7 +1720,7 @@ export class Garden {
       && (florets.length ? this.nectarFloret >= 0 : reach < f.radius * .95 + .20 && this.temp.normalize().dot(this.forward) > .92);
     if (!this.ladybirdHelpNoteShown && this.aphidNoteShown && this.landingAge > 1.5 && this.aphidSap(f) > 0 && this.ladybirds.eatingOn(f.id)) {
       this.ladybirdHelpNoteShown = true;
-      this.notify('It is eating the aphids on this stem. As they go, the flower’s nectar comes back.', 6, 'A ladybird below you!');
+      this.notify('It is eating the aphids on this stem. As they go, the flower’s nectar comes back.', 6, 'A ladybird below you!', NOTICE.discovery);
     }
     if (this.canDrink && (this.keys.has('KeyF') || this.mouseDown) && this.landingAge > .3) {
       this.drinking = true;
@@ -1662,6 +1814,7 @@ export class Garden {
     this.yaw = Math.atan2(this.position.x - f.center.x, this.position.z - f.center.z);
     this.pitch = -.40;
     const supply = this.supplies.get(f.id)!;
+    this.butterflyUnderfoot = this.butterflies.butterflies.find(b => b.flower === f && b.state === 'feeding' && !b.seen) ?? null;
     f.visited = true;
     if (!supply.visited) { supply.visited = true; this.visited++; }
     const prior = this.previousFlowerBySpecies[f.species];
@@ -1685,7 +1838,7 @@ export class Garden {
     } else if (!this.aphidNoteShown && this.aphidSap(f) > .1 && supply.nectar > 1) {
       this.aphidNoteShown = true;
       this.audio.chime('land');
-      this.notify('They drink the plant’s sap, so this flower has less nectar for you. Ladybirds eat aphids, and the nectar comes back.', 7, 'Aphids on the stem.');
+      this.notify('They drink the plant’s sap, so this flower has less nectar for you. Ladybirds eat aphids, and the nectar comes back.', 7, 'Aphids on the stem.', NOTICE.discovery);
     } else {
       this.audio.chime('land');
       this.notify(this.satiated ? 'All topped up. Walk through the center for pollen.' : f.species === 'poppy' ? 'A pollen feast. Crawl toward the dark anthers; poppies offer almost no nectar.' : f.species === 'cornflower' ? 'A cornflower. Its nectar hides deep in the small florets at the centre: walk to a gold bead and hold F.' : 'Your feet have found a petal. Crawl with WASD; aim at the golden nectar and hold F.', 6);
@@ -1800,7 +1953,7 @@ export class Garden {
     if (!pushing) { this.edgeHold = 0; return; }
     if (!this.edgeNoteShown && this.position.z >= HOME_EXIT.z - HOME_APPROACH_DEPTH + 2) {
       this.edgeNoteShown = true;
-      this.notify(this.canHeadHome() ? 'Keep flying this way to end your day early: the hive gets whatever you carry. (R heads home from anywhere.)' : `You need a little nectar in your jar (${HOME_RETURN_FUEL}%) for the flight home.`, 6, 'The way home.');
+      this.notify(this.canHeadHome() ? 'Keep flying this way to end your day early: the hive gets whatever you carry. (R heads home from anywhere.)' : `You need a little nectar in your jar (${HOME_RETURN_FUEL}%) for the flight home.`, 6, 'The way home.', NOTICE.discovery);
     }
     if (!this.atHomeEdge() || !this.canHeadHome()) { this.edgeHold = 0; return; }
     this.edgeHold += dt;
@@ -2084,7 +2237,7 @@ export class Garden {
       cold: this.coldVignette(), chilled: this.chill > .1, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight,
       phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, lossStreak: this.phase === 'lost' ? 1 + this.trailingLosses() : 0, water: this.water, waterGoal: this.waterGoal, thinShade: this.thinShade(), pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
       homeCost, homeDistance: distance * .1, homeBearing: this.yaw - Math.atan2(-(HOME_EXIT.x - this.position.x), -(HOME_EXIT.z - this.position.z)),
-      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, nearHomeEdge: this.nearHomeEdge(), canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
+      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), aphidsFound: this.ladybirds.aphidsSeenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, nearHomeEdge: this.nearHomeEdge(), canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
       canReturn,
       wind: this.wind.length(), windBearing: this.yaw - Math.atan2(-this.wind.x, -this.wind.z), flightMode: this.flightMode, sheltered: !!this.underLeaf || this.position.y < 3.7, edgeGust,
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
@@ -2246,8 +2399,13 @@ export class Garden {
         const plan = this.advanceSummer();
         return { counts: countSpecies(this.meadow.flowers), badSummers: plan.badSummers, gaps: this.meadowGaps.length, ladybirds: this.ladybirds.diagnostics().count, aphidClusters: this.ladybirds.aphids.length };
       },
-      aphids: () => this.ladybirds.aphids.map(c => ({ id: c.id, flowerId: c.flowerId, population: c.population, position: c.position.toArray(), facing: c.facing.toArray() })),
+      aphids: () => this.ladybirds.aphids.map(c => ({ id: c.id, flowerId: c.flowerId, population: c.population, position: c.position.toArray(), facing: c.facing.toArray(), seen: c.seen })),
       setAphids: (clusterId: number, population: number) => this.ladybirds.setAphids(clusterId, population),
+      sight: (point: number[], size: number) => {
+        const at = new THREE.Vector3(...point), eye = this.camera.position, p = at.clone().project(this.camera);
+        return { pixels: size / Math.max(.05, eye.distanceTo(at)) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)), ndc: [p.x, p.y, p.z], grass: this.hiddenInGrass(eye, at), leaf: this.behindLeaf(eye, at), head: this.behindFlowerHead(eye, at), seen: this.sightPixels(at, size), eye: eye.toArray(), onGround: this.onGround };
+      },
+      antColonies: () => this.ants.colonies.map(c => ({ id: c.id, nest: c.nest.toArray(), seen: c.seen })),
       snails: () => this.snails.snails.map(s => ({ id: s.id, state: s.state, perch: s.perch, position: s.position.toArray(), extension: s.extension, seen: s.seen })),
       ants: () => this.ants.colonies.map(c => ({ id: c.id, flowerId: c.flowerId, nest: c.nest.toArray(), seen: c.seen })),
       antsOf: (colony: number) => this.ants.antsOf(colony),
@@ -2321,7 +2479,7 @@ export class Garden {
     this.stopRest(); this.onGround = false; this.phase = 'flying'; this.velocity.set(0, 0, 0);
     this.drinking = false; this.canDrink = false;
     this.audio.pluck(196, .05);
-    this.notify('Caught in a spider’s web! Struggling free costs energy.', 5);
+    this.notify('Caught in a spider’s web! Struggling free costs energy.', 5, '', NOTICE.urgent);
   }
   private webPull(): number { return (1 - .45 * this.load()) * (this.energy < 20 ? 1.6 : 1); }
   private struggle(dt: number): void {

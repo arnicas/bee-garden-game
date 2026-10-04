@@ -144,6 +144,8 @@ export interface ViewState {
   harvestReady: boolean;
   /** Distinct ladybirds met today. */
   friendsFound: number;
+  /** Aphid clusters spotted today. */
+  aphidsFound?: number;
   /** Distinct butterflies met today. */
   butterfliesFound: number;
   /** Distinct snails met today. */

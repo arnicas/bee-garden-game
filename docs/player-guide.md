@@ -70,9 +70,11 @@ nectar into energy.
 </p>
 
 The meadow is full of small lives, best found by flying low or walking in the
-grass. Each one is counted when you get a good look at it:
+grass. Each one is counted when you get a good look at it, from the air too:
+look towards it, close enough to make it out, with no leaf or deep grass in the way.
 
 - **Ladybirds** on the stems, eating aphids
+- **Aphids** clustered on the stems of poppies and cornflowers
 - **Butterflies** sipping at daisies and cornflowers, sheltering under leaves in rain
 - **Snails** out in the damp, at the edges of the pools and on the leaves
 - **Ant trails** from a soil mound up a stem to the aphids

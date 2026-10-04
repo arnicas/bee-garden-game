@@ -53,9 +53,13 @@ test('fallen petals lie under the flowers, and a pollinated poppy lets one fall'
 
 test('caterpillars eat bites into the leaf edges and are counted when found', async ({ page }) => {
   await start(page);
+  // Caterpillars are placed once the bee is near their leaves: hover over the meadow first.
+  await page.evaluate(() => window.__BEE_TEST__!.setPose([0, 4, 0], 0, -.3));
+  await page.waitForTimeout(600);
   const caterpillars = await page.evaluate(() => window.__BEE_TEST__!.caterpillars());
   expect(caterpillars.length).toBeGreaterThanOrEqual(4);
-  const first = caterpillars[0];
+  const first = caterpillars.find(c => c.position.some(v => v !== 0))!;
+  expect(first).toBeTruthy();
   // Look down at it from just above the leaf.
   await page.evaluate(c => window.__BEE_TEST__!.setPose([c.position[0] + .25, c.position[1] + .55, c.position[2] + .25], Math.PI * .25, -1), first);
   const area = (await state(page)).caterpillars.biteArea;
