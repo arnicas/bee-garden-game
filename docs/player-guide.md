@@ -81,6 +81,9 @@ look towards it, close enough to make it out, with no leaf or deep grass in the 
 - **Mushrooms** by the water after rain, and one rare **fairy ring**
 - **Fallen petals** under the flowers (a pollinated poppy soon drops one)
 - **Caterpillars** eating their way in from the leaf edges
+- **Tired hive mates** resting on a leaf or by a pool: land beside one and hold F
+  to share a little nectar, and she'll fly home
+- **Fallen bees**, now and then, with a short note on what happened to them
 
 No spiders are shown, but their webs hang low in the grass. Fly into one and
 you'll need to tug free (tap Space or W).
@@ -273,6 +276,8 @@ its name in bold, and the results screen lists them under “Meadow friends” a
   a poppy you pollinate drops a petal a little later.
 - **Caterpillars** (`caterpillars.ts`): five on the broad leaves, eating bites
   into the leaf edges (cut out in the leaf shader).
+- **Bees in the grass** (`grounded-bees.ts`): a tired forager or two to help
+  with nectar (F), and sometimes a fallen bee, by cause (cold, heat, worn out).
 
 Water: dew and raindrops on petals and the rain pools (`puddles.ts`) can be
 sipped with F. Sipping cools the bee; it isn't food.

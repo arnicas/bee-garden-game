@@ -893,6 +893,7 @@ export function createUI(actions: UIActions): GameUI {
       text('result-friends', friends.length ? friends.join(' · ') : `None met today${preview ? ` · ${preview.ladybirds} ladybirds live here${lastSummer}` : ''}`);
       { const f = state.finds, parts = [
           // A full fairy ring is a rare find, so it leads the line.
+          f.helped ? `${f.helped} hive mate${f.helped === 1 ? '' : 's'} helped home` : '',
           f.rings ? '✦ a fairy ring, a rare find' : '',
           f.mushrooms ? `${f.mushrooms} mushroom clump${f.mushrooms === 1 ? '' : 's'}` : '',
           f.petals ? `${f.petals} fallen petal${f.petals === 1 ? '' : 's'}` : '',

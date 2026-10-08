@@ -153,7 +153,7 @@ export interface ViewState {
   /** Distinct ant trails found today. */
   antTrailsFound: number;
   /** Small finds today: fairy rings, mushroom clumps, fallen petals, caterpillars. */
-  finds: { rings: number; mushrooms: number; petals: number; caterpillars: number };
+  finds: { rings: number; mushrooms: number; petals: number; caterpillars: number; helped?: number };
   /** Seconds spent sipping water today (dew, raindrops, puddles). */
   waterSips: number;
   /** Chose to fly home before the harvest goal. */
