@@ -25,6 +25,7 @@ import { createMushrooms } from './mushrooms';
 import { createPetals } from './petals';
 import { createCaterpillars } from './caterpillars';
 import { createGroundedBees, planGroundedBees, SHARE_TIME, type FallenCause, type GroundedBee, type GroundedPlan } from './grounded-bees';
+import { ARC, endingLine, hiveFromCode, hiveLine, hiveStress, newHive, recordSummer, runSummary, storesWord, type HiveState, type RunSummary } from './hive-stores';
 import { createEnergyWash } from './energy-wash';
 import { createRainSplash } from './rain-splash';
 import { createPuddles } from './puddles';
@@ -187,6 +188,9 @@ interface TestControl {
   /** Sets how much of an aphid cluster is there (0–1). */
   setAphids(clusterId: number, population: number): void;
   antColonies(): { id: number; nest: number[]; seen: boolean }[];
+  farDry(): { now: number; target: number };
+  setFarDry(dry: number): void;
+  hive(): { stores: number; summers: number; outcomes: string[]; ending: string | null; stress: number };
   groundedBees(): { id: number; kind: string; place: string; state: string; cause: string | null; fed: number; seen: boolean; leafId: number | null; position: number[] }[];
   /** Why a point can or can't be made out from the view now (for tuning). */
   sight(point: number[], size: number): Record<string, unknown>;
@@ -230,6 +234,17 @@ export class Garden {
   private sharingNectar = false;
   private helpLook = new THREE.Vector3();
   private helpedNoteShown = false;
+  /** The run of five summers: the hive's hidden stores and each summer's record (see src/hive-stores.ts).
+   * Off on test pages unless ?arc, which may also start partway (?arc=GGOL: good, good, okay, lost). */
+  private readonly arcOn = (() => { const p = new URLSearchParams(location.search); return !p.has('test') || p.has('arc'); })();
+  private hive: HiveState = (() => { const code = new URLSearchParams(location.search).get('arc'); return code ? hiveFromCode(code) : newHive(); })();
+  private summerRecorded = false;
+  /** The closing summary of the run, worked out once the run has ended. */
+  private summary: RunSummary | null = null;
+  private summaryFor: HiveState | null = null;
+  /** On the flight home, the land beyond the hive dries toward where the meadow is heading. */
+  private farDry = 0;
+  private farDryTarget = 0;
   private tiredNoteShown = false;
   /** How dry a thin meadow keeps the ground (0 for a normal meadow). */
   private snailDryness = 0;
@@ -767,6 +782,7 @@ export class Garden {
   private nextMeadow(): void {
     if (!this.dayPlayed) { this.dayPlayed = true; return; }
     const finished = this.phase === 'won' || this.phase === 'lost';
+    if (finished && this.hive.ending) { this.newRun(); return; }
     const outcome: SummerOutcome = this.phase === 'won' ? this.report?.tier ?? 'okay' : 'lost';
     // A hot day lost counts too (no water came home); a won one was counted at the hive.
     if (this.phase === 'lost' && this.waterGoal > 0) this.hotDays++;
@@ -789,6 +805,44 @@ export class Garden {
   /** This summer's flowers, and which of them were pollinated. */
   private pastFlowers(): PastFlower[] {
     return this.meadow.flowers.map(f => ({ species: f.species, x: f.base.x, z: f.base.z, height: f.height, radius: f.radius, pollinated: this.supplies.get(f.id)?.pollinated ?? false }));
+  }
+  /** "A new meadow" after a run ends: a fresh hive, a fresh meadow, summer 1. */
+  private newRun(): void {
+    this.hive = newHive(); this.summerNumber = 1; this.outcomes = []; this.groundMoisture = .5;
+    this.badSummers = { daisy: 0, poppy: 0, cornflower: 0 }; this.lastSummerCounts = null; this.lastSummerPollinated = { daisy: 0, poppy: 0, cornflower: 0 };
+    this.lastSummerLadybirds = 0; this.lastSummerButterflies = 0; this.lastSummerSnails = 0; this.meadowGaps = []; this.lastCoverShift = 0;
+    this.hotDays = 0; this.waterDays = 0; this.previousDay = null;
+    this.rebuildMeadow(this.pinnedMeadowSeed ?? randomSeed(), null);
+  }
+  /** Adds the finished summer to the run (once per day, home or lost). */
+  private recordHiveSummer(won: boolean): void {
+    if (!this.arcOn || this.summerRecorded) return;
+    this.summerRecorded = true;
+    const record = {
+      summer: this.summerNumber, outcome: won ? this.report?.tier ?? 'okay' : 'lost' as const,
+      nectar: won ? this.nectar : 0, pollen: won ? this.pollen : 0, water: won ? this.water : 0, waterGoal: this.waterGoal,
+      meadow: this.meadow.flowers.length / (3 * (MEADOW_PLAN.normalEach + MEADOW_PLAN.fixedEach)),
+      pollinated: this.pollinated, moisture: this.groundMoisture,
+      friends: this.ladybirds.seenCount() + this.butterflies.seenCount() + this.snails.seenCount() + this.ants.seenCount(),
+      helped: this.groundedBees.helpedCount(),
+      season: this.season, showers: this.weatherPlan.showers.length, hot: this.waterGoal > 0,
+    };
+    this.hive = recordSummer(this.hive, record);
+    // For tuning in play: each summer's record, the weather and the stores.
+    if (import.meta.env.DEV || new URLSearchParams(location.search).has('arc')) console.info('[bee-garden] summer', record, { season: this.season, showers: this.weatherPlan.showers.length, hot: hiveNeedsWater(this.weatherPlan) }, 'stores', this.hive.stores.toFixed(2), this.hive.ending ?? '');
+  }
+  /** 0–1: how dry the land around the hive should look on the way home. Next summer's
+   * ground moisture (this summer's rain and heat, and how much of the meadow the bee
+   * leaves to hold the water), plus bare ground where the meadow is thin. */
+  private outlookDryness(): number {
+    const cover = this.leftCover(), next = nextMoisture(this.groundMoisture, this.weatherPlan, cover);
+    return THREE.MathUtils.clamp(moistureShift(next).dry + Math.max(0, 1 - cover) * .6, 0, 1);
+  }
+  private arcView(): ViewState['arc'] {
+    if (!this.arcOn) return null;
+    const summer = Math.max(1, this.summerNumber);
+    if (this.summaryFor !== this.hive) { this.summaryFor = this.hive; this.summary = runSummary(this.hive); }
+    return { summer, of: ARC.summers, hiveLine: hiveLine(this.hive, summer), ending: this.hive.ending, endingLine: this.hive.ending ? endingLine(this.hive.ending) : '', summary: this.summary };
   }
   private advanceSummer(seed = randomSeed()): SummerPlan {
     const past = this.pastFlowers();
@@ -829,7 +883,7 @@ export class Garden {
     const test = new URLSearchParams(location.search).has('test');
     const plan: GroundedPlan = !this.hiveMatesOn ? { tired: [], fallen: [] }
       : test ? { tired: ['leaf', 'rim'], fallen: [{ place: 'rim', cause: 'cold' }] }
-      : planGroundedBees(rng((this.seed ^ this.summerNumber * 0x51ed) >>> 0 || 7), { showers: this.weatherPlan.showers.length, hot: hiveNeedsWater(this.weatherPlan) });
+      : planGroundedBees(rng((this.seed ^ this.summerNumber * 0x51ed) >>> 0 || 7), { showers: this.weatherPlan.showers.length, hot: hiveNeedsWater(this.weatherPlan) }, this.arcOn ? hiveStress(this.hive) : 0);
     this.groundedBees.startDay(plan, this.summerNumber, START, HOME_EXIT);
   }
   /** Beside a tired hive mate, holding F shares a little nectar from the jar; once she's had
@@ -903,7 +957,9 @@ export class Garden {
     // After a finished summer, the night passes over the new meadow before the next morning.
     const nightFirst = showWelcome && this.nightScenes && !this.reducedMotion && (this.phase === 'won' || this.phase === 'lost');
     // A finished day (home or not) moves the count on; restarting a day does not.
-    if (this.summerNumber === 0 || this.phase === 'won' || this.phase === 'lost') this.summerNumber++;
+    if (this.summerNumber === 0) this.summerNumber = this.hive.summers.length;
+    if (!this.dayPlayed || this.phase === 'won' || this.phase === 'lost') this.summerNumber++;
+    this.summerRecorded = false; this.farDry = 0; this.farDryTarget = 0; this.meadow?.setFarDry(0);
     this.nextMeadow();
     this.rollDayWeather();
     this.waterGoal = this.waterPlayOn && (this.hiveWaterAsked || hiveNeedsWater(this.weatherPlan)) ? WATER_GOAL : 0;
@@ -1192,6 +1248,9 @@ export class Garden {
     }
     if (this.phase === 'returning') {
       this.returnAge += dt;
+      // The land beyond the hive shows what this summer leaves: dry ground fades to straw.
+      this.farDry = this.reducedMotion ? this.farDryTarget : THREE.MathUtils.damp(this.farDry, this.farDryTarget, .8, dt);
+      this.meadow.setFarDry(this.farDry);
       if (this.returnAge >= (this.reducedMotion ? QUIET_ENDING_DURATION : ENDING_DURATION)) this.finishReturn();
       return;
     }
@@ -1529,6 +1588,7 @@ export class Garden {
     this.lossAge = this.lossDuration();
     this.phase = 'lost'; this.clearInput();
     this.resultScore = this.pollinated * 80;
+    this.recordHiveSummer(false);
   }
   private skipClosing(): void {
     if (this.phase === 'failing') this.finishLoss(); else this.finishReturn();
@@ -2049,6 +2109,7 @@ export class Garden {
       return;
     }
     this.returnFuel = this.homeCost(); this.returnDayStart = this.dayProgress(); this.homecoming.begin(this.camera);
+    this.farDryTarget = this.outlookDryness();
     this.quietAge = 0; this.restView.reset();
     this.audio.chime('win');
     this.latchClosingKeys();
@@ -2064,6 +2125,9 @@ export class Garden {
     this.phase = 'won'; this.clearInput();
     this.report = dayReport({ nectar: this.nectar, pollen: this.pollen, pollinatedBySpecies: this.pollinatedBySpecies, visited: this.visited, flowerTotal: this.supplies.size, water: this.water, waterGoal: this.waterGoal, hotDays: this.hotDays, waterDays: this.waterDays });
     this.queenSays = queenLine([...this.outcomes, this.report.tier], this.summerNumber);
+    this.recordHiveSummer(true);
+    // The Queen feels the stores too.
+    if (this.arcOn && !this.hive.ending && /low/.test(storesWord(this.hive.stores))) this.queenSays += ' The stores are still low; every load counts now.';
     this.resultScore = Math.round(this.nectar * 12 + this.pollen * 15 + this.pollinated * 80 + Math.max(0, 300 - this.elapsed));
   }
   private dayProgress(): number {
@@ -2313,7 +2377,7 @@ export class Garden {
       cold: this.coldVignette(), chilled: this.chill > .1, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight,
       phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, lossStreak: this.phase === 'lost' ? 1 + this.trailingLosses() : 0, water: this.water, waterGoal: this.waterGoal, thinShade: this.thinShade(), pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
       homeCost, homeDistance: distance * .1, homeBearing: this.yaw - Math.atan2(-(HOME_EXIT.x - this.position.x), -(HOME_EXIT.z - this.position.z)),
-      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), aphidsFound: this.ladybirds.aphidsSeenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { helped: this.groundedBees.helpedCount(), rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, nearHomeEdge: this.nearHomeEdge(), canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null,
+      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), aphidsFound: this.ladybirds.aphidsSeenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { helped: this.groundedBees.helpedCount(), rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, nearHomeEdge: this.nearHomeEdge(), canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null, arc: this.arcView(),
       canReturn,
       wind: this.wind.length(), windBearing: this.yaw - Math.atan2(-this.wind.x, -this.wind.z), flightMode: this.flightMode, sheltered: !!this.underLeaf || this.position.y < 3.7, edgeGust,
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
@@ -2481,6 +2545,9 @@ export class Garden {
         const at = new THREE.Vector3(...point), eye = this.camera.position, p = at.clone().project(this.camera);
         return { pixels: size / Math.max(.05, eye.distanceTo(at)) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)), ndc: [p.x, p.y, p.z], grass: this.hiddenInGrass(eye, at), leaf: this.behindLeaf(eye, at), head: this.behindFlowerHead(eye, at), seen: this.sightPixels(at, size), eye: eye.toArray(), onGround: this.onGround };
       },
+      farDry: () => ({ now: this.farDry, target: this.farDryTarget }),
+      setFarDry: (dry: number) => { this.farDry = this.farDryTarget = dry; this.meadow.setFarDry(dry); },
+      hive: () => ({ stores: this.hive.stores, summers: this.hive.summers.length, outcomes: this.hive.summers.map(s => s.outcome), ending: this.hive.ending, stress: hiveStress(this.hive) }),
       groundedBees: () => this.groundedBees.diagnostics(),
       antColonies: () => this.ants.colonies.map(c => ({ id: c.id, nest: c.nest.toArray(), seen: c.seen })),
       snails: () => this.snails.snails.map(s => ({ id: s.id, state: s.state, perch: s.perch, position: s.position.toArray(), extension: s.extension, seen: s.seen })),

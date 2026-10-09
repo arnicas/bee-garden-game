@@ -218,6 +218,7 @@ export function createUI(actions: UIActions): GameUI {
       <div class="learning-page" role="dialog" aria-modal="true" aria-labelledby="learning-title" aria-describedby="learning-goals">
         <div class="learning-flower">${pollinationFlowers.daisy}</div>
         <h2 id="learning-title" tabindex="-1">Your summer day begins on a flower.</h2>
+        <p class="summer-hive" data-text="summer-hive-line" hidden></p>
         <section class="learning-summer" aria-label="How the meadow changed since last summer" hidden>
           <p class="summer-weather" data-text="summer-weather-line" hidden></p>
           <div class="summer-group"><h3>Flowers <span>change since last summer</span></h3>
@@ -289,8 +290,22 @@ export function createUI(actions: UIActions): GameUI {
         <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Meadow friends</dt><dd data-text="result-friends"></dd></div><div data-result-finds hidden><dt>Found in the grass</dt><dd data-text="result-finds"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl></div>
         <div class="result-actions">
           <button class="primary-button" data-action="restart"><span data-text="restart-label">Next summer</span><span class="button-arrow">${icons.arrow}</span></button>
+          <button class="primary-button arc-open" data-action="arc-open" hidden><span>The five summers</span><span class="button-arrow">${icons.arrow}</span></button>
           <button class="result-info" data-action="result-facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts">Bee and Meadow Facts ${icons.arrow}</button>
         </div>
+      </div>
+    <div class="journal-page arc-page" hidden role="group" aria-labelledby="arc-title">
+        <span class="eyebrow" data-text="arc-eyebrow">FIVE SUMMERS · ONE SMALL BEE</span>
+        <h2 id="arc-title" tabindex="-1" data-text="arc-title"></h2>
+        <p class="arc-ending" data-text="arc-ending"></p>
+        <ol class="arc-strip" data-arc-strip aria-label="Summer by summer"></ol>
+        <dl class="arc-notes">
+          <div><dt>The weather</dt><dd data-text="arc-weather"></dd></div>
+          <div><dt>The meadow</dt><dd data-text="arc-meadow"></dd></div>
+          <div><dt>The hive</dt><dd data-text="arc-hive"></dd></div>
+          <div class="arc-queen"><dt>The Queen</dt><dd data-text="arc-queen"></dd></div>
+        </dl>
+        <button class="primary-button" data-action="restart"><span>A new meadow</span><span class="button-arrow">${icons.arrow}</span></button>
       </div>
     </section>
     <div class="ending-fade" aria-hidden="true"></div>
@@ -396,6 +411,8 @@ export function createUI(actions: UIActions): GameUI {
   const factPanels = Array.from(root.querySelectorAll<HTMLElement>('.fact-page'));
   const factsReader = el('.facts-reader');
   const resultPage = el('.result-page');
+  const arcPage = el('.arc-page'), arcOpenButton = el<HTMLButtonElement>('[data-action="arc-open"]'), arcStrip = el('[data-arc-strip]');
+  let arcOpen = false, arcShown: unknown = null;
   const transition = el('.return-transition');
   const endingFade = el('.ending-fade');
   const lossVeil = el('.loss-veil');
@@ -528,6 +545,12 @@ export function createUI(actions: UIActions): GameUI {
       return;
     }
     if (button.dataset.action === 'facts-close') { closeFacts(); return; }
+    // At the end of the run: the five summers, then a new meadow.
+    if (button.dataset.action === 'arc-open') {
+      arcOpen = true; show(resultPage, false); show(arcPage, true);
+      el<HTMLElement>('#arc-title').focus({ preventScroll: true });
+      return;
+    }
     // Not on mobile yet: a gentle note instead of starting the game.
     if (button.dataset.action === 'start' && onMobile()) {
       const note = el('[data-mobile-note]'); show(note, true);
@@ -709,7 +732,10 @@ export function createUI(actions: UIActions): GameUI {
       show(learningSummer, !!start);
       show(learningGoals, !start);
       show(learningCycle, !start);
-      const title = start ? `Summer ${start.summer} begins on a flower.` : 'Your summer day begins on a flower.';
+      const arc = state.arc, summerNo = start?.summer ?? arc?.summer ?? 1;
+      const title = start || summerNo > 1 ? `Summer ${summerNo}${arc ? ` of ${arc.of}` : ''} begins on a flower.` : 'Your summer day begins on a flower.';
+      text('summer-hive-line', arc?.hiveLine ?? '');
+      show(el('[data-text="summer-hive-line"]'), !!arc?.hiveLine);
       if (learningTitle.textContent !== title) learningTitle.textContent = title;
       const summer = start?.summer ?? 1;
       if (controlsFoldedFor !== summer) { controlsFoldedFor = summer; learningControls.open = !start; }
@@ -734,7 +760,9 @@ export function createUI(actions: UIActions): GameUI {
       show(learningOverlay, state.phase === 'learning');
       show(modal, state.phase === 'paused' || state.phase === 'won' || state.phase === 'lost');
       show(pausePage, state.phase === 'paused' && !factsOpen);
-      show(resultPage, !factsOpen && (state.phase === 'won' || state.phase === 'lost'));
+      if (state.phase !== 'won' && state.phase !== 'lost') arcOpen = false;
+      show(resultPage, !factsOpen && !arcOpen && (state.phase === 'won' || state.phase === 'lost'));
+      show(arcPage, arcOpen && (state.phase === 'won' || state.phase === 'lost'));
       show(transition, returning || failing);
       previousPhase = state.phase;
       if (state.phase === 'learning') learningTitle.focus({ preventScroll: true });
@@ -901,8 +929,10 @@ export function createUI(actions: UIActions): GameUI {
         ].filter(Boolean);
         text('result-finds', parts.join(' · '));
         show(el('[data-result-finds]'), parts.length > 0); }
-      text('result-next', preview ? nextSummerLine(preview) : '');
-      show(el('[data-text="result-next"]'), !!preview);
+      // Once the run has ended, its ending replaces the next-summer preview.
+      const ending = state.arc?.ending ? state.arc.endingLine : '';
+      text('result-next', ending || (preview ? nextSummerLine(preview) : ''));
+      show(el('[data-text="result-next"]'), !!ending || !!preview);
       text('result-pollinated', String(state.pollinated));
       text('result-pollinated-label', state.pollinated === 1 ? 'flower pollinated' : 'flowers pollinated');
       for (const { species, name, element } of resultSpeciesPetals) {
@@ -921,7 +951,29 @@ export function createUI(actions: UIActions): GameUI {
       attribute(resultPollenFill, 'height', pollenHeight.toFixed(2));
       attribute(resultPollenFill, 'y', (77 - pollenHeight).toFixed(2));
       text('result-time', `${Math.floor(state.elapsed / 60)}m ${Math.floor(state.elapsed % 60).toString().padStart(2, '0')}s`);
-      text('restart-label', 'Next summer');
+      text('restart-label', state.arc?.ending ? 'A new meadow' : 'Next summer');
+      // Once the run has ended, the results lead on to the five summers.
+      const summary = state.arc?.summary ?? null;
+      show(arcOpenButton, !!summary);
+      show(resultPage.querySelector<HTMLElement>('.result-actions [data-action="restart"]')!, !summary);
+      if (summary && arcShown !== summary) {
+        arcShown = summary;
+        text('arc-eyebrow', `${summary.cards.length === 5 ? 'FIVE' : ['', 'ONE', 'TWO', 'THREE', 'FOUR'][summary.cards.length]} SUMMERS · ONE SMALL BEE`);
+        text('arc-title', summary.title); text('arc-ending', summary.ending);
+        text('arc-weather', summary.weather); text('arc-meadow', summary.meadow); text('arc-hive', summary.hive); text('arc-queen', summary.queen);
+        arcStrip.replaceChildren(...summary.cards.map(card => {
+          const item = document.createElement('li');
+          item.className = 'arc-summer'; item.dataset.lost = String(card.lost);
+          const line = (cls: string, value: string) => { const span = document.createElement('span'); span.className = cls; span.textContent = value; item.append(span); };
+          line('arc-summer-name', `Summer ${card.summer}`);
+          line('arc-summer-weather', card.weather);
+          const bar = document.createElement('span'); bar.className = 'arc-summer-honey'; bar.setAttribute('aria-hidden', 'true');
+          bar.style.setProperty('--haul', card.haul.toFixed(2)); item.append(bar);
+          line('arc-summer-day', card.day);
+          line('arc-summer-flowers', `${card.pollinated} pollinated · ${card.flowers} flowers`);
+          return item;
+        }));
+      }
       resultPage.classList.toggle('is-lost', !won);
     }
   }

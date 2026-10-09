@@ -131,6 +131,8 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 /* The summer's weather: set apart from the counts, since it isn't the bee's doing. */
 .summer-weather { margin: 0 auto 14px; max-width: 470px; padding: 7px 14px; border-radius: 12px; background: #e9eef0; color: #3f5563; font: italic 14px/1.4 var(--serif); }
 .summer-weather[hidden] { display: none; }
+.summer-hive { margin: -4px auto 12px; max-width: 470px; padding: 6px 14px; border-radius: 12px; background: #f4ead2; color: #6b4f22; font: italic 14px/1.4 var(--serif); text-align: center; }
+.summer-hive[hidden] { display: none; }
 .learning-controls { margin-top: 6px; }
 .learning-controls > summary { width: max-content; margin: 0 auto; padding: 4px 10px; cursor: pointer; font-size: 12px; color: var(--muted); border-radius: 8px; }
 .learning-controls > summary:hover, .learning-controls > summary:focus-visible { color: inherit; background: #efe6c9; }
@@ -656,3 +658,24 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 
 /* Nectar the stem's aphids are taking: a faded, hatched stretch past what's left. */
 .supply-bar .supply-sapped { position: absolute; inset: 0 auto 0 0; width: calc(var(--sapped, 0) * 100%); border-radius: 3px; background: repeating-linear-gradient(-45deg, rgba(110, 140, 60, .85) 0 1.5px, rgba(217, 143, 38, .38) 1.5px 3.5px); transition: width .25s ease-out; }
+
+/* The five summers: the closing page of a run. */
+.arc-page { width: min(680px, 100%); text-align: center; padding: 28px 36px 26px; }
+.arc-page h2 { margin-top: 10px; }
+.arc-ending { margin: 8px auto 0; max-width: 520px; font: italic 15px/1.45 var(--serif); color: #4d5a3d; }
+.arc-strip { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 18px 0 4px; padding: 0; }
+.arc-summer { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; border-radius: 10px; background: #f3ebd3; font-size: 10.5px; line-height: 1.25; }
+.arc-summer[data-lost="true"] { background: #ece7dc; color: #7a7466; }
+.arc-summer-name { font: 13px/1.2 var(--serif); }
+.arc-summer-weather { color: #5d6e72; font-style: italic; }
+.arc-summer-honey { position: relative; width: 16px; height: 34px; margin: 3px 0; border-radius: 3px 3px 6px 6px; background: #e4d8b8; overflow: hidden; }
+.arc-summer-honey::after { content: ''; position: absolute; inset: auto 0 0; height: calc(var(--haul) * 100%); background: linear-gradient(#e8b54a, #c98b25); }
+.arc-summer-day { font-weight: 600; }
+.arc-summer-flowers { color: #6b6450; }
+.arc-notes { display: grid; gap: 10px; margin: 16px 0 0; text-align: left; }
+.arc-notes div { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: baseline; }
+.arc-notes dt { font-size: 8px; letter-spacing: 1.6px; text-transform: uppercase; color: #77855e; }
+.arc-notes dd { margin: 0; font-size: 13px; line-height: 1.45; }
+.arc-queen dd { font: italic 15px/1.45 var(--serif); }
+.arc-page .primary-button { margin-top: 20px; }
+@media (max-width: 560px) { .arc-strip { grid-template-columns: repeat(3, 1fr); } .arc-notes div { grid-template-columns: 1fr; gap: 2px; } }

@@ -799,5 +799,5 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     }
   }
   update(0, new THREE.Vector3(0, 4.6, 3.5), false);
-  return { flowers, puddles, antNests, fairyRings, mushroomPatches, petalSpots, update, setHollows: groundMaterial.setHollows, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
+  return { flowers, puddles, antNests, fairyRings, mushroomPatches, petalSpots, update, setHollows: groundMaterial.setHollows, setFarDry: groundMaterial.setFarDry, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
 }

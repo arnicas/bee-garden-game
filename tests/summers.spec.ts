@@ -108,7 +108,7 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   await expect(page.locator('[data-text="restart-label"]')).toHaveText('Next summer');
   // The next summer's start page shows how the meadow changed.
   await page.getByRole('button', { name: 'Next summer' }).click();
-  await expect(page.locator('#learning-title')).toHaveText(/^Summer 2 begins/);
+  await expect(page.locator('#learning-title')).toHaveText(/^Summer 2 (of 5 )?begins/);
   await expect(page.locator('.learning-summer')).toBeVisible();
   await expect(page.locator('[data-text="summer-flowers-line"]')).not.toHaveText('');
   // The keyboard controls fold away after the first summer.

@@ -47,6 +47,8 @@ export interface Meadow {
   update(time: number, cameraPosition: Vector3, uv: boolean, carriedPollen?: CarriedPollen): void;
   /** Dry pool beds to paint as cracked clay (see ground-paint.ts). */
   setHollows(hollows: readonly { x: number; z: number; radius: number; amount: number }[]): void;
+  /** 0–1: how dry the land beyond the meadow looks (see ground-paint.ts). */
+  setFarDry(dry: number): void;
   dispose(): void;
 }
 export interface SummerPreview {
@@ -168,6 +170,8 @@ export interface ViewState {
   summerPreview: SummerPreview | null;
   /** On the start page from the second summer. */
   summerStart: SummerStart | null;
+  /** The run of summers (null on test pages without ?arc): which summer, a line about the hive, and the ending once there is one. */
+  arc: { summer: number; of: number; hiveLine: string; ending: string | null; endingLine: string; summary: import('./hive-stores').RunSummary | null } | null;
   canReturn: boolean;
   wind: number;
   windBearing: number;

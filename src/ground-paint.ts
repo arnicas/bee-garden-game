@@ -16,6 +16,9 @@ export interface GroundPaint extends THREE.MeshStandardMaterial {
   setMoisture(dry: number, wet: number): void;
   /** Pool beds with no water: pale, cracked clay with a darker rim. */
   setHollows(hollows: readonly GroundHollow[]): void;
+  /** 0–1: how dry the open land beyond the meadow looks (the hive's view of where the
+   * meadow is heading). The meadow itself keeps `setMoisture`; 0 leaves the land as the meadow. */
+  setFarDry(dry: number): void;
 }
 export function createGroundPaint(): GroundPaint {
   const size = 256, random = createSeededRandom(0x5011);
@@ -44,10 +47,11 @@ export function createGroundPaint(): GroundPaint {
   paper.generateMipmaps = true; paper.anisotropy = 4; paper.needsUpdate = true;
   const material = new THREE.MeshStandardMaterial({ name: 'watercolor-earth-moss-stone', roughness: 1 }) as GroundPaint;
   const soil = {
-    uSoilDry: { value: 0 }, uSoilWet: { value: 0 }, uHollowCount: { value: 0 },
+    uSoilDry: { value: 0 }, uSoilWet: { value: 0 }, uFarDry: { value: 0 }, uHollowCount: { value: 0 },
     uHollows: { value: Array.from({ length: MAX_HOLLOWS }, () => new THREE.Vector4()) },
   };
   material.setMoisture = (dry, wet) => { soil.uSoilDry.value = dry; soil.uSoilWet.value = wet; };
+  material.setFarDry = dry => { soil.uFarDry.value = THREE.MathUtils.clamp(dry, 0, 1); };
   material.setHollows = hollows => {
     let n = 0;
     for (const h of hollows) { if (n >= MAX_HOLLOWS) break; if (h.amount > .01) soil.uHollows.value[n++].set(h.x, h.z, h.radius, h.amount); }
@@ -65,7 +69,7 @@ export function createGroundPaint(): GroundPaint {
     shader.fragmentShader = `
       uniform sampler2D uSoilPaper;
       uniform vec3 uEarthInk, uEarthWash, uMossInk, uMossWash, uStoneInk, uStoneWash;
-      uniform float uSoilDry, uSoilWet;
+      uniform float uSoilDry, uSoilWet, uFarDry;
       uniform int uHollowCount;
       uniform vec4 uHollows[${MAX_HOLLOWS}];
       varying vec2 vSoilPosition;
@@ -86,6 +90,9 @@ export function createGroundPaint(): GroundPaint {
       ` + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       vec2 soilP = vSoilPosition;
+      // Beyond the meadow (around the hive and out to the hills) the land can run drier than the meadow.
+      float soilFar = smoothstep(28.0, 40.0, length(soilP - vec2(0.0, -3.0)));
+      float soilDry = max(uSoilDry, uFarDry * soilFar);
       float soilFootprint = length(fwidth(soilP));
       float soilDetail = 1.0 - smoothstep(0.025, 0.16, soilFootprint);
       vec4 broad = texture2D(uSoilPaper, soilP * 0.021);
@@ -95,20 +102,20 @@ export function createGroundPaint(): GroundPaint {
       float mossField = wash.r * 0.63 + wash.g * 0.18 + grain.r * 0.19 + (broad.r - 0.5) * 0.12;
       float moss = max(0.72, smoothstep(0.20, 0.42, mossField));
       // A dry summer: the moss thins to bare, dusty earth in patches, and what's left goes olive-straw.
-      moss *= 1.0 - uSoilDry * (0.18 + 0.42 * smoothstep(0.4, 0.7, wash.g + (broad.b - 0.5) * 0.4));
+      moss *= 1.0 - soilDry * (0.18 + 0.42 * smoothstep(0.4, 0.7, wash.g + (broad.b - 0.5) * 0.4));
       vec3 earth = mix(uEarthInk, uEarthWash, 0.35 + wash.r * 0.65);
-      earth = mix(earth, mix(vec3(0.56, 0.42, 0.28), vec3(0.68, 0.55, 0.38), wash.r), uSoilDry * 0.8);
+      earth = mix(earth, mix(vec3(0.56, 0.42, 0.28), vec3(0.68, 0.55, 0.38), wash.r), soilDry * 0.8);
       vec3 mossColor = mix(uMossInk, uMossWash, wash.r * 0.62 + grain.r * 0.38);
-      mossColor = mix(mossColor, mix(vec3(0.46, 0.44, 0.26), vec3(0.58, 0.53, 0.31), grain.r), uSoilDry * 0.65);
+      mossColor = mix(mossColor, mix(vec3(0.46, 0.44, 0.26), vec3(0.58, 0.53, 0.31), grain.r), soilDry * 0.65);
       vec3 pigment = mix(earth, mossColor, moss);
       float tide = (1.0 - smoothstep(0.018, 0.065, abs(mossField - 0.31))) * (0.4 + wash.g * 0.6);
       pigment *= 1.0 - tide * 0.14;
       pigment *= 0.97 + (grain.b - 0.5) * 0.12 * soilDetail + (grain.a - 0.5) * 0.045 * soilDetail;
       // Fine cracks in the bare earth of a dry summer.
       // (Only computed when dry: the crack pattern costs nine cell lookups per pixel.)
-      if (uSoilDry > 0.001) {
+      if (soilDry > 0.001) {
         float soilCrack = (1.0 - smoothstep(0.025, 0.075, soilCracks(soilP * 7.0 + (wash.rg - 0.5) * 0.6))) * soilDetail;
-        pigment *= 1.0 - soilCrack * 0.24 * uSoilDry * smoothstep(0.35, 0.75, 1.0 - moss);
+        pigment *= 1.0 - soilCrack * 0.24 * soilDry * smoothstep(0.35, 0.75, 1.0 - moss);
       }
       // A wet summer: darker, damper earth and greener moss.
       pigment *= 1.0 - uSoilWet * 0.07; pigment.g *= 1.0 + uSoilWet * 0.03;
@@ -148,7 +155,7 @@ export function createGroundPaint(): GroundPaint {
       float leafVein = (1.0 - smoothstep(0.018, 0.07 + leafFeather * 0.15, abs(leafQ.x)))
         * (1.0 - smoothstep(0.5, 0.86, abs(leafQ.y)));
       leafColor *= 1.0 + leafVein * 0.18 - (1.0 - smoothstep(0.0, 0.16, abs(leafDistance))) * 0.18;
-      pigment = mix(pigment, leafColor, leaf * 0.85 * (1.0 - uSoilDry * 0.6));
+      pigment = mix(pigment, leafColor, leaf * 0.85 * (1.0 - soilDry * 0.6));
 
       // Dry pool beds: pale, cracked clay where water stood, with a darker tide-mark rim.
       float hollow = 0.0, hollowRim = 0.0;
@@ -181,7 +188,7 @@ export function createGroundPaint(): GroundPaint {
       normal = normalize(max(abs(soilDet), 0.00000001) * normal - soilGradient);
     `);
   };
-  material.customProgramCacheKey = () => 'bee-ground-watercolor-v3';
+  material.customProgramCacheKey = () => 'bee-ground-watercolor-v4';
   material.addEventListener('dispose', () => paper.dispose());
   return material;
 }
