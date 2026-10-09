@@ -212,7 +212,8 @@ export function createUI(actions: UIActions): GameUI {
     ${titlePaint}<section class="title-screen" aria-labelledby="game-title">
       <h1 id="game-title" aria-label="Bee Garden">${titleFlight}<span class="title-word" aria-hidden="true">${titleLetters(TITLE_BEE, 0)}</span><span class="title-word title-garden" aria-hidden="true">${titleLetters(TITLE_GARDEN, 3)}</span></h1>
       <p class="title-subtitle">A game about bees in a flower meadow.</p>
-      <button class="primary-button start-button" data-action="start"><span>Take flight</span><span class="button-arrow">${icons.arrow}</span></button>
+      <button class="primary-button start-button continue-button" data-action="continue" hidden><span data-text="continue-label">Continue</span><span class="button-arrow">${icons.arrow}</span></button>
+      <button class="primary-button start-button" data-action="start"><span data-text="start-label">Take flight</span><span class="button-arrow">${icons.arrow}</span></button>
     </section>
     <section class="learning-overlay" hidden>
       <div class="learning-page" role="dialog" aria-modal="true" aria-labelledby="learning-title" aria-describedby="learning-goals">
@@ -552,7 +553,7 @@ export function createUI(actions: UIActions): GameUI {
       return;
     }
     // Not on mobile yet: a gentle note instead of starting the game.
-    if (button.dataset.action === 'start' && onMobile()) {
+    if ((button.dataset.action === 'start' || button.dataset.action === 'continue') && onMobile()) {
       const note = el('[data-mobile-note]'); show(note, true);
       el<HTMLButtonElement>('.mobile-note-close').focus({ preventScroll: true });
       return;
@@ -562,7 +563,7 @@ export function createUI(actions: UIActions): GameUI {
       el<HTMLButtonElement>('.title-screen .start-button').focus({ preventScroll: true });
       return;
     }
-    const callbacks: Record<string, () => void> = { start: actions.start, explore: actions.explore, resume: actions.resume, pause: actions.pause, restart: actions.restart, sound: actions.toggleSound, uv: actions.toggleUV, photo: actions.photo, return: actions.returnHome, 'skip-return': actions.skipReturn, 'skip-night': actions.skipNight, rest: actions.toggleRest, lore: actions.toggleLore };
+    const callbacks: Record<string, () => void> = { start: actions.start, continue: actions.continueRun, explore: actions.explore, resume: actions.resume, pause: actions.pause, restart: actions.restart, sound: actions.toggleSound, uv: actions.toggleUV, photo: actions.photo, return: actions.returnHome, 'skip-return': actions.skipReturn, 'skip-night': actions.skipNight, rest: actions.toggleRest, lore: actions.toggleLore };
     callbacks[button.dataset.action!]?.();
     button.blur();
   }, { signal: cleanup.signal });
@@ -770,6 +771,11 @@ export function createUI(actions: UIActions): GameUI {
       if (returning || failing) closingButton.focus({ preventScroll: true });
       if (state.phase === 'won' || state.phase === 'lost') resultPage.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
     }
+    // The title: a saved run can be continued; "Take flight" then starts a new meadow.
+    const saved = state.phase === 'title' ? state.savedSummer : null;
+    show(el('.continue-button'), !!saved);
+    text('continue-label', saved ? `Continue with Summer ${saved}` : 'Continue');
+    text('start-label', saved ? 'A new meadow' : 'Take flight');
     text('energy', `${Math.ceil(state.energy)}%`);
     text('feeding-status', resting ? 'Resting' : state.autoFeeding ? 'Eating' : state.drinking && state.energy < 99.5 ? 'Sipping' : '');
     text('energy-note', overheated ? (state.shaded ? 'Cooling in the shade · nectar restores energy' : state.thinShade ? 'The dry grass gives little shade · water cools you fastest' : 'Heat drains energy · rest beneath a leaf, or Ctrl down into the grass') : shelterBeneath ? 'Leaf tops are exposed · E tucks beneath' : state.chilled ? (underLeaf ? 'Warming under a leaf · nectar restores energy' : grassSheltered ? 'Warming in dense grass · nectar restores energy' : exposedToRain ? (onGround ? 'Rain reaches this patch · walk into denser grass' : 'Cold rain drains energy · seek a leaf, or Ctrl down into the grass') : 'Dry air warms your wings · nectar restores energy') : exposedFlower ? 'Flowers are exposed · leaves and dense grass offer shelter' : onGround && exposedToRain ? 'Rain reaches this patch · denser grass keeps you dry' : resting ? (state.energy >= 99.5 ? 'Resting · your wings are ready' : state.nectar > 0 ? 'Resting with stored nectar · energy rising' : 'No stored nectar · rest alone cannot restore energy') : state.autoFeeding ? 'Eating stored nectar · energy rising' : state.drinking && state.energy < 99.5 ? 'Nectar is restoring your energy' : state.energy < 25 ? 'Find nectar. Rest your wings.' : state.phase === 'flying' && state.flightMode === 'steady' ? 'Working to hold against the wind' : state.phase === 'flying' && state.flightMode === 'riding' ? 'Riding the breeze saves energy' : state.energy < 55 ? 'Nectar will restore your energy' : 'Your wings are rested');

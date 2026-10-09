@@ -144,8 +144,8 @@ guesses (fuller after good summers); in the game they come from the real flower 
 2. **Wire it in** (done 2026-10-09): record each finished summer (`nextMeadow()` in `garden.ts`), feed
    stress to the fallen bees, "Summer N of 5" and the low-stores line on the start page,
    the Queen. Dev flag `?arc=…`.
-3. **Save and resume** (localStorage, wrapped in try/catch), with "Continue with Summer
-   N" on the title screen.
+3. **Save and resume** (done 2026-10-09; localStorage, wrapped in try/catch), with
+   "Continue with Summer N" on the title screen.
 4. **The summers strip** on the results screen.
 5. **The endings:** the winter scene and summary, leaving early, then "A new meadow".
 6. **Tune in play:** the numbers above, with each summer's record and weather logged to

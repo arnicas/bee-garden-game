@@ -171,6 +171,8 @@ export interface ViewState {
   /** On the start page from the second summer. */
   summerStart: SummerStart | null;
   /** The run of summers (null on test pages without ?arc): which summer, a line about the hive, and the ending once there is one. */
+  /** On the title screen: the summer a saved run would continue with, or null. */
+  savedSummer: number | null;
   arc: { summer: number; of: number; hiveLine: string; ending: string | null; endingLine: string; summary: import('./hive-stores').RunSummary | null } | null;
   canReturn: boolean;
   wind: number;
@@ -222,6 +224,7 @@ export interface ViewState {
 }
 export interface UIActions {
   start(): void;
+  continueRun(): void;
   explore(): void;
   resume(): void;
   pause(): void;

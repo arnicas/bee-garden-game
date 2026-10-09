@@ -26,6 +26,7 @@ import { createPetals } from './petals';
 import { createCaterpillars } from './caterpillars';
 import { createGroundedBees, planGroundedBees, SHARE_TIME, type FallenCause, type GroundedBee, type GroundedPlan } from './grounded-bees';
 import { ARC, endingLine, hiveFromCode, hiveLine, hiveStress, newHive, recordSummer, runSummary, storesWord, type HiveState, type RunSummary } from './hive-stores';
+import { clearRun, readRun, writeRun, type RunSave } from './run-save';
 import { createEnergyWash } from './energy-wash';
 import { createRainSplash } from './rain-splash';
 import { createPuddles } from './puddles';
@@ -190,6 +191,7 @@ interface TestControl {
   antColonies(): { id: number; nest: number[]; seen: boolean }[];
   farDry(): { now: number; target: number };
   setFarDry(dry: number): void;
+  savedRun(): unknown;
   hive(): { stores: number; summers: number; outcomes: string[]; ending: string | null; stress: number };
   groundedBees(): { id: number; kind: string; place: string; state: string; cause: string | null; fed: number; seen: boolean; leafId: number | null; position: number[] }[];
   /** Why a point can or can't be made out from the view now (for tuning). */
@@ -239,6 +241,9 @@ export class Garden {
   private readonly arcOn = (() => { const p = new URLSearchParams(location.search); return !p.has('test') || p.has('arc'); })();
   private hive: HiveState = (() => { const code = new URLSearchParams(location.search).get('arc'); return code ? hiveFromCode(code) : newHive(); })();
   private summerRecorded = false;
+  /** Runs are saved in the browser at the end of each summer (not on test pages unless ?save). */
+  private readonly savesOn = (() => { const p = new URLSearchParams(location.search); return !p.has('test') || p.has('save'); })();
+  private savedRun: RunSave | null = this.savesOn && this.arcOn ? readRun() : null;
   /** The closing summary of the run, worked out once the run has ended. */
   private summary: RunSummary | null = null;
   private summaryFor: HiveState | null = null;
@@ -586,7 +591,7 @@ export class Garden {
     this.nectarDrop.clipTongue(this.bee.tongueTipMaterial);
     this.nectarBeads = createNectarBeads(this.scene);
     this.fillLight = new THREE.PointLight('#fcdfa2', .08, 2.5, 2); this.camera.add(this.fillLight);
-    this.ui = createUI({ start: () => this.begin(), explore: () => this.explore(), restart: () => this.begin(), resume: () => this.resume(), pause: () => this.pause(), toggleSound: () => this.audio.toggle(), toggleUV: () => { this.uv = !this.uv; }, photo: () => this.saveScreenshot(), returnHome: () => this.returnHome(), skipReturn: () => this.skipClosing(), skipNight: () => this.finishNight(), toggleRest: () => this.toggleRest(), toggleLore: () => this.toggleLore() });
+    this.ui = createUI({ start: () => this.startFresh(), continueRun: () => this.continueRun(), explore: () => this.explore(), restart: () => this.begin(), resume: () => this.resume(), pause: () => this.pause(), toggleSound: () => this.audio.toggle(), toggleUV: () => { this.uv = !this.uv; }, photo: () => this.saveScreenshot(), returnHome: () => this.returnHome(), skipReturn: () => this.skipClosing(), skipNight: () => this.finishNight(), toggleRest: () => this.toggleRest(), toggleLore: () => this.toggleLore() });
     this.resetSupply(); this.bindInput(); this.resize(); this.updateWorld(0); this.updateView(0); this.installHooks();
     window.beeGarden = { screenshot: () => this.saveScreenshot() };
     this.raf = requestAnimationFrame(this.tick);
@@ -808,6 +813,7 @@ export class Garden {
   }
   /** "A new meadow" after a run ends: a fresh hive, a fresh meadow, summer 1. */
   private newRun(): void {
+    clearRun(); this.savedRun = null;
     this.hive = newHive(); this.summerNumber = 1; this.outcomes = []; this.groundMoisture = .5;
     this.badSummers = { daisy: 0, poppy: 0, cornflower: 0 }; this.lastSummerCounts = null; this.lastSummerPollinated = { daisy: 0, poppy: 0, cornflower: 0 };
     this.lastSummerLadybirds = 0; this.lastSummerButterflies = 0; this.lastSummerSnails = 0; this.meadowGaps = []; this.lastCoverShift = 0;
@@ -828,6 +834,7 @@ export class Garden {
       season: this.season, showers: this.weatherPlan.showers.length, hot: this.waterGoal > 0,
     };
     this.hive = recordSummer(this.hive, record);
+    this.saveRun(won);
     // For tuning in play: each summer's record, the weather and the stores.
     if (import.meta.env.DEV || new URLSearchParams(location.search).has('arc')) console.info('[bee-garden] summer', record, { season: this.season, showers: this.weatherPlan.showers.length, hot: hiveNeedsWater(this.weatherPlan) }, 'stores', this.hive.stores.toFixed(2), this.hive.ending ?? '');
   }
@@ -837,6 +844,40 @@ export class Garden {
   private outlookDryness(): number {
     const cover = this.leftCover(), next = nextMoisture(this.groundMoisture, this.weatherPlan, cover);
     return THREE.MathUtils.clamp(moistureShift(next).dry + Math.max(0, 1 - cover) * .6, 0, 1);
+  }
+  /** Saves the summer that just ended (or clears the save once the run is over). */
+  private saveRun(won: boolean): void {
+    if (!this.savesOn) return;
+    if (this.hive.ending) { clearRun(); this.savedRun = null; return; }
+    const save: RunSave = {
+      v: 1, summer: this.summerNumber, seed: this.seed,
+      spots: this.pastFlowers().slice(FIXED_FLOWERS).map(({ species, x, z, height, radius }) => ({ species, x, z, height, radius })),
+      pollinated: this.meadow.flowers.map(f => this.supplies.get(f.id)?.pollinated ?? false),
+      won, tier: won ? this.report?.tier ?? null : null, pollinatedBySpecies: { ...this.pollinatedBySpecies },
+      waterGoal: this.waterGoal, weatherPlan: this.weatherPlan, groundMoisture: this.groundMoisture,
+      badSummers: { ...this.badSummers }, outcomes: [...this.outcomes], hotDays: this.hotDays, waterDays: this.waterDays,
+      hive: this.hive, savedAt: Date.now(),
+    };
+    writeRun(save); this.savedRun = save;
+  }
+  /** "Take flight" from the title starts a fresh run (any saved one is let go). */
+  private startFresh(): void {
+    if (this.phase === 'title' && this.savedRun) { clearRun(); this.savedRun = null; }
+    this.begin();
+  }
+  /** "Continue with Summer N": rebuild the summer that ended, as it ended, then go on to the
+   * next one by the usual path (the night, then the new meadow). */
+  private continueRun(): void {
+    const save = this.savedRun;
+    if (!save || this.phase !== 'title') { this.begin(); return; }
+    this.groundMoisture = save.groundMoisture; this.badSummers = { ...save.badSummers }; this.outcomes = [...save.outcomes];
+    this.hotDays = save.hotDays; this.waterDays = save.waterDays; this.hive = save.hive;
+    this.rebuildMeadow(save.seed, save.spots);
+    this.meadow.flowers.forEach((f, i) => { const supply = this.supplies.get(f.id); if (supply && save.pollinated[i]) supply.pollinated = true; });
+    this.pollinatedBySpecies = { ...save.pollinatedBySpecies }; this.waterGoal = save.waterGoal; this.weatherPlan = save.weatherPlan;
+    this.report = save.tier ? { tier: save.tier } as DayReport : null;
+    this.summerNumber = save.summer; this.dayPlayed = true; this.phase = save.won ? 'won' : 'lost';
+    this.begin();
   }
   private arcView(): ViewState['arc'] {
     if (!this.arcOn) return null;
@@ -2377,7 +2418,7 @@ export class Garden {
       cold: this.coldVignette(), chilled: this.chill > .1, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight,
       phase: this.phase, energy: this.energy, nectar: this.nectar, pollen: this.pollen, nectarGoal: NECTAR_GOAL, nectarCapacity: NECTAR_CAPACITY, lossStreak: this.phase === 'lost' ? 1 + this.trailingLosses() : 0, water: this.water, waterGoal: this.waterGoal, thinShade: this.thinShade(), pollenGoal: POLLEN_GOAL, autoFeeding: (this.autoFeeding || this.resting && this.nectar > 0 && this.energy < 99.5) && !this.drinking && active,
       homeCost, homeDistance: distance * .1, homeBearing: this.yaw - Math.atan2(-(HOME_EXIT.x - this.position.x), -(HOME_EXIT.z - this.position.z)),
-      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), aphidsFound: this.ladybirds.aphidsSeenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { helped: this.groundedBees.helpedCount(), rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, nearHomeEdge: this.nearHomeEdge(), canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null, arc: this.arcView(),
+      homeX, homeY, homeVisible, harvestReady, queenLine: this.queenSays, friendsFound: this.ladybirds.seenCount(), aphidsFound: this.ladybirds.aphidsSeenCount(), butterfliesFound: this.butterflies.seenCount(), snailsFound: this.snails.seenCount(), antTrailsFound: this.ants.seenCount(), finds: { helped: this.groundedBees.helpedCount(), rings: this.mushrooms.seenCount('ring'), mushrooms: this.mushrooms.seenCount('patch'), petals: this.petals.seenCount(), caterpillars: this.caterpillars.seenCount() }, waterSips: this.waterSips, headingHome: this.headingHome, nearHomeEdge: this.nearHomeEdge(), canHeadHome: this.canHeadHome(), summerNumber: this.summerNumber, summerPreview: this.phase === 'won' || this.phase === 'lost' ? this.summerPreview() : null, summerStart: this.phase === 'learning' ? this.summerStart() : null, arc: this.arcView(), savedSummer: this.phase === 'title' && this.savedRun ? this.savedRun.summer + 1 : null,
       canReturn,
       wind: this.wind.length(), windBearing: this.yaw - Math.atan2(-this.wind.x, -this.wind.z), flightMode: this.flightMode, sheltered: !!this.underLeaf || this.position.y < 3.7, edgeGust,
       speed: this.velocity.length(), load: this.load(), uv: this.uv, muted: this.audio.muted,
@@ -2547,6 +2588,7 @@ export class Garden {
       },
       farDry: () => ({ now: this.farDry, target: this.farDryTarget }),
       setFarDry: (dry: number) => { this.farDry = this.farDryTarget = dry; this.meadow.setFarDry(dry); },
+      savedRun: () => readRun(),
       hive: () => ({ stores: this.hive.stores, summers: this.hive.summers.length, outcomes: this.hive.summers.map(s => s.outcome), ending: this.hive.ending, stress: hiveStress(this.hive) }),
       groundedBees: () => this.groundedBees.diagnostics(),
       antColonies: () => this.ants.colonies.map(c => ({ id: c.id, nest: c.nest.toArray(), seen: c.seen })),
