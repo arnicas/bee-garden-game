@@ -129,14 +129,14 @@ export function hiveLine(state: HiveState, summer: number): string {
   const word = storesWord(state.stores), last = summer >= ARC.summers;
   const low = word === 'very low' ? 'The hive’s stores are very low. The colony needs a good summer.'
     : word === 'low' ? 'The hive’s stores are low. A full jar and pouch today would help.' : '';
-  return [last ? 'The last summer before winter.' : '', low].filter(Boolean).join(' ');
+  return [last ? 'The Queen’s fifth summer, and her last.' : '', low].filter(Boolean).join(' ');
 }
 
 /** The end of a run, in words (until the winter and leaving scenes are made). */
 export function endingLine(ending: ArcEnding): string {
-  return ending === 'wintered' ? 'Five summers done. The comb is full of honey, and the colony will cluster warm through the winter.'
-    : ending === 'lean' ? 'Five summers done. A lean winter: there is just enough honey to see the colony through.'
-    : ending === 'collapse' ? 'Five summers done, but there isn’t enough honey stored to see the colony through the winter.'
+  return ending === 'wintered' ? 'Five summers done, and the Queen’s last. The colony is strong: in spring it will swarm.'
+    : ending === 'lean' ? 'Five summers done, and the Queen’s last. A young queen will take her place, and the colony will just get by.'
+    : ending === 'collapse' ? 'Five summers done, and the Queen’s last. There isn’t enough honey to see the colony through the winter.'
     : 'There wasn’t enough in the meadow to see the colony through. They have gone to find a better place.';
 }
 
@@ -164,69 +164,82 @@ export interface SummerCard {
   lost: boolean;
 }
 
+/** The Queen's Farewell: her speech at the end of a run, with a card per summer. */
 export interface RunSummary {
   title: string;
-  ending: string;
+  /** What becomes of the colony, as a short heading ("A swarm in spring"). */
+  outcome: string;
+  /** Happy, bittersweet or sad: sets the page's tone. */
+  mood: 'happy' | 'bittersweet' | 'sad';
   cards: SummerCard[];
-  weather: string;
-  meadow: string;
-  hive: string;
-  queen: string;
+  /** Her speech, a paragraph at a time. */
+  speech: string[];
+  /** The bee facts behind it, plainly. */
+  facts: string;
 }
 
 const DAY: Record<SummerOutcome, string> = { fantastic: 'Fantastic', good: 'Good', reasonable: 'Reasonable', okay: 'Okay', lost: 'Not home' };
 const SEASON: Record<NonNullable<SummerRecord['season']>, string> = { wet: 'Wet', ordinary: 'Mild', dry: 'Dry', hotdry: 'Hot, dry' };
+const OUTCOME: Record<ArcEnding, [string, RunSummary['mood']]> = {
+  wintered: ['A swarm in spring', 'happy'], lean: ['A new queen', 'bittersweet'],
+  collapse: ['A hungry winter', 'sad'], absconded: ['The colony moves on', 'sad'],
+};
 
-/** The run of summers, summed up for the closing page (once it has an ending). */
+/** The run of summers, as the Queen's farewell speech (once the run has ended). */
 export function runSummary(state: HiveState): RunSummary | null {
   const ending = state.ending, all = state.summers;
   if (!ending || !all.length) return null;
-  const first = all[0], last = all[all.length - 1];
+  const first = all[0], last = all[all.length - 1], n = all.length;
   const cards: SummerCard[] = all.map(r => ({
     summer: r.summer, day: DAY[r.outcome], lost: r.outcome === 'lost',
     weather: `${SEASON[r.season ?? 'ordinary']}${r.hot && r.season !== 'hotdry' ? ', hot' : ''}${(r.showers ?? 0) > 0 && r.season !== 'wet' ? ', showers' : ''}`,
     haul: Math.min(1, haul(r)), pollinated: r.pollinated, flowers: Math.round(r.meadow * NORMAL_FLOWERS),
   }));
 
-  // The weather: what kind of summers, the showers, and the heat (with the water she carried).
+  // Opening: who is speaking, and why "you" were every summer's forager.
+  const opening = `My daughters, and you, little forager: ${count(n, 'summer has', 'summers have')} passed since this hive was mine. A queen can live five years; a forager in summer lives about six weeks. So it was never one bee who flew for me. It was a daughter each summer, and you were every one of them.`;
+
+  // The weather she remembers.
   const wet = all.filter(r => r.season === 'wet').length, dry = all.filter(r => r.season === 'dry' || r.season === 'hotdry').length;
-  const showers = all.reduce((n, r) => n + (r.showers ?? 0), 0);
+  const showers = all.reduce((k, r) => k + (r.showers ?? 0), 0);
   const hot = all.filter(r => r.waterGoal > 0), watered = hot.filter(r => r.water >= r.waterGoal - 1e-6).length;
-  const kinds = [wet ? count(wet, 'wet summer', 'wet summers') : '', dry ? count(dry, 'dry summer', 'dry summers') : ''].filter(Boolean);
+  const kinds = [wet ? count(wet, 'wet summer', 'wet summers') : '', dry ? count(dry, 'dry one', 'dry ones') : ''].filter(Boolean);
   const weather = [
-    kinds.length ? `${capital(kinds.join(' and '))}${wet + dry < all.length ? `, the rest mild` : ''}.` : 'Mild summers, one after another.',
-    showers ? `${capital(count(showers, 'shower', 'showers'))} to shelter from.` : '',
-    hot.length ? `${capital(count(hot.length, 'hot day', 'hot days'))}; you carried water home on ${watered === hot.length ? (hot.length === 1 ? 'it' : 'all of them') : WORDS[watered] ?? watered}.` : '',
+    kinds.length ? `We had ${kinds.join(' and ')}${wet + dry < n ? ', and the rest were mild' : ''}.` : 'The summers were mild, one after another.',
+    showers ? `You sheltered from ${count(showers, 'shower', 'showers')}.` : '',
+    hot.length ? `On ${count(hot.length, 'hot day', 'hot days')} the comb needed cooling, and you carried water home on ${watered === hot.length ? (hot.length === 1 ? 'it' : 'all of them') : WORDS[watered] ?? watered}.` : '',
   ].filter(Boolean).join(' ');
 
-  // The meadow: what she pollinated, and how the meadow and its ground changed.
-  const pollinated = all.reduce((n, r) => n + r.pollinated, 0);
+  // The meadow.
+  const pollinated = all.reduce((k, r) => k + r.pollinated, 0);
   const f1 = Math.round(first.meadow * NORMAL_FLOWERS), fn = Math.round(last.meadow * NORMAL_FLOWERS);
-  const change = fn >= f1 + 4 ? `The meadow grew from ${f1} flowers to ${fn}.` : fn <= f1 - 4 ? `The meadow thinned from ${f1} flowers to ${fn}.` : `The meadow held at about ${fn} flowers.`;
+  const change = fn >= f1 + 4 ? `The meadow grew from ${f1} flowers to ${fn}; it is fuller for your visits.` : fn <= f1 - 4 ? `The meadow thinned from ${f1} flowers to ${fn}. I worry for it.` : `The meadow held at about ${fn} flowers.`;
   const ground = last.moisture < first.moisture - .15 ? ' The ground grew drier.' : last.moisture > first.moisture + .15 ? ' The ground grew damper.' : '';
-  const meadow = `${pollinated ? `You pollinated ${pollinated} ${pollinated === 1 ? 'flower' : 'flowers'} in ${count(all.length, 'summer', 'summers')}.` : 'No flowers were pollinated.'} ${change}${ground}`;
+  const meadow = `${pollinated ? `You pollinated ${pollinated} ${pollinated === 1 ? 'flower' : 'flowers'}.` : 'No flowers were pollinated.'} ${change}${ground}`;
 
-  // The hive: what came home, the days lost, the hive mates helped, and the stores now.
-  const jars = Math.round(all.reduce((n, r) => n + r.nectar, 0) / 100), pouches = Math.round(all.reduce((n, r) => n + r.pollen, 0) / 140);
-  const lost = all.filter(r => r.outcome === 'lost').length, helped = all.reduce((n, r) => n + r.helped, 0);
-  const stores = storesWord(state.stores);
-  const hive = [
-    jars || pouches ? `You brought home about ${count(jars, 'jar', 'jars')} of nectar and ${count(pouches, 'pouch', 'pouches')} of pollen.` : 'Little came home.',
-    lost ? (lost === 1 ? 'One day you didn’t make it home.' : `On ${WORDS[lost] ?? lost} days you didn’t make it home.`) : '',
-    helped ? `You helped ${count(helped, 'tired hive mate', 'tired hive mates')} home.` : '',
-    stores === 'plenty' ? 'The comb is full.' : stores === 'enough' ? 'The stores are enough.' : 'The stores are low.',
-  ].filter(Boolean).join(' ');
-
-  // The Queen: her feeling for the bee, the hive and the meadow.
-  // Her best summer: the best day, then the fuller load.
+  // The hive: what came home, the lost days, the hive mates helped, her best summer.
+  const jars = Math.round(all.reduce((k, r) => k + r.nectar, 0) / 100), pouches = Math.round(all.reduce((k, r) => k + r.pollen, 0) / 140);
+  const lost = all.filter(r => r.outcome === 'lost').length, helped = all.reduce((k, r) => k + r.helped, 0);
   const RANK: Record<SummerOutcome, number> = { fantastic: 4, good: 3, reasonable: 2, okay: 1, lost: 0 };
   const score = (r: SummerRecord) => RANK[r.outcome] * 2 + haul(r);
   const best = all.reduce((b, r) => score(r) > score(b) ? r : b, first);
-  const queen = ending === 'wintered' ? `The Queen will remember these summers all winter. Summer ${best.summer} was your finest.`
-    : ending === 'lean' ? 'The Queen thanks you. It will be a thin winter, but they will see it through.'
-    : ending === 'collapse' ? 'The Queen knows how hard the meadow was. There isn’t enough to last the winter.'
-    : 'The Queen has led the colony away, to look for a richer meadow.';
-  const forMeadow = fn >= f1 + 4 ? ' She says the meadow is fuller for your visits.' : fn <= f1 - 4 ? ' She worries for the meadow.' : '';
-  const title = ending === 'wintered' ? 'Ready for winter' : ending === 'lean' ? 'A lean winter ahead' : ending === 'collapse' ? 'A hungry winter' : 'The colony has moved on';
-  return { title, ending: endingLine(ending), cards, weather, meadow, hive, queen: queen + forMeadow };
+  const hive = [
+    jars || pouches ? `You brought home about ${count(jars, 'jar', 'jars')} of nectar and ${count(pouches, 'pouch', 'pouches')} of pollen.` : 'Little came home.',
+    lost ? (lost === 1 ? 'One day you didn’t come back to us.' : `On ${WORDS[lost] ?? lost} days you didn’t come back to us.`) : '',
+    helped ? `You helped ${count(helped, 'tired sister', 'tired sisters')} home.` : '',
+    best.outcome !== 'lost' && best.outcome !== 'okay' ? `Summer ${best.summer} was your finest.` : '',
+  ].filter(Boolean).join(' ');
+
+  // Her farewell: what becomes of her and the colony.
+  const farewell = ending === 'wintered'
+    ? 'The comb is heavy with honey and the hive is crowded, so in spring we will swarm. I will fly out with half of you to find a new home, and a young queen, my daughter, will stay to reign here. One hive becomes two. That is how bees thank a good meadow.'
+    : ending === 'lean'
+    ? 'I am old now, and my scent is fading. You have already begun to raise a young queen in a cell on the comb. When she emerges she will take my place, and I will slip away. The stores are thin, but they are enough, and she will begin her reign in a meadow you kept alive.'
+    : ending === 'collapse'
+    ? 'I am old, and there is too little honey for the winter. The cluster cannot keep warm until spring, and the colony will dwindle, and I with it. But the flowers you pollinated will seed next year’s meadow, for whichever bees come after us.'
+    : 'The meadow could not feed us, and we cannot stay. Tomorrow we leave together, all of us, to look for a richer place, and the empty comb stays behind. I am sorry, little one. You did what one bee can do.';
+
+  const facts = 'True to bees: a honeybee queen lives two to five years; a worker in summer, about six weeks. When a queen grows old the workers raise a new one (supersedure), and a strong colony swarms: the old queen leaves with half the workers, and a daughter takes the hive. A colony short of food can leave its hive altogether (absconding).';
+  const [outcome, mood] = OUTCOME[ending];
+  return { title: 'The Queen’s Farewell', outcome, mood, cards, speech: [opening, weather, meadow, hive, farewell].map(capital), facts };
 }

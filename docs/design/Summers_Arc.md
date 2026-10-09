@@ -123,6 +123,7 @@ guesses (fuller after good summers); in the game they come from the real flower 
 - **Leaving early:** the hive entrance quiet at dusk, then the swarm lifting away. "There
   wasn't enough in the meadow to see the colony through. They have gone to find a better
   place." and what went wrong (flowers, water, lost days).
+- **The Queen's Farewell** (2026-10-09, replacing "winter" as the frame): five summers are one queen's reign, and the end is her farewell speech, with the colony swarming (good), raising a new queen (lean), dwindling (hungry) or leaving (absconding).
 - **The five summers** (built 2026-10-09): after the last results, a closing page sums up the run: one card per summer (weather, load, the day, flowers) and a line each for the weather, the meadow, the hive and the Queen.
 - **Then a way on:** "A new meadow", a fresh run.
 

@@ -72,15 +72,32 @@ test('the closing summary: one card per summer, and the weather, meadow, hive an
     waterGoal: i === 3 ? 15 : 0, water: i === 3 ? 15 : 0,
   })), newHive());
   const summary = runSummary(state)!;
-  expect(summary.title).toBe('Ready for winter');
+  expect(summary.title).toBe('The Queen’s Farewell');
+  expect(summary).toMatchObject({ outcome: 'A swarm in spring', mood: 'happy' });
+  const [opening, weather, meadow, hive, farewell] = summary.speech;
+  expect(opening).toContain('five summers have passed');
   expect(summary.cards.map(c => c.day)).toEqual(['Good', 'Fantastic', 'Not home', 'Good', 'Good']);
   expect(summary.cards[3].weather).toBe('Hot, dry');
-  expect(summary.weather).toContain('One wet summer and two dry summers');
-  expect(summary.weather).toContain('carried water home on it');
-  expect(summary.meadow).toContain('You pollinated 50 flowers in five summers');
-  expect(summary.meadow).toContain('grew from 72 flowers to 84');
-  expect(summary.meadow).toContain('drier');
-  expect(summary.hive).toContain('One day you didn’t make it home');
-  expect(summary.hive).toContain('one tired hive mate');
-  expect(summary.queen).toContain('Summer 2 was your finest');
+  expect(weather).toContain('We had one wet summer and two dry ones');
+  expect(weather).toContain('carried water home on it');
+  expect(meadow).toContain('You pollinated 50 flowers');
+  expect(meadow).toContain('grew from 72 flowers to 84');
+  expect(meadow).toContain('drier');
+  expect(hive).toContain('One day you didn’t come back to us');
+  expect(hive).toContain('one tired sister');
+  expect(hive).toContain('Summer 2 was your finest');
+  expect(farewell).toContain('swarm');
+  expect(summary.facts).toContain('supersedure');
+});
+
+test('the farewell is sad when the colony fails, and bittersweet when a new queen takes over', () => {
+  const left = runSummary(run('LLO'))!;
+  expect(left).toMatchObject({ outcome: 'The colony moves on', mood: 'sad' });
+  expect(left.speech[0]).toContain('three summers have passed');
+  expect(left.speech[4]).toContain('we leave together');
+  const lean = runSummary(run('RRRRR'))!;
+  expect(lean).toMatchObject({ outcome: 'A new queen', mood: 'bittersweet' });
+  expect(lean.speech[4]).toContain('young queen');
+  const hungry = runSummary(run('GGOOL'))!;
+  expect(hungry).toMatchObject({ outcome: 'A hungry winter', mood: 'sad' });
 });

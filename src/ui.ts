@@ -291,21 +291,18 @@ export function createUI(actions: UIActions): GameUI {
         <div class="result-facts"><dl class="result-stats"><div><dt>Flowers visited</dt><dd data-text="result-visited"></dd></div><div><dt>Meadow friends</dt><dd data-text="result-friends"></dd></div><div data-result-finds hidden><dt>Found in the grass</dt><dd data-text="result-finds"></dd></div><div><dt>Time in the meadow</dt><dd data-text="result-time"></dd></div></dl></div>
         <div class="result-actions">
           <button class="primary-button" data-action="restart"><span data-text="restart-label">Next summer</span><span class="button-arrow">${icons.arrow}</span></button>
-          <button class="primary-button arc-open" data-action="arc-open" hidden><span>The five summers</span><span class="button-arrow">${icons.arrow}</span></button>
+          <button class="primary-button arc-open" data-action="arc-open" hidden><span>The Queen’s Farewell</span><span class="button-arrow">${icons.arrow}</span></button>
           <button class="result-info" data-action="result-facts-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="bee-facts">Bee and Meadow Facts ${icons.arrow}</button>
         </div>
       </div>
     <div class="journal-page arc-page" hidden role="group" aria-labelledby="arc-title">
         <span class="eyebrow" data-text="arc-eyebrow">FIVE SUMMERS · ONE SMALL BEE</span>
         <h2 id="arc-title" tabindex="-1" data-text="arc-title"></h2>
-        <p class="arc-ending" data-text="arc-ending"></p>
+        <p class="arc-outcome" data-text="arc-outcome"></p>
         <ol class="arc-strip" data-arc-strip aria-label="Summer by summer"></ol>
-        <dl class="arc-notes">
-          <div><dt>The weather</dt><dd data-text="arc-weather"></dd></div>
-          <div><dt>The meadow</dt><dd data-text="arc-meadow"></dd></div>
-          <div><dt>The hive</dt><dd data-text="arc-hive"></dd></div>
-          <div class="arc-queen"><dt>The Queen</dt><dd data-text="arc-queen"></dd></div>
-        </dl>
+        <div class="arc-speech" data-arc-speech></div>
+        <p class="arc-signature">The Queen</p>
+        <p class="arc-facts" data-text="arc-facts"></p>
         <button class="primary-button" data-action="restart"><span>A new meadow</span><span class="button-arrow">${icons.arrow}</span></button>
       </div>
     </section>
@@ -964,9 +961,10 @@ export function createUI(actions: UIActions): GameUI {
       show(resultPage.querySelector<HTMLElement>('.result-actions [data-action="restart"]')!, !summary);
       if (summary && arcShown !== summary) {
         arcShown = summary;
-        text('arc-eyebrow', `${summary.cards.length === 5 ? 'FIVE' : ['', 'ONE', 'TWO', 'THREE', 'FOUR'][summary.cards.length]} SUMMERS · ONE SMALL BEE`);
-        text('arc-title', summary.title); text('arc-ending', summary.ending);
-        text('arc-weather', summary.weather); text('arc-meadow', summary.meadow); text('arc-hive', summary.hive); text('arc-queen', summary.queen);
+        text('arc-eyebrow', `${['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE'][summary.cards.length] ?? summary.cards.length} SUMMERS · A QUEEN’S REIGN`);
+        text('arc-title', summary.title); text('arc-outcome', summary.outcome); text('arc-facts', summary.facts);
+        arcPage.dataset.mood = summary.mood;
+        el('[data-arc-speech]').replaceChildren(...summary.speech.map(words => { const p = document.createElement('p'); p.textContent = words; return p; }));
         arcStrip.replaceChildren(...summary.cards.map(card => {
           const item = document.createElement('li');
           item.className = 'arc-summer'; item.dataset.lost = String(card.lost);

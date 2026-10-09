@@ -49,7 +49,8 @@ test('another lost day on very low stores: the colony leaves, and the way on is 
   // The results lead on to the summers so far, and from there to a new meadow.
   await page.locator('[data-action="arc-open"]').click();
   await expect(page.locator('.arc-page')).toBeVisible();
-  await expect(page.locator('[data-text="arc-title"]')).toHaveText('The colony has moved on');
+  await expect(page.locator('[data-text="arc-title"]')).toHaveText('The Queen’s Farewell');
+  await expect(page.locator('[data-text="arc-outcome"]')).toHaveText('The colony moves on');
   await expect(page.locator('.arc-summer')).toHaveCount(3);
   await page.locator('.arc-page [data-action="restart"]').click();
   await expect(title(page)).toHaveText('Your summer day begins on a flower.');
@@ -59,19 +60,24 @@ test('another lost day on very low stores: the colony leaves, and the way on is 
 test('the fifth summer is the last before winter; good stores see the colony through', async ({ page }) => {
   await openStart(page, 'GGGG');
   await expect(title(page)).toHaveText('Summer 5 of 5 begins on a flower.');
-  await expect(hiveLine(page)).toContainText('last summer before winter');
+  await expect(hiveLine(page)).toContainText('her last');
   await homeLoaded(page);
   expect((await hive(page)).ending).toBe('wintered');
-  await expect(page.locator('[data-text="result-next"]')).toContainText('cluster warm');
+  await expect(page.locator('[data-text="result-next"]')).toContainText('it will swarm');
   // The five summers, summed up.
   await expect(page.locator('.result-page [data-action="restart"]')).toBeHidden();
   await page.locator('[data-action="arc-open"]').click();
   const arc = page.locator('.arc-page');
   await expect(arc).toBeVisible();
-  await expect(page.locator('[data-text="arc-title"]')).toHaveText('Ready for winter');
+  await expect(page.locator('[data-text="arc-title"]')).toHaveText('The Queen’s Farewell');
+  await expect(page.locator('[data-text="arc-outcome"]')).toHaveText('A swarm in spring');
+  await expect(arc).toHaveAttribute('data-mood', 'happy');
   await expect(page.locator('.arc-summer')).toHaveCount(5);
-  for (const part of ['arc-weather', 'arc-meadow', 'arc-hive', 'arc-queen']) await expect(page.locator(`[data-text="${part}"]`)).not.toBeEmpty();
-  await expect(page.locator('[data-text="arc-queen"]')).toContainText('remember these summers');
+  // Her speech: who she is, the weather, the meadow, the hive, and her farewell.
+  await expect(page.locator('.arc-speech p')).toHaveCount(5);
+  await expect(page.locator('.arc-speech p').first()).toContainText('about six weeks');
+  await expect(page.locator('.arc-speech p').last()).toContainText('we will swarm');
+  await expect(page.locator('[data-text="arc-facts"]')).toContainText('two to five years');
   await page.screenshot({ path: 'artifacts/arc/five-summers.png' });
   await expect(arc.locator('[data-action="restart"]')).toHaveText(/A new meadow/);
 });
