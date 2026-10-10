@@ -53,9 +53,15 @@ test('illustrated notes have accessible topics, readable sources and a bounded l
   await openFacts(page);
   const dialog = page.getByRole('dialog', { name: 'Bees & the Meadow' });
   const tabs = dialog.getByRole('tab');
-  await expect(tabs).toHaveCount(18);
-  // Two sections: the bee herself, then the meadow and its friends.
-  await expect(dialog.locator('.facts-group')).toHaveText(['Bee facts', 'The meadow']);
+  await expect(tabs).toHaveCount(21);
+  // Three sections: the bee herself, the meadow and its friends, and bee lore.
+  await expect(dialog.locator('.facts-group')).toHaveText(['Bee facts', 'The meadow', 'Bee lore']);
+  // Bee lore lists every card of its kind, with where it comes from.
+  await dialog.getByRole('tab', { name: 'Old beliefs & stories', exact: true }).click();
+  const lore = dialog.getByRole('tabpanel').locator('.fact-lore-card');
+  expect(await lore.count()).toBeGreaterThan(20);
+  await expect(lore.filter({ hasText: 'Saint Gobnait' })).toContainText('Ireland, 6th century');
+  await page.screenshot({ path: 'artifacts/bee-facts-1/lore.png' });
   await expect(dialog.getByRole('tab', { name: 'Banded snails', exact: true })).toBeVisible();
   // Meadow friends say where to look for them.
   await dialog.getByRole('tab', { name: 'Banded snails', exact: true }).click();
@@ -67,7 +73,7 @@ test('illustrated notes have accessible topics, readable sources and a bounded l
   await expect(dialog.getByRole('tabpanel')).toContainText('Honeybees & other bees');
   await page.keyboard.press('End');
   await expect(tabs.last()).toHaveAttribute('aria-selected', 'true');
-  await expect(dialog.getByRole('tabpanel')).toContainText('go back into the mound');
+  await expect(dialog.getByRole('tabpanel')).toContainText('bee-loud glade');
   await page.keyboard.press('Home');
   await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
   const sources = await dialog.locator('.fact-sources a').evaluateAll(links => links.map(link => ({

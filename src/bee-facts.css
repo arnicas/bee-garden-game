@@ -81,3 +81,15 @@
   .facts-footer { font-size: 8px; }
   .facts-footer > span:last-child { display: none; }
 }
+
+/* Bee lore pages: the cards, each with where it comes from. */
+.fact-lore { margin-top: 14px; }
+.fact-lore-intro { font: 15px/1.6 var(--serif); color: #4f5b46; margin: 0 0 14px; }
+.fact-lore-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.fact-lore-card { padding: 10px 14px 9px; border-radius: 3px; background: #f4ecd5; border-left: 2px solid #c9a96b; }
+.fact-lore-thought { background: #eef0e4; border-left-color: #9fae7c; }
+.fact-lore-verse { background: #f6efe6; border-left-color: #c98f7a; }
+.fact-lore-card p { margin: 0; font: italic 15px/1.5 var(--serif); color: #3f4a37; }
+.fact-lore-label { display: block; margin-bottom: 3px; font-size: 8px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; color: #8b754c; }
+.fact-lore-source { display: block; margin-top: 4px; font-size: 10.5px; color: #7c745c; }
+.fact-lore-game { margin: 14px 0 0; font-size: 12px; line-height: 1.5; color: #6b6a58; }

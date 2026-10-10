@@ -15,6 +15,8 @@ export interface LoreCard {
   lines: string[];
   source: string;
   mood?: LoreMood;
+  /** A truer heading than the kind's own, for myths, saints and emblems ("An old story"). */
+  label?: string;
 }
 
 export const LORE_LABELS: Record<LoreKind, string> = { belief: 'An old belief', thought: 'Once thought', verse: 'In verse' };
@@ -30,6 +32,30 @@ export const LORE_CARDS: LoreCard[] = [
   { id: 'prairie', kind: 'verse', mood: 'dry', lines: ['To make a prairie it takes', 'a clover and one bee,', 'One clover, and a bee,', 'And revery.'], source: 'Emily Dickinson' },
   { id: 'busy-bee', kind: 'verse', lines: ['How doth the little busy bee', 'Improve each shining hour,', 'And gather honey all the day', 'From every opening flower!'], source: 'Isaac Watts, 1715' },
   { id: 'swarm-in-may', kind: 'verse', lines: ['A swarm of bees in May', 'is worth a load of hay;', 'a swarm of bees in June', 'is worth a silver spoon.'], source: 'English country rhyme' },
+  // More from docs/research/Bee_Folklore.md (2026-10-10). Entries still marked "to verify" there are left out.
+  { id: 'not-for-money', kind: 'belief', lines: ['A swarm paid for in coins would never thrive, people said, so bees were traded for honey, comb or goods instead.'], source: 'British and American beekeepers, 1800s' },
+  { id: 'no-quarrels', kind: 'belief', lines: ['“All that keep bees should love them, for these hate those that hate them.” Bees, it was said, would leave a quarrelsome home.'], source: 'William Ellis, The Modern Husbandman, 1750' },
+  { id: 'tanging', kind: 'belief', lines: ['When a swarm flew off, the beekeeper beat a key on a pan, to settle the bees and to tell the neighbours whose swarm it was.'], source: 'English custom' },
+  { id: 'christmas-hum', kind: 'belief', lines: ['Bees hum loudly in their hives on Christmas morning, it was said, in honour of the birth of Christ.'], source: 'English and German folk belief' },
+  { id: 'bumblebee-visitor', kind: 'belief', lines: ['A bumblebee buzzing at the window means a visitor is coming.'], source: 'British and Irish folklore' },
+  { id: 'gate-watchers', kind: 'belief', mood: 'rain', lines: ['Some bees keep watch at the hive’s door, Virgil wrote, looking out for showers and cloudy skies.'], source: 'Virgil, Georgics IV, 29 BCE' },
+  { id: 'kalevala', kind: 'belief', label: 'An old story', lines: ['A mother sent a bee beyond the heavens to fetch honey, and the honey brought her son back to life.'], source: 'Finland · the Kalevala, rune 15' },
+  { id: 'telipinu', kind: 'belief', label: 'An old story', mood: 'dry', lines: ['When the god Telipinu vanished, the land withered. The gods searched in vain, until a bee found him asleep and stung him awake.'], source: 'Hittite myth, Anatolia' },
+  { id: 'delphic-bee', kind: 'belief', label: 'An old story', lines: ['Apollo’s gift of prophecy first came from three bee-maidens, and the priestess at Delphi was called “the Delphic bee”.'], source: 'Ancient Greece · Homeric Hymn to Hermes, Pindar' },
+  { id: 'kama', kind: 'belief', label: 'An old story', lines: ['Kamadeva, the god of love, carries a bow of sugarcane, and its string is a line of bees.'], source: 'Hindu tradition' },
+  { id: 'ah-muzen-cab', kind: 'belief', label: 'An old story', lines: ['The Maya kept stingless bees, and Ah-Muzen-Cab was their god of bees and honey, shown diving head first.'], source: 'Maya of the Yucatán' },
+  { id: 'nambi', kind: 'belief', label: 'An old story', lines: ['Nambi turned into a bee and whispered to Kintu which cow was his, so he passed her father’s test and could marry her.'], source: 'Baganda story, Uganda' },
+  { id: 'an-nahl', kind: 'belief', label: 'In scripture', lines: ['The sixteenth surah of the Quran is named The Bee. It tells how the bee was guided to make its homes in mountains, in trees and in what people build.'], source: 'Quran 16:68–69' },
+  { id: 'samson', kind: 'belief', label: 'In scripture', lines: ['Samson found bees and honey in a lion he had killed, and made a riddle: “Out of the eater came forth meat, and out of the strong came forth sweetness.”'], source: 'Judges 14 · King James Bible' },
+  { id: 'gobnait', kind: 'belief', label: 'A saint’s story', lines: ['Saint Gobnait kept bees in County Cork. When a raider stole the cattle, she loosed a swarm after him, and he brought them back.'], source: 'Ireland, 6th century' },
+  { id: 'modomnoc', kind: 'belief', label: 'A saint’s story', lines: ['As Saint Modomnoc sailed home from Wales, his bees swarmed onto the boat three times. So he took them, and honeybees came to Ireland.'], source: 'Ireland, 6th century · Félire Óengusso' },
+  { id: 'honey-lips', kind: 'belief', label: 'A saint’s story', lines: ['Bees settled on the lips of the baby Ambrose and left honey there, a sign of sweet words to come. He became the beekeepers’ saint.'], source: 'Milan, 4th century' },
+  { id: 'napoleon', kind: 'belief', label: 'An old emblem', lines: ['Napoleon took the bee as his emblem, after golden bees found in the tomb of a Frankish king, and wore them on his coronation robes.'], source: 'France, 1804 · the tomb of Childeric I' },
+  { id: 'monkey-bees', kind: 'belief', label: 'An old emblem', lines: ['In Chinese art, a monkey with bees is a wish in a picture: “feng hou”, may you be raised to marquis.'], source: 'Chinese picture pun · Qing dynasty' },
+  { id: 'ox-born', kind: 'thought', lines: ['Ancient writers believed new bees could be born from the body of an ox. They were most likely seeing drone flies, which look like bees.'], source: 'Virgil, Georgics IV, 29 BCE' },
+  { id: 'so-work', kind: 'verse', lines: ['For so work the honey-bees,', 'creatures that by a rule in nature teach', 'the act of order to a peopled kingdom.'], source: 'Shakespeare, Henry V, 1599' },
+  { id: 'bee-loud-glade', kind: 'verse', lines: ['And live alone in the bee-loud glade.'], source: 'W. B. Yeats, The Lake Isle of Innisfree, 1890' },
+  { id: 'weather-rhyme', kind: 'verse', mood: 'rain', lines: ['When bees to distance wing their flight,', 'days are warm and skies are bright;', 'but when their flight ends near their home,', 'stormy weather is sure to come.'], source: 'Weather lore · Richard Inwards, 1893' },
 ];
 
 /** How a rest begins showing a card: the first rest of the day always, later ones now and then. */
@@ -101,7 +127,7 @@ export function createLore(random: () => number = Math.random, forceId?: string)
       // Whatever ends the card, it fades out rather than vanishing.
       opacity = target < opacity ? Math.max(target, opacity - dt / LORE_FADE_OUT) : target;
       if (ended && opacity <= 0) { card = null; source = null; return null; }
-      return { card, label: LORE_LABELS[card.kind], opacity };
+      return { card, label: card.label ?? LORE_LABELS[card.kind], opacity };
     },
     /** A new day: the first rest shows a card again. Seen cards stay seen. */
     newDay() { nightUsed = false; restsToday = 0; wasResting = false; scenicAge = 0; scenicUsed = false; card = null; source = null; opacity = 0; },

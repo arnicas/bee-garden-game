@@ -1,10 +1,13 @@
 import './bee-facts.css';
+import { LORE_CARDS, type LoreKind } from './lore';
 
 interface FactSource { label: string; url: string }
 interface BeeFact {
   id: string;
   /** Which part of the journal: the bee herself, or the meadow around her. */
-  section: 'bee' | 'meadow';
+  section: 'bee' | 'meadow' | 'lore';
+  /** Lore pages list the game's lore cards of this kind instead of nature and game notes. */
+  loreKind?: LoreKind;
   label: string;
   title: string;
   scope: string;
@@ -178,12 +181,46 @@ export const beeFacts: readonly BeeFact[] = [
       { label: 'Ants · Royal Horticultural Society', url: 'https://www.rhs.org.uk/biodiversity/ants' },
     ],
   },
+  {
+    id: 'lore-beliefs', section: 'lore', loreKind: 'belief', label: 'Old beliefs & stories', title: 'What people told of bees.', scope: 'Customs, myths, scripture, saints and emblems',
+    nature: 'For thousands of years people have lived beside bees, and told stories about them: customs for the household hive, myths of gods and heroes, saints and their swarms. These are beliefs and stories, not bee biology; the other pages say what real bees do.',
+    game: 'These cards appear now and then while time passes: on a rest, in the quiet view over the meadow, and in the night between summers. Bee lore can be turned off in the field guide.',
+    sources: [
+      { label: 'Bees in mythology · Wikipedia', url: 'https://en.wikipedia.org/wiki/Bees_in_mythology' },
+      { label: 'Telling the bees: the folklore of bees and beekeeping · Folklore Thursday', url: 'https://folklorethursday.com/folklife/telling-the-bees-the-folklore-of-bees-and-beekeeping/' },
+      { label: 'Telling the bees · Wikipedia', url: 'https://en.wikipedia.org/wiki/Telling_the_bees' },
+    ],
+  },
+  {
+    id: 'lore-thought', section: 'lore', loreKind: 'thought', label: 'Once thought', title: 'Old science, gently corrected.', scope: 'What people once believed about real bees',
+    nature: 'Careful watchers got a great deal right about bees long ago, and some things wrong. Each of these cards says what was believed, and what is known now.',
+    game: 'Some cards come with the weather: stones for ballast in a gale, bees staying home before rain.',
+    sources: [
+      { label: 'The Feminine Monarchie · Wikipedia', url: 'https://en.wikipedia.org/wiki/The_Feminine_Monarchie,_or_the_History_of_Bees' },
+      { label: 'Bugonia · Wikipedia', url: 'https://en.wikipedia.org/wiki/Bugonia' },
+      { label: 'Behind the folklore: bees and rain · Royal Meteorological Society', url: 'https://www.rmets.org/metmatters/behind-folklore-bees-and-rain-do-bees-know-when-its-going-rain' },
+    ],
+  },
+  {
+    id: 'lore-verse', section: 'lore', loreKind: 'verse', label: 'In verse', title: 'Bees in old rhymes and poems.', scope: 'Public-domain poems and folk rhymes',
+    nature: 'Poets and beekeepers have put bees into verse for centuries, from working rhymes about swarms and weather to Shakespeare and Dickinson. Only older, public-domain lines are quoted here.',
+    game: 'A thin, patchy meadow brings Dickinson’s prairie; rain on the way brings the weather rhyme.',
+    sources: [
+      { label: 'Henry V, Act 1 Scene 2 · MIT Shakespeare', url: 'https://shakespeare.mit.edu/henryv/henryv.1.2.html' },
+      { label: 'How Doth the Little Busy Bee · Poets.org', url: 'https://poets.org/poem/how-doth-little-busy-bee' },
+      { label: 'A swarm of bees in May · rhymes.org.uk', url: 'https://www.rhymes.org.uk/a5-a-swarm-of-bees.htm' },
+    ],
+  },
 ];
 
 // Small original pen-and-wash vignettes. No paint-server IDs or borrowed images.
 const bee = '<g stroke="#576344" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M-3-2C-31-24-9-34 1-8M4-3C32-24 12-34 2-8" fill="#f6f3df"/><ellipse cy="5" rx="10" ry="15" fill="#d6ad55"/><path d="M-8 0h16m-17 7h18m-14 7h11" stroke-width="4"/><ellipse cy="-11" rx="7" ry="6" fill="#576344"/><path d="m-4-15-5-7m13 7 5-7m-17 21-10 7m29-7 10 7m-28-1-8 11m23-11 8 11" fill="none"/></g>';
 const bloom = '<g stroke="#73805a" stroke-width="1.1"><path d="M0 6q-5 22 0 43m0-17q-19-16-19-3 5 10 19 9" fill="none"/><g fill="#efe5b7"><ellipse cy="-13" rx="7" ry="15"/><ellipse cy="-13" rx="7" ry="15" transform="rotate(60)"/><ellipse cy="-13" rx="7" ry="15" transform="rotate(120)"/><ellipse cy="-13" rx="7" ry="15" transform="rotate(180)"/><ellipse cy="-13" rx="7" ry="15" transform="rotate(240)"/><ellipse cy="-13" rx="7" ry="15" transform="rotate(300)"/></g><circle r="10" fill="#c69c45"/></g>';
 const drawings: Record<string, string> = {
+  // Bee lore: a straw skep with a bee for the old beliefs, an open book for what people once thought, a quill for verse.
+  'lore-beliefs': `<path d="M58 104h60" stroke="#8c7a5a" stroke-width="1.2"/><path d="M62 104q-4-46 26-58 30 12 26 58Z" fill="#e2c486" stroke="#8d6f3e" stroke-width="1.3"/><path d="M64 92h48M64 80h48M68 68h40M75 57h26" stroke="#a88a52" stroke-width="1.1"/><path d="M82 104v-9a6 6 0 0 1 12 0v9" fill="#6f5a3a"/><g transform="translate(132 40) rotate(20) scale(.42)">${bee}</g><path d="M118 52q6 8 2 16" stroke="#a48d5c" stroke-dasharray="2 3" fill="none"/>`,
+  'lore-thought': `<path d="M30 92q28-10 56 0 28-10 56 0V48q-28-10-56 0-28-10-56 0Z" fill="#f4ecd2" stroke="#7d8057" stroke-width="1.3"/><path d="M86 48v44M40 58q18-5 36 0m-36 8q18-5 36 0m-36 8q18-5 36 0m20-16q18-5 36 0m-36 8q18-5 36 0" stroke="#a9a07d" stroke-width="1"/><g transform="translate(118 30) rotate(-15) scale(.4)">${bee}</g>`,
+  'lore-verse': `<path d="M40 100q40-6 92 0" stroke="#8c7a5a" stroke-width="1.1" fill="none"/><path d="M118 20Q86 40 66 92l4 2q24-46 52-70Z" fill="#efe7cf" stroke="#7f7351" stroke-width="1.2"/><path d="M66 92l-4 10 8-8" fill="#4a4033"/><path d="M48 70q10-6 20 0m-28 12q14-6 26 0" stroke="#7a8a9b" stroke-width="1.1" fill="none" stroke-linecap="round"/><g transform="translate(46 40) rotate(-20) scale(.4)">${bee}</g>`,
   flowers: '<g stroke="#7d8a5a" stroke-width="1.6" stroke-linecap="round" fill="none"><path d="M36 118q3-28-1-50"/><path d="M86 118q-2-34 0-58"/><path d="M134 118q-3-26 1-46"/><path d="M86 96q-10-6-14 2M134 100q9-5 13 2"/></g><g transform="translate(36 60)"><g transform="rotate(0.0)"><ellipse cy="-8" rx="9" ry="10" fill="#d9694f" stroke="#b44d3a" stroke-width=".8"/></g><g transform="rotate(90.0)"><ellipse cy="-8" rx="9" ry="10" fill="#d9694f" stroke="#b44d3a" stroke-width=".8"/></g><g transform="rotate(180.0)"><ellipse cy="-8" rx="9" ry="10" fill="#d9694f" stroke="#b44d3a" stroke-width=".8"/></g><g transform="rotate(270.0)"><ellipse cy="-8" rx="9" ry="10" fill="#d9694f" stroke="#b44d3a" stroke-width=".8"/></g><circle r="4.2" fill="#3e3a36"/></g><g transform="translate(86 50)"><g transform="rotate(0.0)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(25.7)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(51.4)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(77.1)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(102.9)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(128.6)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(154.3)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(180.0)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(205.7)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(231.4)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(257.1)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(282.9)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(308.6)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><g transform="rotate(334.3)"><ellipse cy="-10" rx="2.8" ry="8" fill="#fbf7ec" stroke="#b9b39a" stroke-width=".6"/></g><circle r="5.2" fill="#e5b84a" stroke="#b98c32" stroke-width=".7"/></g><g transform="translate(134 62)"><g transform="rotate(0.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><g transform="rotate(40.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><g transform="rotate(80.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><g transform="rotate(120.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><g transform="rotate(160.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><g transform="rotate(200.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><g transform="rotate(240.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><g transform="rotate(280.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><g transform="rotate(320.0)"><path d="M0-4L-3.6-15L0-12.5L3.6-15Z" fill="#5b7fc4" stroke="#3f5f9c" stroke-width=".6" stroke-linejoin="round"/></g><circle r="3.4" fill="#4a5f8f"/></g>',
   vision: `<g transform="translate(93 59)">${bloom}<circle r="19" fill="none" stroke="#87919b" stroke-dasharray="2 4"/><circle r="5" fill="#778093"/></g><path d="M29 41q17-20 34 0-17 20-34 0Z" fill="none" stroke="#73805a"/><circle cx="46" cy="41" r="5" fill="#8a91a1"/>`,
   food: '<g stroke="#78805b" stroke-width="1.3" fill="none"><path d="M55 25C50 45 34 53 34 69a22 22 0 0 0 44 0c0-16-16-24-23-44Z" fill="#e8c16d"/><path d="M43 69q-1 13 10 15"/><path d="M100 42q-12 17-7 40 13 19 36 0 5-23-7-40Z" fill="#ead698"/><path d="M99 42h23m-22-5h20m-21 11h24"/></g><g fill="#caa349"><circle cx="107" cy="62" r="3"/><circle cx="120" cy="66" r="3"/><circle cx="113" cy="78" r="3"/></g>',
@@ -203,7 +240,7 @@ const drawings: Record<string, string> = {
   snails: `<ellipse cx="94" cy="98" rx="52" ry="10" fill="#c7d7cf" stroke="#7d8e84"/><path d="M60 96q30-6 54-2" stroke="#f2f6ef" stroke-width="1.4" fill="none"/><g transform="translate(70 76)"><path d="M-30 14q16-6 44-2 8 1 10 6-26 4-54-4Z" fill="#b39a80" stroke="#7a6655" stroke-width="1.1"/><path d="M14 12l8-16m-2 16 10-14" stroke="#7a6655" stroke-width="1.4" stroke-linecap="round"/><circle cx="22" cy="-4" r="1.8" fill="#4d4038"/><circle cx="30" cy="-2" r="1.8" fill="#4d4038"/><circle r="16" fill="#e9d98c" stroke="#8d7a4a" stroke-width="1.2"/><path d="M0 0a5 5 0 0 1 9 2 9 9 0 0 1-15 5 13 13 0 0 1 9-19" fill="none" stroke="#6b5a3a" stroke-width="2.4"/></g>`,
   home: `<path d="M86 100h58v-34H86Zm-7-34 36-28 36 28M90 73h50m-50 9h50m-50 9h50" fill="#e6cc8d" stroke="#7c8057" stroke-width="1.3"/><path d="M108 100v-10a7 7 0 0 1 14 0v10" fill="#687354"/><g transform="translate(47 57) rotate(34) scale(.64)">${bee}</g><path d="M31 94C6 69 42 10 81 38" fill="none" stroke="#a89666" stroke-dasharray="2 4"/>`,
 };
-const SECTION_NAMES = { bee: 'Bee facts', meadow: 'The meadow' } as const;
+const SECTION_NAMES = { bee: 'Bee facts', meadow: 'The meadow', lore: 'Bee lore' } as const;
 const htmlEscapes: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escapeHTML = (value: string) => value.replace(/[&<>"']/g, character => htmlEscapes[character]);
 function gameMarkup(value: string): string {
@@ -214,6 +251,14 @@ function sourceLink(source: FactSource): string {
   const url = new URL(source.url);
   if (url.protocol !== 'https:') throw new Error('Bee fact sources must use HTTPS.');
   return `<a href="${escapeHTML(url.href)}" target="_blank" rel="noopener noreferrer">${escapeHTML(source.label)}<span aria-hidden="true"> ↗</span><span class="facts-sr-only"> (opens in a new tab)</span></a>`;
+}
+
+/** A lore page: what the cards are, then every card of that kind with its source. */
+function loreMarkup(fact: BeeFact): string {
+  const cards = LORE_CARDS.filter(card => card.kind === fact.loreKind);
+  return `<div class="fact-lore"><p class="fact-lore-intro">${escapeHTML(fact.nature)}</p>
+    <ol class="fact-lore-cards">${cards.map(card => `<li class="fact-lore-card fact-lore-${card.kind}">${card.label ? `<span class="fact-lore-label">${escapeHTML(card.label)}</span>` : ''}<p>${card.lines.map(escapeHTML).join(card.kind === 'verse' ? '<br>' : ' ')}</p><span class="fact-lore-source">${escapeHTML(card.source)}</span></li>`).join('')}</ol>
+    <p class="fact-lore-game">${escapeHTML(fact.game)}</p></div>`;
 }
 
 export function beeFactsMarkup(): string {
@@ -229,7 +274,7 @@ export function beeFactsMarkup(): string {
       }).join('')}</div>
       <div class="facts-reader">${beeFacts.map((fact, index) => `<article class="fact-page" id="fact-panel-${fact.id}" role="tabpanel" aria-labelledby="fact-tab-${fact.id}" tabindex="0" ${index === 0 ? '' : 'hidden'}>
         <div class="fact-opening"><div><span class="fact-scope">${escapeHTML(fact.scope)}</span><h3>${escapeHTML(fact.title)}</h3></div><svg class="fact-drawing" viewBox="0 0 170 124" fill="none" aria-hidden="true"><ellipse cx="86" cy="70" rx="64" ry="46" fill="#ede9d5" opacity=".65"/>${drawings[fact.id]}</svg></div>
-        <div class="fact-comparison"><section><h4>In nature</h4><p>${escapeHTML(fact.nature)}</p></section><section><h4>In this game</h4><p>${gameMarkup(fact.game)}</p></section></div>
+        ${fact.loreKind ? loreMarkup(fact) : `<div class="fact-comparison"><section><h4>In nature</h4><p>${escapeHTML(fact.nature)}</p></section><section><h4>In this game</h4><p>${gameMarkup(fact.game)}</p></section></div>`}
         ${fact.spotting ? `<div class="fact-spotting"><h4>Where to look</h4><p>${gameMarkup(fact.spotting)}</p></div>` : ''}
         <div class="fact-sources"><h4>From the field</h4>${fact.sources.map(sourceLink).join('')}</div>
       </article>`).join('')}</div>

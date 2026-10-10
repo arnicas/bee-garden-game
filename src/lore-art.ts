@@ -81,5 +81,5 @@ const escape = (s: string) => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '
 export function loreCardMarkup(card: LoreCard): string {
   const text = card.kind === 'verse' ? card.lines.map(l => `<span>${escape(l)}</span>`).join('') : escape(card.lines.join(' '));
   return `<svg class="lore-frame" viewBox="0 0 ${LORE_W} ${LORE_H}" aria-hidden="true">${FRAMES[card.kind]()}</svg>
-    <div class="lore-text"><span class="lore-label">${LORE_LABELS[card.kind]}</span><p class="lore-line">${text}</p><span class="lore-source">${escape(card.source)}</span></div>`;
+    <div class="lore-text"><span class="lore-label">${card.label ?? LORE_LABELS[card.kind]}</span><p class="lore-line">${text}</p><span class="lore-source">${escape(card.source)}</span></div>`;
 }
