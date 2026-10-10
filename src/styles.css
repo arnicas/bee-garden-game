@@ -698,3 +698,27 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .arc-signature::before { content: '— '; }
 .arc-facts { margin: 14px auto 0; max-width: 540px; padding-top: 10px; border-top: 1px solid #77855e2e; text-align: left; font-size: 11px; line-height: 1.5; color: #6b6a58; }
 .arc-page { max-height: calc(100vh - 40px); overflow-y: auto; }
+
+/* The Queen's Farewell, illustrated: honey-gold summers that went well, dusty ones that didn't. */
+.arc-page { position: relative; }
+.arc-page[data-mood="happy"] { background: linear-gradient(#fbf3d9, #f9f3e2 40%); }
+.arc-page[data-mood="sad"] { background: linear-gradient(#eeece4, #f4f1e8 40%); }
+.arc-garland { position: absolute; top: 12px; left: 18px; right: 18px; display: flex; justify-content: space-between; pointer-events: none; }
+.arc-garland > span { display: none; gap: 2px; }
+.arc-garland svg { width: 34px; height: 34px; }
+.arc-page[data-mood="happy"] .arc-garland-happy, .arc-page[data-mood="bittersweet"] .arc-garland-happy { display: flex; }
+.arc-page[data-mood="sad"] .arc-garland-sad, .arc-page[data-mood="bittersweet"] .arc-garland-sad { display: flex; }
+.arc-page[data-mood="bittersweet"] .arc-garland-happy.is-right, .arc-page[data-mood="bittersweet"] .arc-garland-sad.is-left { display: none; }
+.arc-garland-sad { opacity: .9; }
+.arc-garland-happy svg:nth-child(2) { transform: rotate(-12deg) translateY(4px); }
+.arc-garland .is-right { transform: scaleX(-1); }
+.arc-summer[data-tone="bright"] { background: linear-gradient(170deg, #fbe6a6, #f1d98f 60%, #e3dca0); box-shadow: inset 0 0 0 1px #e1bf63; }
+.arc-summer[data-tone="fair"] { background: #f3ebd3; }
+.arc-summer[data-tone="poor"] { background: linear-gradient(170deg, #e6e5df, #dcdedb); color: #6f716b; box-shadow: inset 0 0 0 1px #cfd1cb; }
+.arc-summer[data-tone="poor"] .arc-summer-honey::after { filter: saturate(.35); }
+.arc-summer-marks { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; min-height: 26px; margin-top: 3px; }
+.arc-mark { display: inline-flex; width: 30px; height: 30px; }
+.arc-mark svg { width: 100%; height: 100%; }
+.arc-mark[data-good="false"] { opacity: .85; filter: saturate(.6); }
+
+.arc-strip { grid-template-columns: repeat(var(--n, 5), minmax(0, 112px)); justify-content: center; }

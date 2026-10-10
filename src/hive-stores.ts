@@ -162,6 +162,30 @@ export interface SummerCard {
   pollinated: number;
   flowers: number;
   lost: boolean;
+  /** How the summer went, for its colour: bright (fantastic, good), fair (reasonable), poor (okay, lost). */
+  tone: 'bright' | 'fair' | 'poor';
+  /** Small pictures of what went well or badly (up to four), with words for each. */
+  marks: { kind: SummerMark; good: boolean; label: string }[];
+}
+
+export type SummerMark = 'honey' | 'flowers' | 'friends' | 'water' | 'helped' | 'wilted' | 'lightLoad' | 'dryStalks' | 'thirsty';
+
+/** What a summer did well or badly, shown as small pictures on its card. */
+export function summerMarks(r: SummerRecord): SummerCard['marks'] {
+  const lost = r.outcome === 'lost', load = haul(r), hotDay = r.waterGoal > 0, watered = hotDay && r.water >= r.waterGoal - 1e-6;
+  const marks: SummerCard['marks'] = [];
+  const add = (kind: SummerMark, good: boolean, label: string, when: boolean) => { if (when) marks.push({ kind, good, label }); };
+  add('wilted', false, 'Didn’t make it home', lost);
+  add('honey', true, 'A full load home', !lost && load >= .85);
+  add('flowers', true, `${r.pollinated} flowers pollinated`, r.pollinated >= 8);
+  add('friends', true, 'Meadow friends met', r.friends >= 3);
+  add('water', true, 'Water for the hot hive', watered);
+  add('helped', true, r.helped === 1 ? 'A tired sister helped home' : `${r.helped} tired sisters helped home`, r.helped > 0);
+  add('lightLoad', false, 'A light load', !lost && load < .45);
+  add('dryStalks', false, r.meadow < .8 ? 'A thin meadow' : 'Few flowers pollinated', !lost && (r.pollinated <= 2 || r.meadow < .8));
+  add('thirsty', false, 'The hive went thirsty', hotDay && !watered);
+  // Bad news first when the day went badly, good news first otherwise; four at most.
+  return marks.sort((a, b) => Number(lost ? a.good : b.good) - Number(lost ? b.good : a.good)).slice(0, 4);
 }
 
 /** The Queen's Farewell: her speech at the end of a run, with a card per summer. */
@@ -194,6 +218,8 @@ export function runSummary(state: HiveState): RunSummary | null {
     summer: r.summer, day: DAY[r.outcome], lost: r.outcome === 'lost',
     weather: `${SEASON[r.season ?? 'ordinary']}${r.hot && r.season !== 'hotdry' ? ', hot' : ''}${(r.showers ?? 0) > 0 && r.season !== 'wet' ? ', showers' : ''}`,
     haul: Math.min(1, haul(r)), pollinated: r.pollinated, flowers: Math.round(r.meadow * NORMAL_FLOWERS),
+    tone: r.outcome === 'fantastic' || r.outcome === 'good' ? 'bright' : r.outcome === 'reasonable' ? 'fair' : 'poor',
+    marks: summerMarks(r),
   }));
 
   // Opening: who is speaking, and why "you" were every summer's forager.

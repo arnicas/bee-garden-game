@@ -53,6 +53,18 @@ const share = (value: number, max: number) => Math.floor(Math.max(0, Math.min(1,
 const ladybirdArt = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="10.5" r="5" fill="#2e2824"/><ellipse cx="20" cy="23" rx="12" ry="13" fill="#c9482f"/><path d="M20 10.5v25.5" stroke="#2e2824" stroke-width="1.5"/><circle cx="14" cy="19.5" r="2.4" fill="#2e2824"/><circle cx="26" cy="19.5" r="2.4" fill="#2e2824"/><circle cx="15" cy="28.5" r="2" fill="#2e2824"/><circle cx="25" cy="28.5" r="2" fill="#2e2824"/></svg>`;
 const aphidArt = `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 6v28" stroke="#7d8f55" stroke-width="3" stroke-linecap="round"/><g fill="#8fb35a"><ellipse cx="15" cy="13" rx="3.2" ry="4.4"/><ellipse cx="25" cy="17" rx="3" ry="4.2"/><ellipse cx="15.5" cy="22.5" rx="3.3" ry="4.5"/><ellipse cx="24.5" cy="27" rx="2.8" ry="3.9"/></g></svg>`;
 const butterflyArt = `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="#86a3e2" stroke="#5f77ae" stroke-width=".8"><path d="M19 19C15 9 6 6 5 12s5 9 14 8z"/><path d="M21 19c4-10 13-13 14-7s-5 9-14 8z"/><path d="M19 21c-7 1-11 5-9 9s7 1 9-7z"/><path d="M21 21c7 1 11 5 9 9s-7 1-9-7z"/></g><path d="M20 13v16" stroke="#35302b" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+/** Small pictures for the Queen's Farewell summer cards: what went well, and what didn't. */
+const markArt: Record<string, string> = {
+  honey: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 11h14l1 4c1 6-2 12-8 12S7 21 8 15z" fill="#e7b04a" stroke="#a9772a" stroke-width="1"/><path d="M8 10h16v3H8z" fill="#c9a06a" stroke="#8d6a3e" stroke-width=".9"/><path d="M12 13q-1 5 1 8" stroke="#f6d690" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M19 13v4q0 2 1.5 2t1.5-2" fill="#d99a2b"/></svg>`,
+  lightLoad: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 11h14l1 4c1 6-2 12-8 12S7 21 8 15z" fill="#ece6d6" stroke="#a49c88" stroke-width="1"/><path d="M8 10h16v3H8z" fill="#cfc7b4" stroke="#968e7a" stroke-width=".9"/><path d="M10 23q6 2 12 0q-1 4-6 4t-6-4z" fill="#d9b46a" opacity=".8"/></svg>`,
+  flowers: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M10 30V18m12 12V15m-6 15V20" stroke="#6f8f4e" stroke-width="1.3"/><g transform="translate(10 15)"><circle r="4.5" fill="#db7965"/><circle r="1.8" fill="#62534b"/></g><g transform="translate(22 12)" fill="#fffbed" stroke="#bcb18e" stroke-width=".5">${[0, 60, 120, 180, 240, 300].map(a => `<ellipse cy="-3.4" rx="1.5" ry="3" transform="rotate(${a})"/>`).join('')}<circle r="2" fill="#e8bd60" stroke="none"/></g><g transform="translate(16 18)"><path d="m0-4.5 1.4 2.5 2.8-1-.6 2.9 2.4 1.6-2.8.8.3 2.9L1 3.6l-1 2.9-1-2.9-2.5 1.6.3-2.9-2.8-.8 2.4-1.6-.6-2.9 2.8 1z" fill="#87a7cd" stroke="#7089aa" stroke-width=".4"/><circle r="1.6" fill="#746483"/></g></svg>`,
+  friends: `<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="13" r="2.6" fill="#2e2824"/><ellipse cx="11" cy="20" rx="6" ry="6.5" fill="#c9482f"/><path d="M11 13.5v13" stroke="#2e2824" stroke-width=".9"/><circle cx="8.5" cy="18.5" r="1.1" fill="#2e2824"/><circle cx="13.5" cy="21.5" r="1.1" fill="#2e2824"/><g fill="#86a3e2" stroke="#5f77ae" stroke-width=".5"><path d="M23 9c-2-5-6-6-6.5-3s2.5 4.5 6.5 4z"/><path d="M24 9c2-5 6-6 6.5-3s-2.5 4.5-6.5 4z"/><path d="M23 10c-3 2-4.5 5-2.5 5.5s2.5-2.5 2.5-5z"/><path d="M24 10c3 2 4.5 5 2.5 5.5s-2.5-2.5-2.5-5z"/></g><path d="M23.5 7v8" stroke="#3d3a42" stroke-width="1" stroke-linecap="round"/></svg>`,
+  water: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4c5 7 8 11 8 15a8 8 0 0 1-16 0c0-4 3-8 8-15z" fill="#9cc3dd" stroke="#5e8fae" stroke-width="1"/><path d="M12 19q0 4 3.5 5" stroke="#e6f2f8" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>`,
+  thirsty: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 26q6-2 13 0t13 0v3H3z" fill="#cdb48a"/><path d="m8 26 2 2m4-2-1 3m6-3 2 2.5m4-2.5-1 3" stroke="#8d7552" stroke-width=".9" stroke-linecap="round"/><path d="M16 5c4 6 6 9 6 12a6 6 0 0 1-12 0c0-3 2-6 6-12z" fill="none" stroke="#9aa3a6" stroke-width="1.1" stroke-dasharray="2 1.6"/></svg>`,
+  helped: `<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="15" cy="19" rx="7" ry="5" fill="#e3b44c"/><path d="M12 15v8m4-8.5v9m4-7.5v6" stroke="#4a3626" stroke-width="1.7"/><circle cx="23.5" cy="18" r="3" fill="#4a3626"/><g fill="#eef3f2" stroke="#b7c3c4" stroke-width=".6" opacity=".95"><ellipse cx="13" cy="11" rx="3" ry="5" transform="rotate(-20 13 11)"/><ellipse cx="18" cy="11" rx="2.6" ry="4.4" transform="rotate(15 18 11)"/></g><path d="M5 9q2-3 4 0t4 0" stroke="#d99a2b" stroke-width="1" fill="none" stroke-linecap="round"/></svg>`,
+  wilted: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M14 30V17q0-7 6-8" stroke="#8f8a64" stroke-width="1.4" fill="none" stroke-linecap="round"/><g transform="translate(21 12) rotate(140)"><ellipse cy="-4" rx="2.2" ry="4.5" fill="#b7a07d"/><ellipse cy="-4" rx="2" ry="4.2" fill="#a89070" transform="rotate(40)"/><ellipse cy="-4" rx="2" ry="4.2" fill="#c0ab88" transform="rotate(-40)"/><circle r="2.2" fill="#6e5c48"/></g><path d="M14 24q-5-1-6-5q4 0 6 3" fill="#a6a175"/><path d="M5 30h20" stroke="#b9a684" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+  dryStalks: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 30V12m7 18V8m7 22V14" stroke="#b49e6c" stroke-width="1.3" stroke-linecap="round"/><path d="M9 16l-3-3m3 7 3-3m4-6-3-3m3 8 3-3m4 4-3-3m3 7 3-2" stroke="#b49e6c" stroke-width="1" stroke-linecap="round"/><circle cx="9" cy="11" r="1.6" fill="#a08a5a"/><circle cx="16" cy="7" r="1.8" fill="#a08a5a"/><circle cx="23" cy="13" r="1.5" fill="#a08a5a"/><path d="M4 30h24" stroke="#c4ae86" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+};
 const snailArt = `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 31c4 1 22 1 31-1 1-1 0-3-2-3-2 0-3-2-2-4l2-9" fill="none" stroke="#8a7b6b" stroke-width="2.4" stroke-linecap="round"/><circle cx="34" cy="13" r="1.4" fill="#4a3f36"/><circle cx="31" cy="14" r="1.2" fill="#4a3f36"/><circle cx="17" cy="21" r="10" fill="#e9d98c" stroke="#8a6a3c" stroke-width="1.2"/><path d="M17 21m-6.5 0a6.5 6.5 0 1 1 6.5 6.5a4 4 0 1 1 -1-8" fill="none" stroke="#6b4a2a" stroke-width="1.6"/></svg>`;
 const summerKinds = [['poppy', 'Poppies'], ['daisy', 'Daisies'], ['cornflower', 'Cornflowers']] as const;
 const flowerTypes = [ ['poppy', 'Poppy'], ['daisy', 'Daisy'], ['cornflower', 'Cornflower'] ] as const;
@@ -296,6 +308,7 @@ export function createUI(actions: UIActions): GameUI {
         </div>
       </div>
     <div class="journal-page arc-page" hidden role="group" aria-labelledby="arc-title">
+        <div class="arc-garland" aria-hidden="true"><span class="arc-garland-happy is-left">${markArt.flowers}${markArt.helped}${markArt.friends}</span><span class="arc-garland-sad is-left">${markArt.dryStalks}${markArt.wilted}</span><span class="arc-garland-happy is-right">${markArt.honey}${markArt.flowers}</span><span class="arc-garland-sad is-right">${markArt.wilted}${markArt.dryStalks}</span></div>
         <span class="eyebrow" data-text="arc-eyebrow">FIVE SUMMERS · ONE SMALL BEE</span>
         <h2 id="arc-title" tabindex="-1" data-text="arc-title"></h2>
         <p class="arc-outcome" data-text="arc-outcome"></p>
@@ -965,6 +978,7 @@ export function createUI(actions: UIActions): GameUI {
         text('arc-title', summary.title); text('arc-outcome', summary.outcome); text('arc-facts', summary.facts);
         arcPage.dataset.mood = summary.mood;
         el('[data-arc-speech]').replaceChildren(...summary.speech.map(words => { const p = document.createElement('p'); p.textContent = words; return p; }));
+        arcStrip.style.setProperty('--n', String(summary.cards.length));
         arcStrip.replaceChildren(...summary.cards.map(card => {
           const item = document.createElement('li');
           item.className = 'arc-summer'; item.dataset.lost = String(card.lost);
@@ -975,6 +989,17 @@ export function createUI(actions: UIActions): GameUI {
           bar.style.setProperty('--haul', card.haul.toFixed(2)); item.append(bar);
           line('arc-summer-day', card.day);
           line('arc-summer-flowers', `${card.pollinated} pollinated · ${card.flowers} flowers`);
+          item.dataset.tone = card.tone;
+          // What went well (bright little pictures) and what didn't (faded ones).
+          const marks = document.createElement('span'); marks.className = 'arc-summer-marks';
+          for (const mark of card.marks) {
+            const pic = document.createElement('span');
+            pic.className = 'arc-mark'; pic.dataset.good = String(mark.good); pic.dataset.mark = mark.kind;
+            pic.title = mark.label; pic.setAttribute('role', 'img'); pic.setAttribute('aria-label', mark.label);
+            pic.innerHTML = markArt[mark.kind] ?? '';
+            marks.append(pic);
+          }
+          item.append(marks);
           return item;
         }));
       }

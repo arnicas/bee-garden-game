@@ -78,6 +78,11 @@ test('the closing summary: one card per summer, and the weather, meadow, hive an
   expect(opening).toContain('five summers have passed');
   expect(summary.cards.map(c => c.day)).toEqual(['Good', 'Fantastic', 'Not home', 'Good', 'Good']);
   expect(summary.cards[3].weather).toBe('Hot, dry');
+  // Each card's colour and little pictures: what went well, and what didn't.
+  expect(summary.cards.map(c => c.tone)).toEqual(['bright', 'bright', 'poor', 'bright', 'bright']);
+  expect(summary.cards[2].marks[0]).toMatchObject({ kind: 'wilted', good: false });
+  expect(summary.cards[0].marks.map(m => m.kind)).toEqual(expect.arrayContaining(['honey', 'flowers', 'helped']));
+  expect(summary.cards[3].marks.map(m => m.kind)).toContain('water');
   expect(weather).toContain('We had one wet summer and two dry ones');
   expect(weather).toContain('carried water home on it');
   expect(meadow).toContain('You pollinated 50 flowers');

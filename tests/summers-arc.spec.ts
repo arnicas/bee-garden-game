@@ -52,6 +52,8 @@ test('another lost day on very low stores: the colony leaves, and the way on is 
   await expect(page.locator('[data-text="arc-title"]')).toHaveText('The Queen’s Farewell');
   await expect(page.locator('[data-text="arc-outcome"]')).toHaveText('The colony moves on');
   await expect(page.locator('.arc-summer')).toHaveCount(3);
+  await expect(page.locator('.arc-garland-sad').first()).toBeVisible();
+  await page.screenshot({ path: 'artifacts/arc/farewell-sad.png' });
   await page.locator('.arc-page [data-action="restart"]').click();
   await expect(title(page)).toHaveText('Your summer day begins on a flower.');
   expect(await hive(page)).toMatchObject({ summers: 0, ending: null });
@@ -73,6 +75,9 @@ test('the fifth summer is the last before winter; good stores see the colony thr
   await expect(page.locator('[data-text="arc-outcome"]')).toHaveText('A swarm in spring');
   await expect(arc).toHaveAttribute('data-mood', 'happy');
   await expect(page.locator('.arc-summer')).toHaveCount(5);
+  await expect(page.locator('.arc-summer[data-tone="bright"]')).toHaveCount(4);
+  expect(await page.locator('.arc-mark[data-mark="honey"]').count()).toBeGreaterThan(0);
+  await expect(page.locator('.arc-garland-happy').first()).toBeVisible();
   // Her speech: who she is, the weather, the meadow, the hive, and her farewell.
   await expect(page.locator('.arc-speech p')).toHaveCount(5);
   await expect(page.locator('.arc-speech p').first()).toContainText('about six weeks');
