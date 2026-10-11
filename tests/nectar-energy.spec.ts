@@ -208,6 +208,15 @@ test('a full bee curls its tongue, stops sipping, and resumes when resources are
   await page.keyboard.down('f');
   await expect.poll(async () => (await state(page)).nectar).toBeGreaterThan(83);
   await page.keyboard.up('f');
+  // Carried water fills the rest of the crop: full, so no endless "Sipping nectar" with nothing going in.
+  await page.evaluate(() => window.__BEE_TEST__!.setCargo(80, 100, 100, 20));
+  await expect.poll(async () => (await state(page)).satiated).toBe(true);
+  const watered = await state(page);
+  await page.keyboard.down('f');
+  await expect.poll(async () => (await state(page)).elapsed).toBeGreaterThan(watered.elapsed + .4);
+  expect((await state(page)).drinking).toBe(false);
+  expect(supply(await state(page), 2)).toBe(supply(watered, 2));
+  await page.keyboard.up('f');
   await page.keyboard.press('Escape');
   await page.locator('.pause-page [data-action="restart"]').click();
   await leaveWelcome(page);

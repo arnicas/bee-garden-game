@@ -1935,9 +1935,11 @@ export class Garden {
   private updateAppetite(): void {
     // Hysteresis keeps tiny resting costs from repeatedly unrolling the tongue.
     const wasSatiated = this.satiated;
-    if (this.nectar >= NECTAR_CAPACITY - 1e-6 && this.energy >= 99.5) this.satiated = true;
-    else if (this.nectar < NECTAR_CAPACITY - .5 || this.energy < 99) this.satiated = false;
-    if (this.satiated && !wasSatiated && this.phase === 'landed') this.notify('All topped up. Leave the nectar for another bee.', 3);
+    // The crop holds nectar and carried water together, so water aboard counts toward full.
+    const crop = this.nectar + this.water;
+    if (crop >= NECTAR_CAPACITY - 1e-6 && this.energy >= 99.5) this.satiated = true;
+    else if (crop < NECTAR_CAPACITY - .5 || this.energy < 99) this.satiated = false;
+    if (this.satiated && !wasSatiated && this.phase === 'landed') this.notify(this.water > .5 ? 'All topped up, with water aboard. Leave the nectar for another bee.' : 'All topped up. Leave the nectar for another bee.', 3);
   }
   private forage(dt: number): void {
     const f = this.landed!;
