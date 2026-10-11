@@ -6,22 +6,22 @@ import { LORE_LABELS, type LoreCard, type LoreKind } from './lore';
 // slightly uneven edge, a soft wash and a little grain.
 export const LORE_W = 300, LORE_H = 196;
 
-const paper = (tint: string, edge: string) => `
+const paper = (tint: string, edge: string, H: number) => `
   <defs>
     <filter id="lore-edge" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".045" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="5" xChannelSelector="R" yChannelSelector="G"/></filter>
     <filter id="lore-wash" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".02 .05" numOctaves="3" seed="8"/><feDisplacementMap in="SourceGraphic" scale="22" xChannelSelector="R" yChannelSelector="B"/><feGaussianBlur stdDeviation="3"/></filter>
     <filter id="lore-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="5"/><feColorMatrix values="0 0 0 0 .42  0 0 0 0 .34  0 0 0 0 .2  0 0 0 -1.6 1.05"/></filter>
     <filter id="lore-ink"><feTurbulence type="fractalNoise" baseFrequency=".09" numOctaves="1" seed="2"/><feDisplacementMap in="SourceGraphic" scale="1.4" xChannelSelector="R" yChannelSelector="G"/></filter>
   </defs>
-  <g filter="url(#lore-edge)"><rect x="5" y="5" width="${LORE_W - 10}" height="${LORE_H - 10}" rx="4" fill="#fbf5e5" stroke="${edge}" stroke-width=".7"/></g>
-  <g opacity=".42" filter="url(#lore-wash)"><rect x="22" y="20" width="${LORE_W - 44}" height="${LORE_H - 40}" rx="30" fill="${tint}"/></g>
-  <rect x="9" y="9" width="${LORE_W - 18}" height="${LORE_H - 18}" filter="url(#lore-grain)" opacity=".5"/>`;
+  <g filter="url(#lore-edge)"><rect x="5" y="5" width="${LORE_W - 10}" height="${H - 10}" rx="4" fill="#fbf5e5" stroke="${edge}" stroke-width=".7"/></g>
+  <g opacity=".42" filter="url(#lore-wash)"><rect x="22" y="20" width="${LORE_W - 44}" height="${H - 40}" rx="30" fill="${tint}"/></g>
+  <rect x="9" y="9" width="${LORE_W - 18}" height="${H - 18}" filter="url(#lore-grain)" opacity=".5"/>`;
 
 const curl = `<g fill="none" stroke="#8a6a2f" stroke-width="1.1" stroke-linecap="round"><path d="M12 38C12 23 22 12 38 12"/><path d="M38 12C45 12 47 18 43 21C39 24 35 20 38 18"/><path d="M12 38C12 45 18 47 21 43C24 39 20 35 18 38"/><path d="M20 20C25 23 27 27 25 30" stroke-width=".8"/><circle cx="17" cy="17" r="1.7" fill="#8a6a2f" stroke="none"/></g>`;
 
-function belief(): string {
-  const W = LORE_W, H = LORE_H, c = W / 2;
-  return `${paper('#e9d79e', '#c7ab68')}
+function belief(H = LORE_H): string {
+  const W = LORE_W, c = W / 2;
+  return `${paper('#e9d79e', '#c7ab68', H)}
   <g filter="url(#lore-ink)">
     <rect x="17" y="17" width="${W - 34}" height="${H - 34}" fill="none" stroke="#8a6a2f" stroke-width="1.4"/>
     <rect x="21" y="21" width="${W - 42}" height="${H - 42}" fill="none" stroke="#b99341" stroke-width=".55"/>
@@ -36,10 +36,10 @@ function belief(): string {
   <circle cx="${c - 9.5}" cy="18" r="2.6" fill="#4d3b25"/>`;
 }
 
-function thought(): string {
-  const W = LORE_W, H = LORE_H, hex = (x: number, y: number) => `<path d="M${x} ${y - 6.5}l5.6 3.25v6.5L${x} ${y + 6.5}l-5.6-3.25v-6.5Z"/>`;
+function thought(H = LORE_H): string {
+  const W = LORE_W, hex = (x: number, y: number) => `<path d="M${x} ${y - 6.5}l5.6 3.25v6.5L${x} ${y + 6.5}l-5.6-3.25v-6.5Z"/>`;
   const comb = (x: number, y: number, s: number) => `<g transform="translate(${x} ${y}) scale(${s} 1)" fill="none" stroke="#b99341" stroke-width="1">${hex(0, 0)}${hex(11.2, 0)}${hex(5.6, 9.75)}</g>`;
-  return `${paper('#efc9a8', '#c58a69')}
+  return `${paper('#efc9a8', '#c58a69', H)}
   <rect x="11" y="11" width="${W - 22}" height="${H - 22}" rx="11" fill="none" stroke="#e9d9b8" stroke-width="7" filter="url(#lore-ink)"/>
   <rect x="11" y="11" width="${W - 22}" height="${H - 22}" rx="11" fill="none" stroke="#fffaf0" stroke-width="4.6" stroke-dasharray="0 8.6" stroke-linecap="round"/>
   <g filter="url(#lore-ink)">
@@ -50,10 +50,10 @@ function thought(): string {
   </g>`;
 }
 
-function verse(): string {
-  const W = LORE_W, H = LORE_H;
+function verse(H = LORE_H): string {
+  const W = LORE_W;
   // A pressed field poppy: a nodding bud, cut grey-green leaves and one open flower.
-  return `${paper('#d9dfc0', '#a9b190')}
+  return `${paper('#d9dfc0', '#a9b190', H)}
   <g filter="url(#lore-ink)">
     <rect x="12" y="12" width="${W - 24}" height="${H - 24}" fill="none" stroke="#5b6b36" stroke-width="1.2"/>
     <rect x="16" y="16" width="${W - 32}" height="${H - 32}" fill="none" stroke="#5b6b36" stroke-width=".45"/>
@@ -74,12 +74,13 @@ function verse(): string {
   </g>`;
 }
 
-const FRAMES: Record<LoreKind, () => string> = { belief, thought, verse };
+const FRAMES: Record<LoreKind, (H?: number) => string> = { belief, thought, verse };
 const escape = (s: string) => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
 
 /** The inside of the card element for one card. */
-export function loreCardMarkup(card: LoreCard): string {
+/** `height` grows the card (and its frame) for a long card; the width stays. */
+export function loreCardMarkup(card: LoreCard, height = LORE_H): string {
   const text = card.kind === 'verse' ? card.lines.map(l => `<span>${escape(l)}</span>`).join('') : escape(card.lines.join(' '));
-  return `<svg class="lore-frame" viewBox="0 0 ${LORE_W} ${LORE_H}" aria-hidden="true">${FRAMES[card.kind]()}</svg>
+  return `<svg class="lore-frame" viewBox="0 0 ${LORE_W} ${height}" aria-hidden="true">${FRAMES[card.kind](height)}</svg>
     <div class="lore-text"><span class="lore-label">${card.label ?? LORE_LABELS[card.kind]}</span><p class="lore-line">${text}</p><span class="lore-source">${escape(card.source)}</span></div>`;
 }

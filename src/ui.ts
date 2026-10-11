@@ -1,4 +1,4 @@
-import { loreCardMarkup } from './lore-art';
+import { LORE_H, loreCardMarkup } from './lore-art';
 import type { GameUI, UIActions, ViewState } from './types';
 import { dayReport, nextSummerLine, startSplit, type SplitRow } from './day-report';
 import { cargoArt, energyWedge } from './cargo-art';
@@ -479,6 +479,7 @@ export function createUI(actions: UIActions): GameUI {
   const loreCard = el('.lore-card');
   const loreButton = el<HTMLButtonElement>('[data-action="lore"]');
   let loreShown: string | null = null;
+  let loreFitted = false;
   const closingButton = el<HTMLButtonElement>('[data-action="skip-return"]');
   const resultNectarFill = el<SVGRectElement>('[data-result-fill="nectar"]');
   const resultHoneySurface = el<SVGPathElement>('[data-result-honey-surface]');
@@ -660,9 +661,18 @@ export function createUI(actions: UIActions): GameUI {
     const lore = (playing || state.phase === 'night') && state.lore && state.lore.opacity > .001 ? state.lore : null;
     if ((lore?.id ?? null) !== loreShown) {
       loreShown = lore?.id ?? null;
-      if (lore) { loreCard.innerHTML = loreCardMarkup({ ...lore }); loreCard.className = `lore-card lore-${lore.kind}`; }
+      if (lore) { loreCard.innerHTML = loreCardMarkup({ ...lore }); loreCard.className = `lore-card lore-${lore.kind}`; loreCard.style.height = ''; loreFitted = false; }
     }
     show(loreCard, !!lore);
+    // A long card grows taller (upward, from its bottom edge) so its words stay inside the frame.
+    if (lore && !loreFitted) {
+      loreFitted = true;
+      const inside = loreCard.querySelector<HTMLElement>('.lore-text'), first = inside?.firstElementChild as HTMLElement | null, last = inside?.lastElementChild as HTMLElement | null;
+      if (inside && first && last && inside.clientHeight > 0) {
+        const needed = last.offsetTop + last.offsetHeight - first.offsetTop, extra = Math.ceil(needed - inside.clientHeight + 4);
+        if (extra > 0) { const height = LORE_H + extra; loreCard.innerHTML = loreCardMarkup({ ...lore }, height); loreCard.style.height = `${height}px`; }
+      }
+    }
     if (lore) {
       const eased = lore.opacity * lore.opacity * (3 - 2 * lore.opacity);
       loreCard.style.opacity = eased.toFixed(3);

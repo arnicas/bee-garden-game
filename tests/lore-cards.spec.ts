@@ -99,3 +99,23 @@ test('the night between summers shows one card above "The night passes", gone be
   await expect(card).toBeHidden({ timeout: 4_000 });
   expect((await state(page)).phase).toBe('night');
 });
+
+// The longest cards of each kind: the words stay inside the frame (a long card grows taller).
+for (const [id, kind] of [['samson', 'belief'], ['an-nahl', 'belief'], ['ox-born', 'thought'], ['weather-rhyme', 'verse']] as const) {
+  test(`the long ${id} card keeps its words inside the frame`, async ({ page }) => {
+    await mkdir('artifacts/lore-cards', { recursive: true });
+    await land(page, `lore=${id}`);
+    await page.keyboard.press('e');
+    const card = page.locator(`.lore-card.lore-${kind}`);
+    await expect(card).toBeVisible();
+    await expect.poll(async () => Number(await card.evaluate(el => getComputedStyle(el).opacity))).toBeGreaterThan(.95);
+    const fits = await card.evaluate(el => {
+      const inside = el.querySelector<HTMLElement>('.lore-text')!, first = inside.firstElementChild as HTMLElement, last = inside.lastElementChild as HTMLElement;
+      return { needed: last.offsetTop + last.offsetHeight - first.offsetTop, room: inside.clientHeight };
+    });
+    expect(fits.needed).toBeLessThanOrEqual(fits.room);
+    await card.screenshot({ path: `artifacts/lore-cards/long-${id}.png` });
+    const box = (await card.boundingBox())!;
+    expect(box.y + box.height).toBeLessThan(720 - 80);
+  });
+}
