@@ -412,7 +412,11 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .result-why { max-width: 440px; margin: 9px auto 0; font-size: 11px; line-height: 1.45; letter-spacing: .01em; color: var(--muted); }
 .result-tip { max-width: 400px; margin: 6px auto 0; font: italic 13px/1.4 var(--serif); color: var(--rust); }
 .result-next { max-width: 400px; margin: 6px auto 0; font: italic 13px/1.4 var(--serif); opacity: .8; }
-.summer-split { max-width: 470px; margin: 8px auto 0; display: grid; gap: 3px; }
+.summer-details { max-width: 470px; margin: 4px auto 0; }
+.summer-details[hidden] { display: none; }
+.summer-details > summary { width: max-content; margin: 0 auto; padding: 2px 10px; cursor: pointer; font-size: 12px; color: var(--muted); border-radius: 8px; }
+.summer-details > summary:hover, .summer-details > summary:focus-visible { color: inherit; background: #efe6c9; }
+.summer-split { max-width: 470px; margin: 6px auto 0; display: grid; gap: 3px; }
 .split-row { display: flex; align-items: center; gap: 8px; margin: 0; font: italic 14px/1.35 var(--serif); color: #57664b; text-align: left; }
 .split-row[hidden] { display: none; }
 .split-art { flex: 0 0 26px; width: 26px; height: 26px; }

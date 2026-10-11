@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { coverLine, coverMoisture, groundCause, groundCauseLine, groundFlowersLine, nextMoisture, moistureLine, type WeatherPlan } from '../src/weather';
-import { nextSummerLine, shareWords, startSplit } from '../src/day-report';
+import { coverLine, coverMoisture, groundCause, groundCauseLine, nextMoisture, moistureLine, type WeatherPlan } from '../src/weather';
+import { groundShareLine, nextSummerLine, shareWords, startSplit } from '../src/day-report';
 import { meadowShares } from '../src/meadow-plan';
 import { startFlyingFixture } from './support/start';
 
@@ -88,9 +88,6 @@ test('between summers, the cards say whether the weather or the meadow changed t
   expect(groundCauseLine('heat', coverMoisture(1.4), false)).toBe('Last summer’s heat dried the ground, but the full meadow kept some of it damp.');
   expect(groundCauseLine('rain', 0, true)).toBe('This summer’s rain soaked the ground.');
   expect(groundCauseLine('', coverMoisture(.5), true)).toBe(coverLine(coverMoisture(.5), true));
-  expect(groundFlowersLine(.15)).toContain('poppies and cornflowers');
-  expect(groundFlowersLine(.85)).toContain('daisies');
-  expect(groundFlowersLine(.5)).toBe('');
   const none = { daisy: 4, poppy: 4, cornflower: 4 } as any;
   expect(nextSummerLine({ now: none, next: none, ladybirds: 2, nextLadybirds: 2, lastSummerLadybirds: 2, coverShift: 0, groundCause: 'heat' } as any))
     .toBe('Next summer, the meadow will look much the same.');
@@ -124,6 +121,10 @@ test('next summer is split by cause: the bee’s pollinating, then the ground', 
   expect(friends.find(r => r.kind === 'own')?.text).toBe('The meadow on its own: 1 more snail.');
   // Rain last summer, but the ground is still dry: the card says so.
   expect(startSplit({ ...dry, own, moisture: .3, cause: 'rain', pollinatedAny: true }, 'flowers')[1].text).toMatch(/^The ground, still dry: /);
+  // The plain sentence says helped / held back, never more or fewer, and nothing when it barely mattered.
+  const z = { daisy: 0, poppy: 0, cornflower: 0, ladybirds: 0, butterflies: 0, snails: 0 };
+  expect(groundShareLine({ bee: z, own: z, ground: { ...z, poppy: 2, daisy: -1 }, moisture: .2, cause: 'heat', pollinatedAny: true })).toBe('The dry ground helped the poppies but held back the daisies.');
+  expect(groundShareLine({ bee: z, own: z, ground: { ...z, daisy: -1 }, moisture: .2, cause: 'heat', pollinatedAny: true })).toBe('');
   // Nothing pollinated: the bee's row says so.
   const zero = { daisy: 0, poppy: 0, cornflower: 0, ladybirds: 0, butterflies: 0, snails: 0 };
   expect(startSplit({ bee: zero, ground: zero, own: zero, moisture: .5, cause: '', pollinatedAny: false }, 'flowers')[0].text).toContain('nothing was pollinated');

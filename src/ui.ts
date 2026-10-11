@@ -279,11 +279,12 @@ export function createUI(actions: UIActions): GameUI {
           <p class="summer-weather" data-text="summer-weather-line" hidden></p>
           <div class="summer-group"><h3>Flowers <span>change since last summer</span></h3>
             <div class="learning-summer-counts">${summerKinds.map(([species, name]) => `<div data-summer-kind="${species}"><span class="summer-art">${pollinationFlowers[species]}</span><span class="summer-name">${name}</span><span class="summer-delta" data-text="summer-delta-${species}"></span><span class="summer-change"><span data-text="summer-was-${species}"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-${species}"></b></span></div>`).join('')}</div>
-            <div class="summer-split" data-summer-split="flowers" aria-label="Why the flowers changed"></div></div>
+            <p class="summer-lesson" data-text="summer-flowers-line"></p>
+            <details class="summer-details" data-summer-details="flowers" hidden><summary>More details</summary><div class="summer-split" data-summer-split="flowers" aria-label="Why the flowers changed"></div></details></div>
           <div class="summer-group"><h3>Meadow friends <span>change since last summer</span></h3>
             <div class="learning-summer-counts"><div data-summer-kind="aphid"><span class="summer-art">${aphidArt}</span><span class="summer-name">Aphid clusters</span><span class="summer-delta" data-text="summer-delta-aphid"></span><span class="summer-change"><span data-text="summer-was-aphid"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-aphid"></b></span></div><div data-summer-kind="ladybird"><span class="summer-art">${ladybirdArt}</span><span class="summer-name">Ladybirds</span><span class="summer-delta" data-text="summer-delta-ladybird"></span><span class="summer-change"><span data-text="summer-was-ladybird"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-ladybird"></b></span></div><div data-summer-kind="butterfly"><span class="summer-art">${butterflyArt}</span><span class="summer-name">Butterflies</span><span class="summer-delta" data-text="summer-delta-butterfly"></span><span class="summer-change"><span data-text="summer-was-butterfly"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-butterfly"></b></span></div><div data-summer-kind="snail"><span class="summer-art">${snailArt}</span><span class="summer-name">Snails</span><span class="summer-delta" data-text="summer-delta-snail"></span><span class="summer-change"><span data-text="summer-was-snail"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-snail"></b></span></div></div>
-            <div class="summer-split" data-summer-split="friends" aria-label="Why the meadow friends changed"></div>
-            <p class="summer-lesson" data-text="summer-friends-line"></p></div>
+            <p class="summer-lesson" data-text="summer-friends-line"></p>
+            <details class="summer-details" data-summer-details="friends" hidden><summary>More details</summary><div class="summer-split" data-summer-split="friends" aria-label="Why the meadow friends changed"></div></details></div>
         </section>
         <p id="learning-goals">Fly between flowers, gathering nectar for energy and the hive.<br>Carry pollen to matching flowers and help the meadow bloom.</p>
         <ul class="learning-cycle" aria-label="How one summer shapes the next">
@@ -811,16 +812,18 @@ export function createUI(actions: UIActions): GameUI {
       const summer = start?.summer ?? 1;
       if (controlsFoldedFor !== summer) { controlsFoldedFor = summer; learningControls.open = !start; }
       if (start) {
-        // Why each group changed: your pollinating, the ground, and the meadow on its own.
+        // One plain sentence per group (the weather first); the numbers behind "More details".
+        text('summer-flowers-line', start.flowersLine);
+        // Why each group changed, in numbers: your pollinating, the ground, and the meadow on its own.
         for (const group of ['flowers', 'friends'] as const) {
           const box = el(`[data-summer-split="${group}"]`), rows = start.split ? startSplit(start.split, group) : [];
           const markup = rows.map(splitRowMarkup).join('');
-          if (box.innerHTML !== markup && box.dataset.markup !== markup) { box.innerHTML = markup; box.dataset.markup = markup; }
+          if (box.dataset.markup !== markup) { box.innerHTML = markup; box.dataset.markup = markup; }
+          show(el(`[data-summer-details="${group}"]`), rows.length > 0);
         }
         text('summer-weather-line', start.weatherLine);
         show(el('[data-text="summer-weather-line"]'), start.weatherLine !== '');
-        text('summer-friends-line', start.friendsLine || (start.split && startSplit(start.split, 'friends').length ? '' : 'The aphids and ladybirds are much as they were.'));
-        show(el('[data-text="summer-friends-line"]'), el('[data-text="summer-friends-line"]').textContent !== '');
+        text('summer-friends-line', start.friendsLine || 'The aphids and ladybirds are much as they were.');
         const rows: [string, number, number][] = [...summerKinds.map(([s]) => [s, start.before[s], start.after[s]] as [string, number, number]), ['aphid', start.aphidsBefore, start.aphidsAfter], ['ladybird', start.ladybirdsBefore, start.ladybirdsAfter], ['butterfly', start.butterfliesBefore, start.butterfliesAfter], ['snail', start.snailsBefore, start.snailsAfter]];
         for (const [kind, before, after] of rows) {
           const change = after - before;

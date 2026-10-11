@@ -77,6 +77,7 @@ test('the words name how the meadow changed', () => {
   expect(meadowChangeLine(counts(24, 24, 24), counts(24, 35, 9))).toBe('Poppies have spread, and the cornflowers are sparse.');
   expect(flowerLessonLine(counts(0, 6, 0), counts(24, 24, 24), counts(21, 35, 9))).toBe('You pollinated 6 poppies, so more grew from their seed. No cornflowers were pollinated, so fewer came back.');
   expect(flowerLessonLine(counts(0, 0, 1), counts(24, 24, 24), counts(21, 9, 13))).toBe('No poppies were pollinated, so fewer came back.');
+  expect(flowerLessonLine(none, counts(24, 24, 24), counts(21, 9, 9))).toBe('Nothing was pollinated, so only old seed in the soil came up.');
   expect(flowerLessonLine(counts(0, 1, 1), counts(24, 24, 24), counts(21, 13, 13))).toBe('Only 1 poppy was pollinated, so fewer came back.');
   expect(flowerLessonLine(counts(0, 0, 0), counts(9, 3, 3), counts(8, 3, 3))).toBe('Nothing was pollinated, so only old seed in the soil came up.');
   expect(friendsChangeLine(counts(24, 24, 24), counts(21, 9, 9))).toBe('Fewer poppies and cornflowers meant fewer aphids, so fewer ladybirds stayed.');
@@ -108,7 +109,10 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   await page.getByRole('button', { name: 'Next summer' }).click();
   await expect(page.locator('#learning-title')).toHaveText(/^Summer 2 (of 5 )?begins/);
   await expect(page.locator('.learning-summer')).toBeVisible();
-  // Under the flower counts, why they changed: nothing pollinated, and the meadow on its own.
+  // Under the flower counts, one plain sentence; the numbers wait behind "More details".
+  await expect(page.locator('[data-text="summer-flowers-line"]')).not.toHaveText('');
+  await expect(page.locator('[data-summer-split="flowers"]')).toBeHidden();
+  await page.locator('[data-summer-details="flowers"] summary').click();
   await expect(page.locator('[data-summer-split="flowers"] [data-split="bee"]')).toContainText('nothing was pollinated');
   await expect(page.locator('[data-summer-split="flowers"] [data-split="own"]')).toContainText('The meadow on its own');
   // The keyboard controls fold away after the first summer.

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createMeadow, FIXED_FLOWERS, grassRainCover, meadowGroundHeight, rng } from './world';
 import { createLore, type LoreMood } from './lore';
 import { countSpecies, friendCounts, MEADOW_PLAN, meadowDryness, meadowShares, SPECIES_ORDER, moistureShift, nextBadSummers, nextCounts, planNextSummer, type DayOutcome, type FlowerSpot, type PastFlower, type MeadowShare, type SpeciesCounts, type SummerPlan } from './meadow-plan';
-import { butterflyChangeLine, snailChangeLine, dayReport, flowerLessonLine, friendsChangeLine, queenLine, type DayReport, type StartSplit, type SummerOutcome } from './day-report';
+import { butterflyChangeLine, snailChangeLine, dayReport, flowerLessonLine, friendsChangeLine, queenLine, type DayReport, groundShareLine, type StartSplit, type SummerOutcome } from './day-report';
 import { createUI } from './ui';
 import { createBeeRig } from './bee';
 import { createNectarBeads, createNectarDrop } from './nectar';
@@ -31,7 +31,7 @@ import { createEnergyWash } from './energy-wash';
 import { createRainSplash } from './rain-splash';
 import { createPuddles } from './puddles';
 import { createSeededRandom } from './utils/random';
-import { groundCause, groundCauseLine, groundFlowersLine, type GroundCause } from './weather';
+import { groundCause, groundCauseLine, type GroundCause } from './weather';
 import { choiceNote, chosenSeason, describeChoice, isNatureDecides, parseWeatherChoice, startMoisture, summerWeatherName, type WeatherChoice } from './weather';
 import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type NightWeather, type WeatherPlan, moistureFriendsLine, hiveNeedsWater, coverMoisture, moistureLine, nextMoisture, rollSeason, seasonNote, type Season } from './weather';
 import { edgeExposureAt, flightWindAt, MEADOW_EDGE_FULL, setWindGale, setWindVariation, surfaceHeight } from './wind';
@@ -942,14 +942,17 @@ export class Garden {
   private summerStart(): ViewState['summerStart'] {
     if (!this.lastSummerCounts) return null;
     const after = countSpecies(this.meadow.flowers);
-    return {
-      summer: this.summerNumber, weatherLine: [isNatureDecides(this.weatherChoice) ? '' : `You chose ${describeChoice(this.weatherChoice).name} summers.`, groundCauseLine(this.lastGroundCause, this.lastCoverShift, false), moistureLine(this.groundMoisture)].filter(Boolean).join(' '), flowersLine: [groundFlowersLine(this.groundMoisture), flowerLessonLine(this.lastSummerPollinated, this.lastSummerCounts, after)].filter(Boolean).join(' '), pollinated: this.lastSummerPollinated, before: this.lastSummerCounts, after,
-      friendsLine: [friendsChangeLine(this.lastSummerCounts, after), butterflyChangeLine(this.lastSummerCounts, after), snailChangeLine(this.lastSummerCounts, after), moistureFriendsLine(this.groundMoisture)].find(Boolean) ?? '', aphidsBefore: friendCounts(this.lastSummerCounts).aphidClusters, aphidsAfter: this.ladybirds.aphids.length,
+    const start: NonNullable<ViewState['summerStart']> = {
+      summer: this.summerNumber, weatherLine: [isNatureDecides(this.weatherChoice) ? '' : `You chose ${describeChoice(this.weatherChoice).name} summers.`, groundCauseLine(this.lastGroundCause, this.lastCoverShift, false), moistureLine(this.groundMoisture)].filter(Boolean).join(' '), flowersLine: '', pollinated: this.lastSummerPollinated, before: this.lastSummerCounts, after,
+      friendsLine: [moistureFriendsLine(this.groundMoisture), friendsChangeLine(this.lastSummerCounts, after), butterflyChangeLine(this.lastSummerCounts, after), snailChangeLine(this.lastSummerCounts, after)].find(Boolean) ?? '', aphidsBefore: friendCounts(this.lastSummerCounts).aphidClusters, aphidsAfter: this.ladybirds.aphids.length,
       ladybirdsBefore: this.lastSummerLadybirds, ladybirdsAfter: this.ladybirds.diagnostics().count,
       butterfliesBefore: this.lastSummerButterflies, butterfliesAfter: this.butterflies.diagnostics().count,
       snailsBefore: this.lastSummerSnails, snailsAfter: this.snails.diagnostics().count,
       split: this.startSplit(after),
     };
+    // One plain sentence or two under the flowers: the ground's part (if it mattered), then the pollination lesson.
+    start.flowersLine = [start.split ? groundShareLine(start.split) : '', flowerLessonLine(this.lastSummerPollinated, this.lastSummerCounts, after)].filter(Boolean).join(' ');
+    return start;
   }
   /** Last summer's change split by cause; the meadow's own share is the rest, so the rows add up to the counts. */
   private startSplit(after: SpeciesCounts): StartSplit | undefined {

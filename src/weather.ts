@@ -288,13 +288,6 @@ export function groundCauseLine(cause: GroundCause, coverShift: number, ahead: b
         : (drying ? ', but the full meadow kept some of it damp' : ', and the full meadow held it');
   return `${weather}${meadow}.`;
 }
-/** How the ground itself changed the flowers (alongside what was pollinated), or ''. */
-export function groundFlowersLine(moisture: number): string {
-  const dry = MathUtils.clamp((.5 - moisture) / .4, 0, 1), wet = MathUtils.clamp((moisture - .5) / .4, 0, 1);
-  if (dry > .3) return 'The dry ground favoured the poppies and cornflowers, and the daisies struggled.';
-  if (wet > .3) return 'The damp ground suited the daisies; the poppies did less well.';
-  return '';
-}
 /** An ordinary day, for the balance above: rain minutes, the night's wetness, heat minutes. */
 const ORDINARY_RAIN = 2, ORDINARY_NIGHT = .095, ORDINARY_HEAT = 2.87;
 

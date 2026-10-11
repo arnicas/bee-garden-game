@@ -279,6 +279,8 @@ export function flowerLessonLine(pollinated: SpeciesCounts, before: SpeciesCount
   const grew = annuals.filter(s => n(s) > 0 && after[s] > before[s]).sort((a, b) => n(b) - n(a));
   const thinned = annuals.filter(s => after[s] < before[s]);
   const unhelped = thinned.filter(s => n(s) === 0), few = thinned.filter(s => n(s) > 0);
+  // Nothing pollinated at all: say so plainly, rather than naming each kind.
+  if (SPECIES_ORDER.every(s => n(s) === 0)) return 'Nothing was pollinated, so only old seed in the soil came up.';
   const parts: string[] = [];
   if (grew.length) parts.push(`You pollinated ${n(grew[0])} ${kind(grew[0], n(grew[0]))}, so more grew from their seed.`);
   if (unhelped.length) parts.push(`No ${list(unhelped.map(s => MANY[s]))} were pollinated, so fewer came back.`);
@@ -340,4 +342,16 @@ export function startSplit(split: StartSplit, group: 'flowers' | 'friends'): Spl
   if (ground) rows.push({ kind: 'ground', art, text: `${label}: ${ground}.` });
   if (own) rows.push({ kind: 'own', art: 'own', text: `The meadow on its own: ${own}.` });
   return rows;
+}
+
+/** The ground's share of the flowers in plain words, or '' when it barely mattered (under 2 flowers in all):
+ * "The dry ground helped the poppies but held back the daisies." Says helped/held back, never "more",
+ * since the counts above can still fall for other reasons. */
+export function groundShareLine(split: StartSplit): string {
+  const share = split.ground, size = SPECIES_ORDER.reduce((sum, s) => sum + Math.abs(share[s]), 0);
+  if (size < 2) return '';
+  const helped = SPECIES_ORDER.filter(s => share[s] > 0).map(s => MANY[s]), held = SPECIES_ORDER.filter(s => share[s] < 0).map(s => MANY[s]);
+  const ground = split.moisture < .5 ? 'The dry ground' : 'The damp ground';
+  if (helped.length && held.length) return `${ground} helped the ${list(helped)} but held back the ${list(held)}.`;
+  return helped.length ? `${ground} helped the ${list(helped)}.` : `${ground} held back the ${list(held)}.`;
 }
