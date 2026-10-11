@@ -59,7 +59,7 @@ const RAIN_SHAPES: Record<RainLevel, Pick<SeasonShape, 'nights' | 'showers' | 's
 const HEAT_SHAPES: Record<HeatLevel, Pick<SeasonShape, 'heat' | 'heatPeak' | 'twoGales' | 'strength'>> = {
   cool: { heat: [60, 50], heatPeak: 330, twoGales: .25, strength: .6 },
   ordinary: { heat: [150, 45], heatPeak: 320, twoGales: .35, strength: 1 },
-  hot: { heat: [215, 45], heatPeak: 270, twoGales: .8, strength: 1.15 },
+  hot: { heat: [175, 75], heatPeak: 270, twoGales: .8, strength: 1.15 },
 };
 /** A summer's shape: the rolled season, with any chosen side pinned over it. */
 function shapeFor(season: Season, choice: WeatherChoice): SeasonShape {
@@ -83,6 +83,46 @@ export function parseWeatherChoice(rain: string | null | undefined, heat: string
     rain: rain === 'little' || rain === 'ordinary' || rain === 'lots' ? rain : 'nature',
     heat: heat === 'cool' || heat === 'ordinary' || heat === 'hot' ? heat : 'nature',
   };
+}
+
+/** Named weather for the "Your five summers" panel: nature first, then four combinations. */
+export interface WeatherPreset { id: string; name: string; rain: RainLevel | 'nature'; heat: HeatLevel | 'nature'; line: string }
+export const WEATHER_PRESETS: readonly WeatherPreset[] = [
+  { id: 'nature', name: 'As nature decides', rain: 'nature', heat: 'nature', line: 'Each summer brings its own weather, and the ground remembers it.' },
+  { id: 'hotdry', name: 'Hot and dry', rain: 'little', heat: 'hot', line: 'Water is scarce: find pools early, and keep to the shade.' },
+  { id: 'wetcool', name: 'Wet and cool', rain: 'lots', heat: 'cool', line: 'Showers come often: shelter, and fly between them.' },
+  { id: 'muggy', name: 'Muggy', rain: 'lots', heat: 'hot', line: 'Heavy showers and heat: wet wings and a thirsty hive.' },
+  { id: 'milddry', name: 'Mild and dry', rain: 'little', heat: 'cool', line: 'Gentle days, but little rain: the meadow slowly dries.' },
+];
+/** The nine combinations in words: a name, and what the bee should expect. */
+const COMBOS: Record<RainLevel, Record<HeatLevel, [string, string]>> = {
+  little: { cool: ['mild and dry', 'Gentle days, but little rain: the meadow slowly dries.'], ordinary: ['dry', 'Little rain, so water will be scarce.'], hot: ['hot and dry', 'Water is scarce: find pools early, and keep to the shade.'] },
+  ordinary: { cool: ['cool', 'Mild days and the usual showers: little need for shade.'], ordinary: ['ordinary', 'Showers now and then, and some heat.'], hot: ['hot', 'Long, strong heat: the hive will want water.'] },
+  lots: { cool: ['wet and cool', 'Showers come often: shelter, and fly between them.'], ordinary: ['wet', 'Showers are likely: shelter, and fly between them.'], hot: ['muggy', 'Heavy showers and heat: wet wings and a thirsty hive.'] },
+};
+const seasonRain = (season: Season): RainLevel => season === 'wet' ? 'lots' : season === 'dry' || season === 'hotdry' ? 'little' : 'ordinary';
+const seasonHeat = (season: Season): HeatLevel => season === 'wet' ? 'cool' : season === 'hotdry' ? 'hot' : 'ordinary';
+export const isNatureDecides = (choice: WeatherChoice) => choice.rain === 'nature' && choice.heat === 'nature';
+/** The choice in words, for the panel's forecast, the start page and the Queen. */
+export function describeChoice(choice: WeatherChoice): { name: string; line: string } {
+  if (isNatureDecides(choice)) return { name: 'as nature decides', line: WEATHER_PRESETS[0].line };
+  const [name, line] = COMBOS[choice.rain === 'nature' ? 'ordinary' : choice.rain][choice.heat === 'nature' ? 'ordinary' : choice.heat];
+  if (choice.rain === 'nature') return { name: `${name === 'ordinary' ? 'ordinary heat' : name}, with rain as nature decides`, line };
+  if (choice.heat === 'nature') return { name: `${name}, with heat as nature decides`, line };
+  return { name, line };
+}
+/** One summer's weather as a short name ("Hot and dry", "Muggy"), from the choice over the rolled season. */
+export function summerWeatherName(choice: WeatherChoice, rolled: Season): string {
+  const rain = choice.rain === 'nature' ? seasonRain(rolled) : choice.rain, heat = choice.heat === 'nature' ? seasonHeat(rolled) : choice.heat;
+  const name = COMBOS[rain][heat][0];
+  return name === 'ordinary' ? 'Mild' : name.charAt(0).toUpperCase() + name.slice(1);
+}
+/** The morning note for a summer with chosen weather, or null to use the season's own note. */
+export function choiceNote(choice: WeatherChoice, rolled: Season): { lead: string; text: string } | null {
+  if (isNatureDecides(choice)) return null;
+  const rain = choice.rain === 'nature' ? seasonRain(rolled) : choice.rain, heat = choice.heat === 'nature' ? seasonHeat(rolled) : choice.heat;
+  const [name, line] = COMBOS[rain][heat];
+  return name === 'ordinary' ? null : { lead: `A ${name} summer.`, text: line };
 }
 
 /** Rolls a summer's season, leaning toward what the ground already is: a dry
@@ -198,16 +238,65 @@ export function weatherAt(daySeconds: number, out: MeadowWeather, plan: WeatherP
   return out;
 }
 
-/** How a finished day moves the meadow's ground moisture (0–1): rain and a wet
- * night raise it, heat and a dry night lower it, nearly half the way at most, so a
- * run of similar summers moves it a long way. See docs/design/Seasons_Design.md. */
+/** How a finished day moves the meadow's ground moisture (0–1): rain and a wet night
+ * raise it, heat and a dry night lower it. Each summer the ground moves nearly half the
+ * way toward the level that kind of weather settles at, so a run of like summers lands
+ * there (hot and dry about 0.15, wet and cool about 0.85), and the patchiness of the meadow
+ * left behind adds to it. See docs/design/Seasons_Design.md and Weather_Scenarios.md. */
 export function nextMoisture(moisture: number, plan: WeatherPlan, cover = 1): number {
-  const rainMinutes = plan.showers.reduce((sum, s) => sum + s.length, 0) / 60;
-  const heatMinutes = Math.max(0, plan.heatEnd - plan.heatStart) / 60 * (plan.heatStrength ?? 1);
-  const night = plan.night === 'wet' ? .25 : plan.night === 'dewy' ? .1 : -.15;
-  const day = Math.max(-1, Math.min(1, rainMinutes / 4 + night - heatMinutes / 6));
-  return Math.max(0, Math.min(1, moisture + day * .45 + coverMoisture(cover)));
+  return MathUtils.clamp(moisture + weatherPull(moisture, plan) + coverMoisture(cover), 0, 1);
 }
+/** The day's weather against an ordinary day: its rain side (rain and the night) and its heat
+ * side (heat above or below ordinary, weighted by strength). Positive wets, negative dries. */
+function dayBalance(plan: WeatherPlan): { rain: number; heat: number } {
+  const rainMinutes = plan.showers.reduce((sum, s) => sum + s.length, 0) / 60;
+  const heat = Math.max(0, plan.heatEnd - plan.heatStart) / 60 * (plan.heatStrength ?? 1);
+  const night = plan.night === 'wet' ? .25 : plan.night === 'dewy' ? .1 : -.15;
+  const heatPull = heat > ORDINARY_HEAT ? (heat - ORDINARY_HEAT) * .2 : (heat - ORDINARY_HEAT) * .11;
+  return { rain: .4 * (rainMinutes - ORDINARY_RAIN) + (night - ORDINARY_NIGHT), heat: -heatPull };
+}
+/** The weather's own share of a summer's change in ground moisture (the meadow's cover is
+ * the other share): the ground moves nearly half the way each summer toward the level such
+ * weather settles at, so a run of like summers lands there and the nine weathers stay distinct. */
+export function weatherPull(moisture: number, plan: WeatherPlan): number {
+  const { rain, heat } = dayBalance(plan);
+  const settle = .5 + .45 * MathUtils.clamp(rain + heat, -1, 1);
+  return (settle - moisture) * .45;
+}
+/** What mostly moved the ground this summer: heat, too little rain, rain, or a cool summer. */
+export type GroundCause = 'heat' | 'dry' | 'rain' | 'cool' | '';
+export function groundCause(moisture: number, plan: WeatherPlan): GroundCause {
+  const pull = weatherPull(moisture, plan), { rain, heat } = dayBalance(plan);
+  if (Math.abs(pull) < .04) return '';
+  if (pull < 0) return heat < rain ? 'heat' : 'dry';
+  return rain > heat ? 'rain' : 'cool';
+}
+/** One sentence on why the ground changed: the weather's share, then the meadow's (the bee's).
+ * Looking ahead on the results page, or back on the next summer's start page; '' when neither mattered. */
+export function groundCauseLine(cause: GroundCause, coverShift: number, ahead: boolean): string {
+  const patchy = coverShift <= -.03, full = coverShift >= .02;
+  if (!cause) return coverLine(coverShift, ahead);
+  const weather = ahead
+    ? { heat: 'This summer’s heat dried the ground', dry: 'Little rain this summer let the ground dry', rain: 'This summer’s rain soaked the ground', cool: 'The cool summer kept the ground damp' }[cause]
+    : { heat: 'Last summer’s heat dried the ground', dry: 'With little rain last summer, the ground dried', rain: 'Last summer’s rain soaked the ground', cool: 'The cool summer kept the ground damp' }[cause];
+  const drying = cause === 'heat' || cause === 'dry';
+  const meadow = !patchy && !full ? ''
+    : ahead
+      ? patchy ? (drying ? ', and the patchy meadow you leave will dry it further' : ', though the patchy meadow you leave will dry it a little')
+        : (drying ? ', but the full meadow you leave will keep some of it damp' : ', and the full meadow you leave will hold it')
+      : patchy ? (drying ? ', and the patchy meadow dried it further' : ', though the patchy meadow dried it a little')
+        : (drying ? ', but the full meadow kept some of it damp' : ', and the full meadow held it');
+  return `${weather}${meadow}.`;
+}
+/** How the ground itself changed the flowers (alongside what was pollinated), or ''. */
+export function groundFlowersLine(moisture: number): string {
+  const dry = MathUtils.clamp((.5 - moisture) / .4, 0, 1), wet = MathUtils.clamp((moisture - .5) / .4, 0, 1);
+  if (dry > .3) return 'The dry ground favoured the poppies and cornflowers, and the daisies struggled.';
+  if (wet > .3) return 'The damp ground suited the daisies; the poppies did less well.';
+  return '';
+}
+/** An ordinary day, for the balance above: rain minutes, the night's wetness, heat minutes. */
+const ORDINARY_RAIN = 2, ORDINARY_NIGHT = .095, ORDINARY_HEAT = 2.87;
 
 /** How the meadow the bee leaves behind changes the ground's water over a summer.
  * `cover` is next summer's flowers against a normal meadow (1): patchy, bare ground

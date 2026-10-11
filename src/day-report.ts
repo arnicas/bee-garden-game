@@ -1,5 +1,6 @@
 import type { Species, SummerPreview } from './types';
-import { ANNUAL, friendCounts, SPECIES_ORDER, trend, type SpeciesCounts } from './meadow-plan';
+import { ANNUAL, friendCounts, SPECIES_ORDER, trend, type MeadowShare, type SpeciesCounts } from './meadow-plan';
+import type { GroundCause } from './weather';
 
 /**
  * How a day at the hive is judged. Two ratings, delivery and pollination, pick
@@ -247,9 +248,8 @@ export function nextSummerLine(preview: SummerPreview): string {
   }
   const bugs = trend(preview.ladybirds, preview.nextLadybirds);
   if (bugs === 'more') more.push('ladybirds'); else if (bugs === 'fewer') fewer.push('ladybirds');
-  // The meadow left behind holds the ground's water, or lets it dry (see coverMoisture).
-  const shift = preview.coverShift ?? 0, ground = shift <= -.03 ? 'drier ground' : shift >= .02 ? 'damper ground' : '';
-  const parts = [more.length ? `more ${list(more)}` : '', fewer.length ? `fewer ${list(fewer)}` : '', ground].filter(Boolean);
+  const parts = [more.length ? `more ${list(more)}` : '', fewer.length ? `fewer ${list(fewer)}` : ''].filter(Boolean);
+  // Just the look-ahead: why the meadow changed is told on next summer's start card.
   return parts.length ? `Next summer: ${parts.join(', ')}.` : 'Next summer, the meadow will look much the same.';
 }
 
@@ -303,4 +303,41 @@ export function snailChangeLine(before: SpeciesCounts, after: SpeciesCounts): st
   if (change === 'fewer') return 'With the meadow patchier, the ground dried out and fewer snails were about.';
   if (change === 'more') return 'A fuller meadow kept the ground damp, and more snails were about.';
   return '';
+}
+
+/** One side of next summer's change, in words: "6 more poppies and 3 more ladybirds", or ''.
+ * Every change counts, so the rows add up to the counts above them; only the biggest few are named. */
+export function shareWords(share: MeadowShare, most = 4, group: 'all' | 'flowers' | 'friends' = 'all'): string {
+  const words: { text: string; size: number }[] = [];
+  for (const s of group === 'friends' ? [] : SPECIES_ORDER) {
+    const d = share[s];
+    if (d) words.push({ text: `${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} ${Math.abs(d) === 1 ? ONE[s] : MANY[s]}`, size: Math.abs(d) });
+  }
+  for (const k of group === 'flowers' ? [] : ['ladybirds', 'butterflies', 'snails'] as const) {
+    const d = share[k];
+    if (d) words.push({ text: `${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} ${Math.abs(d) === 1 ? k.slice(0, k === 'butterflies' ? -3 : -1) + (k === 'butterflies' ? 'y' : '') : k}`, size: Math.abs(d) });
+  }
+  // Only the biggest few, kept in their usual order: flowers, then friends.
+  const kept = new Set([...words].sort((a, b) => b.size - a.size).slice(0, most));
+  return list(words.filter(w => kept.has(w)).map(w => w.text));
+}
+/** Which picture stands for the ground's share: the summer's own cause when it fits the ground's side. */
+export type ShareArt = 'heat' | 'dry' | 'rain' | 'cool';
+/** Last summer's change, split by cause, for the start card: the bee's pollinating,
+ * the ground, and the meadow on its own (the rest, so the rows add up to the counts). */
+export interface StartSplit { bee: MeadowShare; ground: MeadowShare; own: MeadowShare; moisture: number; cause: GroundCause; pollinatedAny: boolean }
+export interface SplitRow { kind: 'bee' | 'ground' | 'own'; art: 'bee' | 'own' | ShareArt; text: string }
+/** The rows under the flowers or the friends counts; a row with nothing to say is left out. */
+export function startSplit(split: StartSplit, group: 'flowers' | 'friends'): SplitRow[] {
+  const dry = split.moisture < .5, cause = split.cause, rows: SplitRow[] = [];
+  const art: ShareArt = dry ? (cause === 'heat' ? 'heat' : 'dry') : (cause === 'cool' ? 'cool' : 'rain');
+  // "Still" when last summer's weather pulled the other way but the ground hasn't caught up.
+  const label = dry ? (cause === 'rain' || cause === 'cool' ? 'The ground, still dry' : 'The dry ground')
+    : (cause === 'heat' || cause === 'dry' ? 'The ground, still damp' : 'The damp ground');
+  const bee = shareWords(split.bee, 4, group), ground = shareWords(split.ground, 4, group), own = shareWords(split.own, 4, group);
+  if (bee) rows.push({ kind: 'bee', art: 'bee', text: `Your pollinating: ${bee}.` });
+  else if (group === 'flowers' && !split.pollinatedAny) rows.push({ kind: 'bee', art: 'bee', text: 'Your pollinating: nothing was pollinated, so nothing was added.' });
+  if (ground) rows.push({ kind: 'ground', art, text: `${label}: ${ground}.` });
+  if (own) rows.push({ kind: 'own', art: 'own', text: `The meadow on its own: ${own}.` });
+  return rows;
 }

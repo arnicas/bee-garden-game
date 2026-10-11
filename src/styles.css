@@ -412,6 +412,11 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .result-why { max-width: 440px; margin: 9px auto 0; font-size: 11px; line-height: 1.45; letter-spacing: .01em; color: var(--muted); }
 .result-tip { max-width: 400px; margin: 6px auto 0; font: italic 13px/1.4 var(--serif); color: var(--rust); }
 .result-next { max-width: 400px; margin: 6px auto 0; font: italic 13px/1.4 var(--serif); opacity: .8; }
+.summer-split { max-width: 470px; margin: 8px auto 0; display: grid; gap: 3px; }
+.split-row { display: flex; align-items: center; gap: 8px; margin: 0; font: italic 14px/1.35 var(--serif); color: #57664b; text-align: left; }
+.split-row[hidden] { display: none; }
+.split-art { flex: 0 0 26px; width: 26px; height: 26px; }
+.split-art svg { width: 100%; height: 100%; display: block; }
 .result-bee { position: absolute; top: 22px; right: 29px; color: var(--rust); transform: rotate(12deg); }
 .result-bee svg { width: 33px; height: 25px; }
 .result-harvest { display: grid; grid-template-columns: 1fr 1fr; gap: 21px; padding: 16px 27px 19px; }
@@ -722,3 +727,33 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .arc-mark[data-good="false"] { opacity: .85; filter: saturate(.6); }
 
 .arc-strip { grid-template-columns: repeat(var(--n, 5), minmax(0, 112px)); justify-content: center; }
+
+/* "Your five summers": the reign and its weather, chosen before the first summer. */
+.reign-overlay { position: absolute; inset: 0; z-index: 11; display: grid; place-items: center; padding: 20px; pointer-events: auto; background: #32442b1c; overflow-y: auto; }
+.reign-overlay[hidden] { display: none; }
+#ui[data-reign="open"] .title-screen { opacity: 0; visibility: hidden; }
+.reign-page { width: min(720px, 100%); padding: 26px 34px 24px; }
+.reign-page h2 { margin-top: 8px; }
+.reign-arc { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+.reign-arc li { display: flex; gap: 10px; align-items: center; font: 14px/1.4 var(--serif); color: #45513b; }
+.reign-arc-art { flex: 0 0 30px; width: 30px; height: 30px; display: inline-flex; }
+.reign-arc-art svg { width: 100%; height: 100%; }
+.reign-heading { margin: 18px 0 8px; font-size: 9px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: #6c7c49; }
+.reign-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.reign-preset { display: grid; grid-template-columns: 34px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; text-align: left; padding: 8px 10px; border: 1px solid #d9cfae; border-radius: 10px; background: #fbf6e6; cursor: pointer; }
+.reign-preset svg { grid-row: 1 / 3; width: 34px; height: 34px; }
+.reign-preset b { font: 15px/1.2 var(--serif); font-weight: 400; color: #33402b; }
+.reign-preset small { font-size: 10.5px; line-height: 1.35; color: #6b6a58; }
+.reign-preset[aria-checked="true"] { border-color: #c98b25; background: #fbe9b8; box-shadow: inset 0 0 0 1px #e1bf63; }
+.reign-preset:hover { border-color: #c9a96b; }
+.reign-mixer { display: grid; gap: 6px; margin-top: 12px; }
+.reign-row { display: flex; align-items: center; gap: 6px; }
+.reign-row > span { width: 44px; font-size: 9px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; color: #8b754c; }
+.reign-row button { flex: 1; padding: 6px 8px; border: 1px solid #d9cfae; border-radius: 16px; background: #fbf6e6; font-size: 12px; color: #4b5540; cursor: pointer; }
+.reign-row button[aria-pressed="true"] { background: #33402b; border-color: #33402b; color: #fbf6e6; }
+.reign-forecast { margin: 12px 0 0; padding: 8px 12px; border-radius: 10px; background: #eef0e2; font: italic 14px/1.45 var(--serif); color: #45513b; }
+.reign-flowers { margin: 10px 0 0; font-size: 12px; color: #9a9580; }
+.reign-flowers span { display: inline-block; width: 66px; font-size: 9px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; }
+.reign-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+.reign-actions .primary-button { width: auto; margin-top: 0; padding-right: 0; }
+@media (max-width: 640px) { .reign-arc { grid-template-columns: 1fr; } .reign-presets { grid-template-columns: 1fr 1fr; } }

@@ -23,13 +23,16 @@ test('little rain brings far fewer showers and wet nights than a lot', () => {
 
 test('a cool summer never asks the hive for water, a hot one nearly always does', () => {
   expect(days({ rain: 'nature', heat: 'cool' }).filter(hiveNeedsWater)).toHaveLength(0);
-  expect(days({ rain: 'nature', heat: 'hot' }).filter(hiveNeedsWater).length).toBeGreaterThan(270);
+  // About 85% of hot-summer days: relentless, with a little relief.
+  const hotDays = days({ rain: 'nature', heat: 'hot' }).filter(hiveNeedsWater).length;
+  expect(hotDays).toBeGreaterThan(220);
+  expect(hotDays).toBeLessThan(290);
 });
 
 test('the heat side is independent of the rain: hot and wet, cool and dry', () => {
   const muggy = days({ rain: 'lots', heat: 'hot' }), mild = days({ rain: 'little', heat: 'cool' });
   expect(mean(muggy.map(p => p.showers.length))).toBeGreaterThan(1.3);
-  expect(muggy.filter(hiveNeedsWater).length).toBeGreaterThan(200);
+  expect(muggy.filter(hiveNeedsWater).length).toBeGreaterThan(180);
   expect(mean(mild.map(p => p.showers.length))).toBeLessThan(.6);
   expect(mild.filter(hiveNeedsWater)).toHaveLength(0);
 });
@@ -53,6 +56,27 @@ test('the ground follows the chosen weather over five summers, starting nudged',
     for (let summer = 1; summer <= 5; summer++) m = nextMoisture(m, planWeather(rng(summer * 31337), rollSeason(rng(summer * 17), m), choice));
     return m;
   };
-  expect(run({ rain: 'little', heat: 'hot' })).toBeLessThan(.2);
-  expect(run({ rain: 'lots', heat: 'cool' })).toBeGreaterThan(.8);
+  expect(run({ rain: 'little', heat: 'hot' })).toBeLessThan(.25);
+  expect(run({ rain: 'lots', heat: 'cool' })).toBeGreaterThan(.75);
+});
+
+test('the nine weathers settle at distinct grounds over five summers', () => {
+  const end = (rain: WeatherChoice['rain'], heat: WeatherChoice['heat']) => {
+    let total = 0;
+    for (let run = 0; run < 60; run++) {
+      let m = startMoisture({ rain, heat });
+      for (let s = 1; s <= 5; s++) m = nextMoisture(m, planWeather(rng(run * 7919 + s * 104729 + 3), rollSeason(rng(run * 97 + s * 13 + 1), m), { rain, heat }));
+      total += m;
+    }
+    return total / 60;
+  };
+  const hotDry = end('little', 'hot'), mildDry = end('little', 'cool'), nature = end('nature', 'nature'), cool = end('nature', 'cool');
+  const muggy = end('lots', 'hot'), wetCool = end('lots', 'cool');
+  expect(hotDry).toBeLessThan(.22);
+  expect(mildDry).toBeGreaterThan(hotDry + .1);
+  expect(Math.abs(nature - .5)).toBeLessThan(.08);
+  expect(cool).toBeLessThan(.7);
+  expect(muggy).toBeLessThan(wetCool - .08);
+  expect(wetCool).toBeGreaterThan(.78);
+  expect(wetCool).toBeLessThan(.95);
 });

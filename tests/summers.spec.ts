@@ -103,14 +103,14 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.setState('complete'));
   await expect(page.locator('[data-text="result-eyebrow"]')).toContainText('SUMMER');
   await expect(page.locator('[data-text="result-next"]')).toContainText('Next summer');
-  // Nothing pollinated in a thin meadow: it will leave the ground drier.
-  await expect(page.locator('[data-text="result-next"]')).toContainText('drier');
   await expect(page.locator('[data-text="restart-label"]')).toHaveText('Next summer');
   // The next summer's start page shows how the meadow changed.
   await page.getByRole('button', { name: 'Next summer' }).click();
   await expect(page.locator('#learning-title')).toHaveText(/^Summer 2 (of 5 )?begins/);
   await expect(page.locator('.learning-summer')).toBeVisible();
-  await expect(page.locator('[data-text="summer-flowers-line"]')).not.toHaveText('');
+  // Under the flower counts, why they changed: nothing pollinated, and the meadow on its own.
+  await expect(page.locator('[data-summer-split="flowers"] [data-split="bee"]')).toContainText('nothing was pollinated');
+  await expect(page.locator('[data-summer-split="flowers"] [data-split="own"]')).toContainText('The meadow on its own');
   // The keyboard controls fold away after the first summer.
   await expect(page.locator('.learning-controls')).not.toHaveAttribute('open', '');
   await expect(page.locator('[data-text="summer-count-poppy"]')).not.toHaveText('');

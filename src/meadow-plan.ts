@@ -152,6 +152,25 @@ export function friendCounts(all: SpeciesCounts, moisture = .5): { aphidClusters
   return { aphidClusters, ladybirds, butterflies, snails, caterpillars };
 }
 
+/** Next summer's flowers and meadow friends, split by cause: what the bee's pollinating
+ * added (against pollinating nothing, on ordinary ground) and what the ground did
+ * (against ordinary ground, .5). The rest of the change is the meadow on its own:
+ * annuals falling back to their seed bank, daisy clumps thinning. */
+export type MeadowShare = Record<Species | 'ladybirds' | 'butterflies' | 'snails', number>;
+export function meadowShares(seeded: SpeciesCounts, fixed: SpeciesCounts, pollinated: SpeciesCounts, badSummers: SpeciesCounts, ground: number): { bee: MeadowShare; ground: MeadowShare } {
+  const withFixed = (c: SpeciesCounts): SpeciesCounts => ({ daisy: c.daisy + fixed.daisy, poppy: c.poppy + fixed.poppy, cornflower: c.cornflower + fixed.cornflower });
+  const none = zero();
+  const bare = withFixed(nextCounts(seeded, none, nextBadSummers(badSummers, none), .5));
+  const mine = withFixed(nextCounts(seeded, pollinated, nextBadSummers(badSummers, pollinated), .5));
+  const real = withFixed(nextCounts(seeded, pollinated, nextBadSummers(badSummers, pollinated), ground));
+  const share = (a: SpeciesCounts, b: SpeciesCounts, aGround: number, bGround: number): MeadowShare => {
+    const fa = friendCounts(a, aGround), fb = friendCounts(b, bGround);
+    return { daisy: b.daisy - a.daisy, poppy: b.poppy - a.poppy, cornflower: b.cornflower - a.cornflower,
+      ladybirds: fb.ladybirds - fa.ladybirds, butterflies: fb.butterflies - fa.butterflies, snails: fb.snails - fa.snails };
+  };
+  return { bee: share(bare, mine, .5, .5), ground: share(mine, real, .5, ground) };
+}
+
 export interface SummerPlan {
   /** Next summer's seeded flowers, in planting order. */
   spots: FlowerSpot[];

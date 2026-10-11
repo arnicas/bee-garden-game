@@ -60,6 +60,8 @@ export interface SummerPreview {
   lastSummerLadybirds: number;
   /** How the meadow left behind moves the ground's water (see coverMoisture). */
   coverShift?: number;
+  /** What mostly moved the ground this summer (the weather's share), for the cause line. */
+  groundCause?: '' | 'heat' | 'dry' | 'rain' | 'cool';
 }
 /** The start page of a new summer: how the meadow changed since the last one. */
 export interface SummerStart {
@@ -82,6 +84,8 @@ export interface SummerStart {
   butterfliesAfter: number;
   snailsBefore: number;
   snailsAfter: number;
+  /** The change split by cause (see startSplit), or undefined. */
+  split?: import('./day-report').StartSplit;
 }
 export interface LoreCardView { id: string; kind: 'belief' | 'thought' | 'verse'; lines: string[]; source: string; opacity: number; }
 export interface ViewState {
@@ -173,6 +177,8 @@ export interface ViewState {
   /** The run of summers (null on test pages without ?arc): which summer, a line about the hive, and the ending once there is one. */
   /** On the title screen: the summer a saved run would continue with, or null. */
   savedSummer: number | null;
+  /** "Your five summers": whether the panel is open on the title, and the chosen rain and heat. */
+  weatherPanel: { open: boolean; rain: string; heat: string };
   arc: { summer: number; of: number; hiveLine: string; ending: string | null; endingLine: string; summary: import('./hive-stores').RunSummary | null } | null;
   canReturn: boolean;
   wind: number;
@@ -225,6 +231,9 @@ export interface ViewState {
 export interface UIActions {
   start(): void;
   continueRun(): void;
+  setWeather(rain: string, heat: string): void;
+  beginReign(): void;
+  closeWeather(): void;
   explore(): void;
   resume(): void;
   pause(): void;

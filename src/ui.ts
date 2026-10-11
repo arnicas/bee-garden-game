@@ -1,7 +1,8 @@
 import { loreCardMarkup } from './lore-art';
 import type { GameUI, UIActions, ViewState } from './types';
-import { dayReport, nextSummerLine } from './day-report';
+import { dayReport, nextSummerLine, startSplit, type SplitRow } from './day-report';
 import { cargoArt, energyWedge } from './cargo-art';
+import { describeChoice, parseWeatherChoice, WEATHER_PRESETS } from './weather';
 import { coveragePetals, happyMeadowArt, pollinationFlowers } from './meadow-art';
 import { beeFacts, beeFactsMarkup } from './bee-facts';
 import { dayArt } from './day-art';
@@ -64,6 +65,26 @@ const markArt: Record<string, string> = {
   helped: `<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="15" cy="19" rx="7" ry="5" fill="#e3b44c"/><path d="M12 15v8m4-8.5v9m4-7.5v6" stroke="#4a3626" stroke-width="1.7"/><circle cx="23.5" cy="18" r="3" fill="#4a3626"/><g fill="#eef3f2" stroke="#b7c3c4" stroke-width=".6" opacity=".95"><ellipse cx="13" cy="11" rx="3" ry="5" transform="rotate(-20 13 11)"/><ellipse cx="18" cy="11" rx="2.6" ry="4.4" transform="rotate(15 18 11)"/></g><path d="M5 9q2-3 4 0t4 0" stroke="#d99a2b" stroke-width="1" fill="none" stroke-linecap="round"/></svg>`,
   wilted: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M14 30V17q0-7 6-8" stroke="#8f8a64" stroke-width="1.4" fill="none" stroke-linecap="round"/><g transform="translate(21 12) rotate(140)"><ellipse cy="-4" rx="2.2" ry="4.5" fill="#b7a07d"/><ellipse cy="-4" rx="2" ry="4.2" fill="#a89070" transform="rotate(40)"/><ellipse cy="-4" rx="2" ry="4.2" fill="#c0ab88" transform="rotate(-40)"/><circle r="2.2" fill="#6e5c48"/></g><path d="M14 24q-5-1-6-5q4 0 6 3" fill="#a6a175"/><path d="M5 30h20" stroke="#b9a684" stroke-width="1.2" stroke-linecap="round"/></svg>`,
   dryStalks: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 30V12m7 18V8m7 22V14" stroke="#b49e6c" stroke-width="1.3" stroke-linecap="round"/><path d="M9 16l-3-3m3 7 3-3m4-6-3-3m3 8 3-3m4 4-3-3m3 7 3-2" stroke="#b49e6c" stroke-width="1" stroke-linecap="round"/><circle cx="9" cy="11" r="1.6" fill="#a08a5a"/><circle cx="16" cy="7" r="1.8" fill="#a08a5a"/><circle cx="23" cy="13" r="1.5" fill="#a08a5a"/><path d="M4 30h24" stroke="#c4ae86" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+};
+/** Small pictures for the ground's share of next summer: heat, little rain, rain, a cool summer. */
+const shareArt = (kind: string) => kind === 'heat' ? reignArt.hotdry
+  : kind === 'dry' ? markArt.wilted
+  : kind === 'cool' ? `<svg viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(0 2)">${cloud('#e4eaee')}</g></svg>`
+  : `<svg viewBox="0 0 32 32" aria-hidden="true">${cloud('#dfe7ec')}${drops}</svg>`;
+/** A seedling, for the meadow's own share: seed in the soil, clumps thinning. */
+const sproutArt = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 27q11-3 22 0" stroke="#a88e64" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M16 27v-9" stroke="#6f8f4e" stroke-width="1.4" stroke-linecap="round"/><path d="M16 19q-7 0-8-7 7 0 8 7z" fill="#93b16a" stroke="#6f8f4e" stroke-width=".8"/><path d="M16 17q6-1 7-7-6 0-7 7z" fill="#a9c47d" stroke="#6f8f4e" stroke-width=".8"/></svg>';
+const splitRowMarkup = (row: SplitRow) => `<p class="split-row" data-split="${row.kind}"><span class="split-art" aria-hidden="true">${row.art === 'bee' ? markArt.helped : row.art === 'own' ? sproutArt : shareArt(row.art)}</span><span>${row.text}</span></p>`;
+/** Small pictures for the weather on the "Your five summers" panel. */
+const sun = (r: number, fill: string, ray: string) => `<circle cx="16" cy="14" r="${r}" fill="${fill}"/><path d="M16 3v3m0 16v3M5 14h3m16 0h3M8 6l2 2m12 12 2 2m0-16-2 2M10 20l-2 2" stroke="${ray}" stroke-width="1.3" stroke-linecap="round"/>`;
+const cloud = (fill: string) => `<path d="M8 21a5 5 0 0 1 1-10 7 7 0 0 1 13 1 4.5 4.5 0 0 1 1 9z" fill="${fill}" stroke="#8c9aa3" stroke-width=".9"/>`;
+const drops = '<path d="M10 24l-1.5 3m6.5-3-1.5 3m6.5-3-1.5 3" stroke="#6f98b8" stroke-width="1.6" stroke-linecap="round"/>';
+const reignArt: Record<string, string> = {
+  nature: `<svg viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(5 -2) scale(.75)">${sun(5, '#f1c35a', '#d9a441')}</g><g transform="translate(-2 4) scale(.85)">${cloud('#eef2f2')}</g><path d="M6 29q6-4 10 0t10-1" stroke="#7d8f55" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>`,
+  hotdry: `<svg viewBox="0 0 32 32" aria-hidden="true">${sun(6.5, '#efa944', '#d98a2b')}<path d="M3 28q7-2 13 0t13 0" stroke="#c4a06a" stroke-width="1.6" fill="none"/><path d="M9 28l1.5 1.5m6-1.5-1 2m6-2 1.5 1.5" stroke="#9c7b4b" stroke-width=".9"/></svg>`,
+  wetcool: `<svg viewBox="0 0 32 32" aria-hidden="true">${cloud('#dfe6ea')}${drops}</svg>`,
+  muggy: `<svg viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(7 -3) scale(.7)">${sun(6, '#efa944', '#d98a2b')}</g>${cloud('#e6eaec')}${drops}</svg>`,
+  milddry: `<svg viewBox="0 0 32 32" aria-hidden="true">${sun(5, '#f5dc98', '#e3c47a')}<path d="M12 29V21m5 8v-10m5 10v-7" stroke="#b49e6c" stroke-width="1.2" stroke-linecap="round"/><circle cx="12" cy="20" r="1.3" fill="#a08a5a"/><circle cx="17" cy="18" r="1.4" fill="#a08a5a"/><circle cx="22" cy="21" r="1.2" fill="#a08a5a"/></svg>`,
+  mix: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 11h20M6 21h20" stroke="#8d7a55" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="11" r="3.4" fill="#87a7cd" stroke="#5f77ae"/><circle cx="21" cy="21" r="3.4" fill="#efa944" stroke="#c98b25"/></svg>`,
 };
 const snailArt = `<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 31c4 1 22 1 31-1 1-1 0-3-2-3-2 0-3-2-2-4l2-9" fill="none" stroke="#8a7b6b" stroke-width="2.4" stroke-linecap="round"/><circle cx="34" cy="13" r="1.4" fill="#4a3f36"/><circle cx="31" cy="14" r="1.2" fill="#4a3f36"/><circle cx="17" cy="21" r="10" fill="#e9d98c" stroke="#8a6a3c" stroke-width="1.2"/><path d="M17 21m-6.5 0a6.5 6.5 0 1 1 6.5 6.5a4 4 0 1 1 -1-8" fill="none" stroke="#6b4a2a" stroke-width="1.6"/></svg>`;
 const summerKinds = [['poppy', 'Poppies'], ['daisy', 'Daisies'], ['cornflower', 'Cornflowers']] as const;
@@ -227,6 +248,28 @@ export function createUI(actions: UIActions): GameUI {
       <button class="primary-button start-button continue-button" data-action="continue" hidden><span data-text="continue-label">Continue</span><span class="button-arrow">${icons.arrow}</span></button>
       <button class="primary-button start-button" data-action="start"><span data-text="start-label">Take flight</span><span class="button-arrow">${icons.arrow}</span></button>
     </section>
+    <section class="reign-overlay" hidden>
+      <div class="journal-page reign-page" role="dialog" aria-modal="true" aria-labelledby="reign-title">
+        <span class="eyebrow">A QUEEN’S REIGN</span>
+        <h2 id="reign-title" tabindex="-1">Your five summers</h2>
+        <ul class="reign-arc">
+          <li><span class="reign-arc-art" aria-hidden="true">${icons.bee}</span>Five summers are one queen’s reign. Each summer is one day in the meadow.</li>
+          <li><span class="reign-arc-art" aria-hidden="true">${cargoArt.nectar}</span>What you bring home fills the hive’s stores for the winters between.</li>
+          <li><span class="reign-arc-art" aria-hidden="true">${pollinationFlowers.daisy}</span>The flowers you pollinate grow next summer’s meadow.</li>
+          <li><span class="reign-arc-art" aria-hidden="true">${reignArt.nature}</span>After five summers, the fate of the hive is decided. Work hard!</li>
+        </ul>
+        <h3 class="reign-heading">The weather for her reign</h3>
+        <div class="reign-presets" role="radiogroup" aria-label="The weather">${[...WEATHER_PRESETS.map(p => ({ id: p.id, name: p.name, line: p.line })), { id: 'mix', name: 'Mix your own', line: 'Choose the rain and the heat below.' }].map(p =>
+          `<button class="reign-preset" role="radio" aria-checked="false" data-action="reign-preset" data-value="${p.id}">${reignArt[p.id]}<b>${p.name}</b><small>${p.line}</small></button>`).join('')}</div>
+        <div class="reign-mixer">
+          <div class="reign-row" role="group" aria-label="Rain"><span>Rain</span>${[['little', 'Little rain'], ['nature', 'As nature decides'], ['lots', 'A lot of rain']].map(([v, l]) => `<button data-action="reign-rain" data-value="${v}" aria-pressed="false">${l}</button>`).join('')}</div>
+          <div class="reign-row" role="group" aria-label="Heat"><span>Heat</span>${[['cool', 'Cool'], ['nature', 'As nature decides'], ['hot', 'Hot']].map(([v, l]) => `<button data-action="reign-heat" data-value="${v}" aria-pressed="false">${l}</button>`).join('')}</div>
+        </div>
+        <p class="reign-forecast" data-text="reign-forecast"></p>
+        <p class="reign-flowers"><span>Flowers</span>The meadow’s mix of flowers · <em>coming later</em></p>
+        <div class="reign-actions"><button class="text-button" data-action="reign-back">Back</button><button class="primary-button start-button" data-action="reign-begin"><span>Begin the first summer</span><span class="button-arrow">${icons.arrow}</span></button></div>
+      </div>
+    </section>
     <section class="learning-overlay" hidden>
       <div class="learning-page" role="dialog" aria-modal="true" aria-labelledby="learning-title" aria-describedby="learning-goals">
         <div class="learning-flower">${pollinationFlowers.daisy}</div>
@@ -236,9 +279,10 @@ export function createUI(actions: UIActions): GameUI {
           <p class="summer-weather" data-text="summer-weather-line" hidden></p>
           <div class="summer-group"><h3>Flowers <span>change since last summer</span></h3>
             <div class="learning-summer-counts">${summerKinds.map(([species, name]) => `<div data-summer-kind="${species}"><span class="summer-art">${pollinationFlowers[species]}</span><span class="summer-name">${name}</span><span class="summer-delta" data-text="summer-delta-${species}"></span><span class="summer-change"><span data-text="summer-was-${species}"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-${species}"></b></span></div>`).join('')}</div>
-            <p class="summer-lesson" data-text="summer-flowers-line"></p></div>
+            <div class="summer-split" data-summer-split="flowers" aria-label="Why the flowers changed"></div></div>
           <div class="summer-group"><h3>Meadow friends <span>change since last summer</span></h3>
             <div class="learning-summer-counts"><div data-summer-kind="aphid"><span class="summer-art">${aphidArt}</span><span class="summer-name">Aphid clusters</span><span class="summer-delta" data-text="summer-delta-aphid"></span><span class="summer-change"><span data-text="summer-was-aphid"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-aphid"></b></span></div><div data-summer-kind="ladybird"><span class="summer-art">${ladybirdArt}</span><span class="summer-name">Ladybirds</span><span class="summer-delta" data-text="summer-delta-ladybird"></span><span class="summer-change"><span data-text="summer-was-ladybird"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-ladybird"></b></span></div><div data-summer-kind="butterfly"><span class="summer-art">${butterflyArt}</span><span class="summer-name">Butterflies</span><span class="summer-delta" data-text="summer-delta-butterfly"></span><span class="summer-change"><span data-text="summer-was-butterfly"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-butterfly"></b></span></div><div data-summer-kind="snail"><span class="summer-art">${snailArt}</span><span class="summer-name">Snails</span><span class="summer-delta" data-text="summer-delta-snail"></span><span class="summer-change"><span data-text="summer-was-snail"></span><span class="summer-arrow" aria-hidden="true">→</span><b data-text="summer-count-snail"></b></span></div></div>
+            <div class="summer-split" data-summer-split="friends" aria-label="Why the meadow friends changed"></div>
             <p class="summer-lesson" data-text="summer-friends-line"></p></div>
         </section>
         <p id="learning-goals">Fly between flowers, gathering nectar for energy and the hive.<br>Carry pollen to matching flowers and help the meadow bloom.</p>
@@ -422,6 +466,8 @@ export function createUI(actions: UIActions): GameUI {
   const factPanels = Array.from(root.querySelectorAll<HTMLElement>('.fact-page'));
   const factsReader = el('.facts-reader');
   const resultPage = el('.result-page');
+  const reignOverlay = el('.reign-overlay');
+  let reignWasOpen = false, reignChoice = { rain: 'nature', heat: 'nature' };
   const arcPage = el('.arc-page'), arcOpenButton = el<HTMLButtonElement>('[data-action="arc-open"]'), arcStrip = el('[data-arc-strip]');
   let arcOpen = false, arcShown: unknown = null;
   const transition = el('.return-transition');
@@ -556,6 +602,20 @@ export function createUI(actions: UIActions): GameUI {
       return;
     }
     if (button.dataset.action === 'facts-close') { closeFacts(); return; }
+    // "Your five summers": choosing the weather for the reign.
+    if (button.dataset.action?.startsWith('reign-')) {
+      const value = button.dataset.value ?? '', now = reignChoice;
+      if (button.dataset.action === 'reign-preset') {
+        const preset = WEATHER_PRESETS.find(p => p.id === value);
+        if (preset) actions.setWeather(preset.rain, preset.heat);
+        else el<HTMLButtonElement>('[data-action="reign-rain"]').focus({ preventScroll: true });
+      }
+      if (button.dataset.action === 'reign-rain') actions.setWeather(value, now.heat);
+      if (button.dataset.action === 'reign-heat') actions.setWeather(now.rain, value);
+      if (button.dataset.action === 'reign-begin') actions.beginReign();
+      if (button.dataset.action === 'reign-back') { actions.closeWeather(); el<HTMLButtonElement>('.title-screen [data-action="start"]').focus({ preventScroll: true }); }
+      return;
+    }
     // At the end of the run: the five summers, then a new meadow.
     if (button.dataset.action === 'arc-open') {
       arcOpen = true; show(resultPage, false); show(arcPage, true);
@@ -751,10 +811,16 @@ export function createUI(actions: UIActions): GameUI {
       const summer = start?.summer ?? 1;
       if (controlsFoldedFor !== summer) { controlsFoldedFor = summer; learningControls.open = !start; }
       if (start) {
-        text('summer-flowers-line', start.flowersLine);
+        // Why each group changed: your pollinating, the ground, and the meadow on its own.
+        for (const group of ['flowers', 'friends'] as const) {
+          const box = el(`[data-summer-split="${group}"]`), rows = start.split ? startSplit(start.split, group) : [];
+          const markup = rows.map(splitRowMarkup).join('');
+          if (box.innerHTML !== markup && box.dataset.markup !== markup) { box.innerHTML = markup; box.dataset.markup = markup; }
+        }
         text('summer-weather-line', start.weatherLine);
         show(el('[data-text="summer-weather-line"]'), start.weatherLine !== '');
-        text('summer-friends-line', start.friendsLine || 'The aphids and ladybirds are much as they were.');
+        text('summer-friends-line', start.friendsLine || (start.split && startSplit(start.split, 'friends').length ? '' : 'The aphids and ladybirds are much as they were.'));
+        show(el('[data-text="summer-friends-line"]'), el('[data-text="summer-friends-line"]').textContent !== '');
         const rows: [string, number, number][] = [...summerKinds.map(([s]) => [s, start.before[s], start.after[s]] as [string, number, number]), ['aphid', start.aphidsBefore, start.aphidsAfter], ['ladybird', start.ladybirdsBefore, start.ladybirdsAfter], ['butterfly', start.butterfliesBefore, start.butterfliesAfter], ['snail', start.snailsBefore, start.snailsAfter]];
         for (const [kind, before, after] of rows) {
           const change = after - before;
@@ -780,6 +846,22 @@ export function createUI(actions: UIActions): GameUI {
       if (state.phase === 'paused') el<HTMLButtonElement>('[data-action="resume"]').focus({ preventScroll: true });
       if (returning || failing) closingButton.focus({ preventScroll: true });
       if (state.phase === 'won' || state.phase === 'lost') resultPage.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+    }
+    // "Your five summers": the panel before a new meadow, with the chosen weather marked.
+    const panel = state.weatherPanel;
+    reignChoice = { rain: panel?.rain ?? 'nature', heat: panel?.heat ?? 'nature' };
+    const reignOpen = !!panel?.open && state.phase === 'title';
+    if (reignOpen !== reignWasOpen) {
+      reignWasOpen = reignOpen; show(reignOverlay, reignOpen); root.dataset.reign = reignOpen ? 'open' : '';
+      if (reignOpen) el<HTMLElement>('#reign-title').focus({ preventScroll: true });
+    }
+    if (reignOpen) {
+      const presetId = WEATHER_PRESETS.find(p => p.rain === reignChoice.rain && p.heat === reignChoice.heat)?.id ?? 'mix';
+      for (const b of reignOverlay.querySelectorAll<HTMLButtonElement>('[data-action="reign-preset"]')) attribute(b, 'aria-checked', String(b.dataset.value === presetId));
+      for (const b of reignOverlay.querySelectorAll<HTMLButtonElement>('[data-action="reign-rain"]')) attribute(b, 'aria-pressed', String(b.dataset.value === reignChoice.rain));
+      for (const b of reignOverlay.querySelectorAll<HTMLButtonElement>('[data-action="reign-heat"]')) attribute(b, 'aria-pressed', String(b.dataset.value === reignChoice.heat));
+      const words = describeChoice(parseWeatherChoice(reignChoice.rain, reignChoice.heat));
+      text('reign-forecast', `${words.name.charAt(0).toUpperCase()}${words.name.slice(1)}: ${words.line}`);
     }
     // The title: a saved run can be continued; "Take flight" then starts a new meadow.
     const saved = state.phase === 'title' ? state.savedSummer : null;

@@ -100,6 +100,29 @@ has to visit more flowers for the same load.
 Bee Facts gets a short "Wet and dry summers" page saying what's real and what the game
 simplifies.
 
+## The ground, rebalanced (2026-10-11)
+
+A simulation of 200 five-summer runs per combination showed the first version ran to the
+ends: most wet combinations were sodden by summer 2 or 3 (all of them looking alike), rain
+swamped heat (muggy as wet as wet and cool), "cool" alone flooded the meadow (0.92), and
+"hot" asked for water every day. Now `nextMoisture()` compares the day with an ordinary
+one (rain, the night, and heat above or below ordinary, weighted by its strength) and
+moves the ground nearly half the way each summer toward the level that weather settles
+at; the meadow's cover still adds or takes on top. A hot summer asks for water on about
+85% of days. Ground after five summers (start → summer 5, averaged):
+
+| Weather | Ground | Hot days |
+| --- | --- | --- |
+| Hot and dry | 0.25 → 0.15 | 90% |
+| Dry (natural heat) | 0.28 → 0.20 | 42% |
+| Mild and dry | 0.32 → 0.30 | 0% |
+| Hot (natural rain) | 0.47 → 0.40 | 87% |
+| As nature decides | 0.50 → 0.48 | 29% |
+| Cool (natural rain) | 0.54 → 0.60 | 0% |
+| Muggy | 0.68 → 0.72 | 88% |
+| Wet (natural heat) | 0.71 → 0.79 | 18% |
+| Wet and cool | 0.74 → 0.85 | 0% |
+
 ## Flowers (later)
 
 Two more dials, built the same way once the weather feels right:
@@ -117,7 +140,8 @@ starting a new meadow; Continue goes straight on):
 
 - **The arc, in a few lines:** five summers are one Queen's reign; each summer is one
   day; what you bring home fills the hive's stores, and what you pollinate grows next
-  summer's meadow; at the end, the Queen's farewell. (Short, with the skep and a bee.)
+  summer's meadow; "After five summers, the fate of the hive is decided. Work hard!" (The
+  Queen's farewell stays a surprise.)
 - **The weather for her reign**, as a set of cards to pick from:
   - **As nature decides** (the default, first): "Each summer brings its own weather,
     and the ground remembers it."
@@ -171,12 +195,50 @@ starting a new meadow; Continue goes straight on):
    heat strength in `weatherAt()`, `nextMoisture()` and `hiveNeedsWater()`; the starting
    ground nudged; the default unchanged; dev flags `?rain=` and `?heat=`;
    `tests/weather-choice.spec.ts`.
-2. **Words**: the season note and start-page lines for the nine combinations.
-3. **The "Your five summers" panel** before the first summer, the remembered choice, and
-   saving it with the run.
-4. **Starting ground** from the rain choice; the Farewell and start page name the choice.
+2. **Words** (done 2026-10-11): names and lines for the nine combinations (`COMBOS`,
+   `describeChoice`, `choiceNote`, `summerWeatherName` in `weather.ts`); the morning note,
+   the start page, the summer cards and the Farewell name the chosen weather.
+3. **The "Your five summers" panel** (done 2026-10-11, `tests/reign-panel.spec.ts`): the
+   arc in four lines, five named weathers plus "Mix your own", rain and heat rows, a
+   forecast, flowers greyed; remembered in the browser; saved with the run; Enter begins,
+   Esc or Back returns to the title. Off on test pages unless `?choose`.
+4. **Starting ground** from the rain choice (done with step 1); the Farewell and start
+   page name the choice (done with step 2).
 5. **Rain and drought costs**: nectar washed out by rain and refilling in the sun; grasses
    crowding out flowers on very damp ground; flowers closed in rain; rainy days costing the
    hive's stores; less nectar per flower in a drought; a Bee Facts page.
 6. **Flowers** (mix and fullness), as a later step.
 7. **Tune in play**: try each corner (little rain + hot, a lot + cool) for a full run.
+
+## Between-summer cards name the cause (2026-10-11)
+
+The results card ("Next summer: …") and the summer-start card now say *why* the ground changed,
+weather first, then the bee's share:
+
+- Weather cause (`groundCause` in `src/weather.ts`): the summer's pull on the ground is split into its
+  rain side (rain + night dew) and heat side. Drying → "heat" or "little rain", whichever weighed more;
+  wetting → "rain" or "cool". A near-ordinary summer gets no weather sentence.
+- The meadow left behind (`coverMoisture`) is folded into the same sentence: a patchy meadow
+  "will dry it further", a full one "will keep some of it damp".
+  e.g. *This summer’s heat dried the ground, and the patchy meadow you leave will dry it further.*
+- On the next summer's card, the flowers line opens with how the ground favoured them
+  (dry → poppies and cornflowers; damp → daisies), before what your pollination did.
+
+## Your share, the ground's share, the meadow's own (2026-10-11)
+
+The two cards split the work:
+
+- **Results card** (end of the day) is about your day: the Queen, the meadow, the stats, the tip,
+  and one look-ahead line ("Next summer: more poppies, fewer daisies."). No weather reasoning.
+- **Start card** (next summer) tells the meadow's story: the weather line (your choice, what
+  moved the ground and how the meadow you left helped or hurt), then the before → after counts,
+  each group followed by rows saying why:
+  - 🐝 **Your pollinating:** next summer worked out on ordinary ground (.5), with your pollination vs with none.
+  - ☀ / 🥀 / 🌧 / ☁ **The dry (or damp) ground:** the real ground vs ordinary ground. Picture follows
+    last summer's cause (heat → sun, little rain → wilted flower, rain → rain cloud, cool → cloud);
+    "The ground, still dry/damp" when the summer pulled the other way but the ground hasn't caught up.
+  - 🌱 **The meadow on its own:** the rest (annuals falling back to their seed bank, daisy clumps
+    thinning, friends' small wobbles), so the three rows add up exactly to the counts above.
+  - Under the friends, one food-web sentence stays (e.g. fewer poppies → fewer aphids → fewer ladybirds).
+- Split worked out when the summer turns over (`meadowShares` in `src/meadow-plan.ts`, kept as
+  `lastShares` in garden.ts); rows in `startSplit` in `src/day-report.ts`.

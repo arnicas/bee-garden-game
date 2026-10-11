@@ -13,7 +13,7 @@ import type { DayTier } from './day-report';
 import type { HiveState } from './hive-stores';
 import type { FlowerSpot, SpeciesCounts } from './meadow-plan';
 import type { Species } from './types';
-import type { WeatherPlan } from './weather';
+import type { WeatherChoice, WeatherPlan } from './weather';
 
 const KEY = 'bee-garden-run-v1';
 
@@ -37,6 +37,8 @@ export interface RunSave {
   hotDays: number;
   waterDays: number;
   hive: HiveState;
+  /** The weather chosen for the run (absent in older saves: as nature decides). */
+  weather?: WeatherChoice;
   savedAt: number;
 }
 

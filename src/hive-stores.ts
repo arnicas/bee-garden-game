@@ -54,6 +54,9 @@ export interface SummerRecord {
   helped: number;
   /** The summer's weather: its season, how many showers, and whether the hive asked for water in the heat. */
   season?: 'wet' | 'ordinary' | 'dry' | 'hotdry';
+  /** The summer's weather by name when the player chose it ("Hot and dry"), and the choice itself in words. */
+  climate?: string;
+  chosen?: string;
   showers?: number;
   hot?: boolean;
 }
@@ -216,7 +219,7 @@ export function runSummary(state: HiveState): RunSummary | null {
   const first = all[0], last = all[all.length - 1], n = all.length;
   const cards: SummerCard[] = all.map(r => ({
     summer: r.summer, day: DAY[r.outcome], lost: r.outcome === 'lost',
-    weather: `${SEASON[r.season ?? 'ordinary']}${r.hot && r.season !== 'hotdry' ? ', hot' : ''}${(r.showers ?? 0) > 0 && r.season !== 'wet' ? ', showers' : ''}`,
+    weather: r.climate ?? `${SEASON[r.season ?? 'ordinary']}${r.hot && r.season !== 'hotdry' ? ', hot' : ''}${(r.showers ?? 0) > 0 && r.season !== 'wet' ? ', showers' : ''}`,
     haul: Math.min(1, haul(r)), pollinated: r.pollinated, flowers: Math.round(r.meadow * NORMAL_FLOWERS),
     tone: r.outcome === 'fantastic' || r.outcome === 'good' ? 'bright' : r.outcome === 'reasonable' ? 'fair' : 'poor',
     marks: summerMarks(r),
@@ -231,6 +234,7 @@ export function runSummary(state: HiveState): RunSummary | null {
   const hot = all.filter(r => r.waterGoal > 0), watered = hot.filter(r => r.water >= r.waterGoal - 1e-6).length;
   const kinds = [wet ? count(wet, 'wet summer', 'wet summers') : '', dry ? count(dry, 'dry one', 'dry ones') : ''].filter(Boolean);
   const weather = [
+    first.chosen ? `You chose ${first.chosen} summers for my reign.` : '',
     kinds.length ? `We had ${kinds.join(' and ')}${wet + dry < n ? ', and the rest were mild' : ''}.` : 'The summers were mild, one after another.',
     showers ? `You sheltered from ${count(showers, 'shower', 'showers')}.` : '',
     hot.length ? `On ${count(hot.length, 'hot day', 'hot days')} the comb needed cooling, and you carried water home on ${watered === hot.length ? (hot.length === 1 ? 'it' : 'all of them') : WORDS[watered] ?? watered}.` : '',
