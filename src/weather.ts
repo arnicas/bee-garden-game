@@ -14,7 +14,9 @@ export interface Shower { start: number; length: number; }
 /** What the night before left behind: rain, an ordinary dewy night, or a dry, warm one. */
 export type NightWeather = 'wet' | 'dewy' | 'dry';
 /** One day's weather: the night before, none to two showers and a hot spell, never overlapping. */
-export interface WeatherPlan { night: NightWeather; showers: Shower[]; heatStart: number; heatEnd: number; gales: Shower[]; }
+export interface WeatherPlan { night: NightWeather; showers: Shower[]; heatStart: number; heatEnd: number; gales: Shower[];
+  /** How strong the hot spell is (1 ordinary; a cool summer's is weaker, a hot one's stronger). Absent means 1. */
+  heatStrength?: number; }
 
 /** The summer's kind of weather, which biases each day's plan (see docs/design/Seasons_Design.md). */
 export type Season = 'wet' | 'ordinary' | 'dry' | 'hotdry';
@@ -29,13 +31,59 @@ interface SeasonShape {
   heat: [number, number]; heatPeak: number;
   /** Chance of a second windy spell. */
   twoGales: number;
+  /** How strong the hot spell is (1 unless the heat is chosen). */
+  strength?: number;
 }
+
+/** The weather a player can choose before the first summer (docs/design/Weather_Scenarios.md):
+ * how much rain and how much heat, each pinned for the whole run or left to nature,
+ * which rolls a season each summer as before. */
+export type RainLevel = 'little' | 'ordinary' | 'lots';
+export type HeatLevel = 'cool' | 'ordinary' | 'hot';
+export interface WeatherChoice { rain: RainLevel | 'nature'; heat: HeatLevel | 'nature'; }
+export const NATURE_DECIDES: WeatherChoice = { rain: 'nature', heat: 'nature' };
 const SEASONS: Record<Season, SeasonShape> = {
   ordinary: { nights: [.3, .8], showers: null, showerLength: 1, heat: [150, 45], heatPeak: 320, twoGales: .35 },
   wet: { nights: [.5, .95], showers: [.02, .4], showerLength: 1.25, heat: [95, 35], heatPeak: 360, twoGales: .35 },
   dry: { nights: [.1, .55], showers: [.45, .95], showerLength: .8, heat: [160, 45], heatPeak: 300, twoGales: .35 },
   hotdry: { nights: [.04, .4], showers: [.6, 1], showerLength: .7, heat: [215, 45], heatPeak: 270, twoGales: .8 },
 };
+
+/** The rain side of a season: nights, how many showers and how long. */
+const RAIN_SHAPES: Record<RainLevel, Pick<SeasonShape, 'nights' | 'showers' | 'showerLength'>> = {
+  little: { nights: [.08, .45], showers: [.55, .95], showerLength: .75 },
+  ordinary: { nights: [.3, .8], showers: null, showerLength: 1 },
+  lots: { nights: [.5, .95], showers: [.02, .4], showerLength: 1.25 },
+};
+/** The heat side: the hot spell's length and timing, its strength, and the windy spells. */
+const HEAT_SHAPES: Record<HeatLevel, Pick<SeasonShape, 'heat' | 'heatPeak' | 'twoGales' | 'strength'>> = {
+  cool: { heat: [60, 50], heatPeak: 330, twoGales: .25, strength: .6 },
+  ordinary: { heat: [150, 45], heatPeak: 320, twoGales: .35, strength: 1 },
+  hot: { heat: [215, 45], heatPeak: 270, twoGales: .8, strength: 1.15 },
+};
+/** A summer's shape: the rolled season, with any chosen side pinned over it. */
+function shapeFor(season: Season, choice: WeatherChoice): SeasonShape {
+  return { ...SEASONS[season], ...(choice.rain !== 'nature' ? RAIN_SHAPES[choice.rain] : {}), ...(choice.heat !== 'nature' ? HEAT_SHAPES[choice.heat] : {}) };
+}
+/** The season to name a summer by, once the choice has pinned a side over the rolled one. */
+export function chosenSeason(rolled: Season, choice: WeatherChoice): Season {
+  if (choice.rain === 'lots') return 'wet';
+  if (choice.rain === 'little') return choice.heat === 'hot' || (choice.heat === 'nature' && rolled === 'hotdry') ? 'hotdry' : 'dry';
+  if (choice.heat === 'cool' && rolled === 'hotdry') return 'dry';
+  if (choice.heat === 'hot' && rolled === 'dry') return 'hotdry';
+  return rolled;
+}
+/** Where a run's ground starts: a little drier when little rain is chosen, damper with a lot. */
+export function startMoisture(choice: WeatherChoice): number {
+  return choice.rain === 'little' ? .35 : choice.rain === 'lots' ? .65 : .5;
+}
+/** Reads a choice from strings (a URL or saved settings), ignoring anything unknown. */
+export function parseWeatherChoice(rain: string | null | undefined, heat: string | null | undefined): WeatherChoice {
+  return {
+    rain: rain === 'little' || rain === 'ordinary' || rain === 'lots' ? rain : 'nature',
+    heat: heat === 'cool' || heat === 'ordinary' || heat === 'hot' ? heat : 'nature',
+  };
+}
 
 /** Rolls a summer's season, leaning toward what the ground already is: a dry
  * meadow is likelier to get another dry summer, a wet one another wet summer. */
@@ -72,13 +120,14 @@ export function heatLikelihood(centre: number, peak = HEAT_PEAK): number {
 /** Builds a day's plan from a seeded random source: 1–2 showers and one hot
  * spell. Candidate days are drawn until one's hot spell passes the time-of-day
  * likelihood, so the plan stays reproducible for a given seed. */
-export function planWeather(random: () => number, season: Season = 'ordinary'): WeatherPlan {
+export function planWeather(random: () => number, season: Season = 'ordinary', choice: WeatherChoice = NATURE_DECIDES): WeatherPlan {
   // The night first: in an ordinary summer about a third of mornings follow rain, a fifth a dry night.
-  const shape = SEASONS[season];
+  const shape = shapeFor(season, choice);
   const roll = random(), night: NightWeather = roll < shape.nights[0] ? 'wet' : roll < shape.nights[1] ? 'dewy' : 'dry';
   const plan = placeHeat(random, night, shape);
   plan.gales = planGales(random, shape.twoGales);
   plan.night = night;
+  if (shape.strength !== undefined && shape.strength !== 1) plan.heatStrength = shape.strength;
   return plan;
 }
 
@@ -145,7 +194,7 @@ export function weatherAt(daySeconds: number, out: MeadowWeather, plan: WeatherP
   }
   // A gradual hot spell, then milder light. Rest advances this daylight
   // envelope; the bee's exposure still accumulates in real time.
-  out.sunHeat = MathUtils.smoothstep(t, plan.heatStart, plan.heatStart + 45) * (1 - MathUtils.smoothstep(t, plan.heatEnd - 75, plan.heatEnd)) * (1 - out.cloudiness);
+  out.sunHeat = MathUtils.smoothstep(t, plan.heatStart, plan.heatStart + 45) * (1 - MathUtils.smoothstep(t, plan.heatEnd - 75, plan.heatEnd)) * (1 - out.cloudiness) * (plan.heatStrength ?? 1);
   return out;
 }
 
@@ -154,7 +203,7 @@ export function weatherAt(daySeconds: number, out: MeadowWeather, plan: WeatherP
  * run of similar summers moves it a long way. See docs/design/Seasons_Design.md. */
 export function nextMoisture(moisture: number, plan: WeatherPlan, cover = 1): number {
   const rainMinutes = plan.showers.reduce((sum, s) => sum + s.length, 0) / 60;
-  const heatMinutes = Math.max(0, plan.heatEnd - plan.heatStart) / 60;
+  const heatMinutes = Math.max(0, plan.heatEnd - plan.heatStart) / 60 * (plan.heatStrength ?? 1);
   const night = plan.night === 'wet' ? .25 : plan.night === 'dewy' ? .1 : -.15;
   const day = Math.max(-1, Math.min(1, rainMinutes / 4 + night - heatMinutes / 6));
   return Math.max(0, Math.min(1, moisture + day * .45 + coverMoisture(cover)));
@@ -180,7 +229,7 @@ export function coverLine(shift: number, ahead = false): string {
 /** A hot day: a long hot spell (about one ordinary day in five, most dry-summer
  * days and every hot, dry one), when the hive needs water carried home to cool it. */
 export function hiveNeedsWater(plan: WeatherPlan): boolean {
-  return plan.heatEnd - plan.heatStart >= 185;
+  return plan.heatEnd - plan.heatStart >= 185 && (plan.heatStrength ?? 1) >= .9;
 }
 /** How a dry or wet summer changes the meadow friends, or '' in an ordinary one. It
  * says what they do, not how many there are: the counts beside it also follow the

@@ -41,6 +41,7 @@ fewer of the ones you didn't, and the friends that depend on them.
 | Drop down into the grass | **Ctrl** |
 | Land, shelter, rest | **E** when the E cue appears (on a flower, on or under a leaf, in the grass) |
 | Sip nectar or water | Hold **F** (or the left mouse button) |
+| Cool off with carried water (when too hot) | Hold **F** with nothing to sip |
 | Bee Vision | **Q** shows flowers you haven't visited, and the ones your pollen matches |
 | Head home early | **R** |
 | Photo | **P** saves the view as a picture |

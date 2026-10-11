@@ -47,6 +47,9 @@ was built and where. Tidied 2026-09-28.
 
 ### Summers
 
+- [x] Cooling with carried water (Lynn, 2026-10-11; `tests/water-cool.spec.ts`): when too hot and carrying water, holding F with nothing to sip or share spends some of it (1.5 a second) to cool her quickly (honeybees let a droplet from the crop evaporate off the head). On a hot day the hive then needs it topped up before she goes home. Hint and a first-time note say so; Bee Facts and the player guide too.
+- [ ] Weather scenarios as start options (Lynn, 2026-10-11): see `docs/design/Weather_Scenarios.md`. Two dials on the title screen, rain (little, as nature decides, a lot) and heat (cool, as nature decides, hot), split from today's single season; later the flowers (mix and fullness). Remembered, saved with the run, named on the start page and in the Queen's Farewell. Replaces the scenario sketch in `Seasons_Design.md`.
+
 - [ ] The summers arc: five summers, then winter (Lynn, 2026-09-30; merges "the hive can fail" and "a run of about five summers"). The reason to keep playing: results build across summers, and the hive's fate at the end rests on them. Keep "no hive meter": the hive is felt through words and scenes.
   - [x] Step 1 (2026-10-09): design in `docs/design/Summers_Arc.md` (what is tracked across summers, the stores model, endings, decisions for Lynn) and the hidden stores model `src/hive-stores.ts` with `tests/hive-stores.spec.ts`.
   - [x] Step 2 (2026-10-09): wired in (`tests/summers-arc.spec.ts`). Each finished day is recorded (home or lost) and logged to the console on dev pages; hive stress sets the fallen bees; the start page reads "Summer N of 5" with a line when stores are low and on the last summer; the Queen adds a line when stores are low; once the run ends, the results say how (text only for now) and the button reads "A new meadow", which starts a fresh run. Off on test pages unless `?arc`; `?arc=GGOL` starts partway. Next: save and "Continue with Summer N", the summers strip, the ending scenes.
@@ -85,6 +88,16 @@ was built and where. Tidied 2026-09-28.
 - [ ] Vary the sky and sunsets (Lynn, 2026-09-27). Ready: `atmosphere.ts` takes a `SkyLook` per day (haze, fair / high / no clouds and their amount, and a golden, rose, ember or pale sunset). Left to do: roll a look from each day's weather plan so it reads as the same day (clear pale blue; high haze; fair-weather clouds; a mackerel sky or clouds building before a shower; flat grey on a showery day; clearing with bright edges after rain; golden after a hot day, pink and lilac after a clear one, streaked orange after showers, pale after late rain); morning mist after a wet night, burning off; a crisp clear start after a dry one. Keep the daylight strip and watercolor edges readable against every sky; let the flowers' colours shift a little with the light.
 - [ ] Night between summers, still to do: a reduced-motion version (three stills: dusk, the night's weather, dawn, with short fades; today reduced motion skips the night); the day's wind streaks at night; a few moths drifting round the flowers by moonlight; the moon's phase moving on each summer.
 - [x] (2026-10-01, the nearest cornflower, in the shower) Showcase video: in the rain shot ("Shelter from the rain and the heat"), film a cornflower or daisy close-up instead of the poppy (the poppy already has its own shot). The camera is in `video/shots.spec.ts` (it uses `poppies[1]`); `video/README.md` explains how to remake the video.
+
+- [ ] A bee model from an external tool (GLB), maybe (Lynn, 2026-10-10; not decided). For the tired and fallen bees, the bees at the hive and in the homecoming, maybe the title flight; not the first-person bee (only her forelegs and tongue show, built separately). What the file should be:
+  - **Size:** true scale in metres (glTF's unit): a worker honeybee is about 1.2–1.5 cm long, so about 0.013 m. The game is 1 unit = 10 cm and the loader rescales from the bounding box, so true scale just makes it easy to check.
+  - **Orientation:** +Y up, head toward +Z (the glTF / Three.js convention, and how the grounded bees face).
+  - **Origin:** at the bottom, between the feet under the thorax. Bees mostly stand on leaf tops, pool rims, the landing board and flowers, placed on surface heights; flying bees are lifted in code.
+  - **Parts:** wings (4, or 2 if fore and hind wings are merged), antennae and legs as separate nodes, or a rig with named bones (wing_L, wing_R, antenna_L, …), so we can flutter, shiver and groom them as now. Optional named clips (fly, walk, groom).
+  - **Budget:** about 3–8k triangles (a dozen or more at once: 14 workers in the homecoming, plus hive mates in the grass); under about 1–2 MB; Draco compression is fine (add the decoder).
+  - **Materials:** base colours or one small texture, no heavy PBR maps (the watercolour look comes from our lighting and shading); partly see-through wings.
+  - **Pose:** at rest, wings folded back over the abdomen; a fallen bee can be the same model rolled in code.
+  - **Licence:** must allow use in a public web game; credit it in Bee Facts or the README.
 
 ### Lower priority
 

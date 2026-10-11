@@ -55,8 +55,8 @@ export const beeFacts: readonly BeeFact[] = [
   },
   {
     id: 'water', section: 'bee', label: 'A sip of water', title: 'Water for a hot day.', scope: 'Honeybees',
-    nature: 'Bees need water as well as food. Honeybee water foragers carry it home in their crop; on hot days the hive spreads it thinly and fans it, cooling the nest as it evaporates, and it thins stored honey for feeding the young. They sip from shallow, safe places: dew, raindrops on leaves, damp moss, puddle edges, and the beads plants push out along their leaves on humid mornings.',
-    game: 'Morning dew and raindrops sit on the petals, and small pools gather in low clearings in the grass when it rains. Hold F to sip where there is no nectar in reach, or beside a pool on the ground. Water cools you in the heat but is not food. The pools dry away in the hot spell, so sip while you can.',
+    nature: 'Bees need water as well as food. Honeybee water foragers carry it home in their crop; on hot days the hive spreads it thinly and fans it, cooling the nest as it evaporates, and it thins stored honey for feeding the young. A bee can also cool herself in the heat by pushing a small droplet from her crop and letting it evaporate off her head. They sip from shallow, safe places: dew, raindrops on leaves, damp moss, puddle edges, and the beads plants push out along their leaves on humid mornings.',
+    game: 'Morning dew and raindrops sit on the petals, and small pools gather in low clearings in the grass when it rains. Hold F to sip where there is no nectar in reach, or beside a pool on the ground. Water cools you in the heat but is not food. The pools dry away in the hot spell, so sip while you can. When you are too hot and carrying water for the hive, hold F to spend a drop of it cooling yourself; the hive will then need it topped up.',
     sources: [
       { label: 'Water collection cools the hive · AskNature', url: 'https://asknature.org/strategy/water-collection-cools-hive/' },
       { label: 'Water collection by honey bees · Honey Bee Suite', url: 'https://www.honeybeesuite.com/water-collection/' },

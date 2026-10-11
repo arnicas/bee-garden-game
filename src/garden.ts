@@ -31,6 +31,7 @@ import { createEnergyWash } from './energy-wash';
 import { createRainSplash } from './rain-splash';
 import { createPuddles } from './puddles';
 import { createSeededRandom } from './utils/random';
+import { chosenSeason, parseWeatherChoice, startMoisture, type WeatherChoice } from './weather';
 import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type NightWeather, type WeatherPlan, moistureFriendsLine, hiveNeedsWater, coverLine, coverMoisture, moistureLine, nextMoisture, rollSeason, seasonNote, type Season } from './weather';
 import { edgeExposureAt, flightWindAt, MEADOW_EDGE_FULL, setWindGale, setWindVariation, surfaceHeight } from './wind';
 import type { Flower, GameUI, Meadow, Phase, Species, ViewState } from './types';
@@ -48,6 +49,9 @@ const FIXED = 1 / 60;
 const NECTAR_GOAL = 45, POLLEN_GOAL = 140;
 /** On hot days the hive asks for water (jar percent), carried in the crop with the nectar, and how fast sipping fills it. */
 const WATER_GOAL = 15, WATER_CARRY_RATE = 2;
+/** Cooling with carried water: a bee lets a drop from her crop evaporate off her head.
+ * How fast it cools (heat per second) and how fast it uses the water (per second). */
+const WATER_COOL_RATE = .35, WATER_COOL_USE = 1.5;
 const NECTAR_CAPACITY = 100;
 const ENERGY_PER_NECTAR = 3.5, SIP_ENERGY_RATE = 6;
 const REST_DURATION = 6, REST_DAY_RATE = 18;
@@ -148,6 +152,7 @@ interface TestControl {
   setPuddleFill(value: number): void;
   puddles(): { x: number; z: number; radius: number }[];
   setHeat(value: number): void;
+  coolingWithWater(): boolean;
   setQuietTime(value: number): void;
   setWindTime(value: number): void;
   shelters(): { id: number; center: number[]; perch: number[]; topPerch: number[]; rotation: number[]; root: number[]; radius: number }[];
@@ -515,7 +520,10 @@ export class Garden {
   private season: Season = 'ordinary';
   /** Ground moisture, 0 parched – 1 sodden: the water the meadow remembers from summer
    * to summer (see docs/design/Seasons_Design.md). Dev: ?moisture=0.1 starts dry. */
-  private groundMoisture = (() => { const m = Number(new URLSearchParams(location.search).get('moisture')); return Number.isFinite(m) && new URLSearchParams(location.search).has('moisture') ? THREE.MathUtils.clamp(m, 0, 1) : .5; })();
+  /** The weather chosen for this run: rain and heat, each pinned or left to nature (see
+   * docs/design/Weather_Scenarios.md). Dev: ?rain=little|ordinary|lots&heat=cool|ordinary|hot. */
+  private weatherChoice: WeatherChoice = (() => { const p = new URLSearchParams(location.search); return parseWeatherChoice(p.get('rain'), p.get('heat')); })();
+  private groundMoisture = (() => { const m = Number(new URLSearchParams(location.search).get('moisture')); return Number.isFinite(m) && new URLSearchParams(location.search).has('moisture') ? THREE.MathUtils.clamp(m, 0, 1) : startMoisture(this.weatherChoice); })();
   /** How each finished summer ended, oldest first, for the Queen's memory. */
   private outcomes: SummerOutcome[] = [];
   private queenSays = '';
@@ -814,7 +822,7 @@ export class Garden {
   /** "A new meadow" after a run ends: a fresh hive, a fresh meadow, summer 1. */
   private newRun(): void {
     clearRun(); this.savedRun = null;
-    this.hive = newHive(); this.summerNumber = 1; this.outcomes = []; this.groundMoisture = .5;
+    this.hive = newHive(); this.summerNumber = 1; this.outcomes = []; this.groundMoisture = startMoisture(this.weatherChoice);
     this.badSummers = { daisy: 0, poppy: 0, cornflower: 0 }; this.lastSummerCounts = null; this.lastSummerPollinated = { daisy: 0, poppy: 0, cornflower: 0 };
     this.lastSummerLadybirds = 0; this.lastSummerButterflies = 0; this.lastSummerSnails = 0; this.meadowGaps = []; this.lastCoverShift = 0;
     this.hotDays = 0; this.waterDays = 0; this.previousDay = null;
@@ -961,8 +969,10 @@ export class Garden {
     // The summer's season leans toward the ground's moisture (its own random lane, so a
     // replayed ?weather=N seed gives the same day). Dev: ?season=wet|ordinary|dry|hotdry.
     const asked = new URLSearchParams(location.search).get('season');
-    this.season = asked === 'wet' || asked === 'ordinary' || asked === 'dry' || asked === 'hotdry' ? asked : rollSeason(rng((seed ^ 0x5ea50) >>> 0 || 3), this.groundMoisture);
-    this.weatherPlan = planWeather(random, this.season);
+    const rolled = asked === 'wet' || asked === 'ordinary' || asked === 'dry' || asked === 'hotdry' ? asked : rollSeason(rng((seed ^ 0x5ea50) >>> 0 || 3), this.groundMoisture);
+    // A chosen rain or heat is pinned over the rolled season; the summer is named by both.
+    this.season = chosenSeason(rolled, this.weatherChoice);
+    this.weatherPlan = planWeather(random, rolled, this.weatherChoice);
     setWindVariation(random() * 240, (random() - .5) * Math.PI * 2);
     const night = new URLSearchParams(location.search).get('night');
     if (night === 'wet' || night === 'dry' || night === 'dewy') this.weatherPlan = { ...this.weatherPlan, night };
@@ -1005,7 +1015,7 @@ export class Garden {
     this.rollDayWeather();
     this.waterGoal = this.waterPlayOn && (this.hiveWaterAsked || hiveNeedsWater(this.weatherPlan)) ? WATER_GOAL : 0;
     this.planGroundedDay();
-    this.water = 0; this.waterGoalMet = false; this.jarFullNoteShown = false;
+    this.water = 0; this.waterGoalMet = false; this.jarFullNoteShown = false; this.waterCoolNoteShown = false;
     this.headingHome = false; this.edgeHold = 0; this.edgeNoteShown = false; this.report = null;
     this.phase = 'flying'; this.position.copy(START); this.previousPosition.copy(START); this.velocity.set(0, 0, 0);
     this.yaw = 0; this.pitch = -.13; this.energy = START_ENERGY; this.nectar = 0; this.pollen = 0;
@@ -1461,6 +1471,7 @@ export class Garden {
     if (this.phase === 'landed' && this.landed && !this.resting) this.forage(dt);
     this.helpHiveMate(dt);
     this.sipWater(dt);
+    this.coolWithCarriedWater(dt);
     // Wing work is relative to the air: riding a current saves energy, while
     // holding ground against it needs sustained effort.
     const drain = (this.phase === 'flying' ? .65 + this.flightEffort * .38 + this.load() * .32 + this.windDrain + this.wetness * .3 : this.resting ? .025 : .065) + Math.max(this.coldDrain, this.heatDrain);
@@ -1557,6 +1568,25 @@ export class Garden {
   }
   /** Dew or raindrops on a flower's petals (when there's no nectar in reach), or a
    * pool on the ground: hold F to sip. Water cools the bee; it isn't food. */
+  /** In the heat, holding F (with nothing to sip or share) spends a little of the water she
+   * carries to cool herself: honeybees push a droplet from the crop and let it evaporate.
+   * The hive then needs that water topped up before she goes home. */
+  private coolingWithWater = false;
+  private waterCoolNoteShown = false;
+  private coolWithCarriedWater(dt: number): void {
+    this.coolingWithWater = false;
+    if ((this.phase !== 'flying' && this.phase !== 'landed') || this.resting || this.drinking || this.sippingWater || this.helping) return;
+    if (!this.keys.has('KeyF') || this.water <= .01 || this.heat <= .05) return;
+    this.coolingWithWater = true;
+    const used = Math.min(this.water, dt * WATER_COOL_USE);
+    this.water -= used;
+    this.heat = Math.max(0, this.heat - dt * WATER_COOL_RATE * (used / (dt * WATER_COOL_USE)));
+    if (this.waterGoalMet && this.water < this.waterGoal - 1e-6) this.waterGoalMet = false;
+    if (!this.waterCoolNoteShown) {
+      this.waterCoolNoteShown = true;
+      this.notify(this.waterGoal > 0 ? 'A drop of the water you carry, evaporating, cools you · The hive will need it topped up before you go home.' : 'A drop of the water you carry, evaporating, cools you.', 6, 'Cooling down.', NOTICE.info);
+    }
+  }
   private sipWater(dt: number): void {
     if (!this.sippingWater) this.slurpTimer = .05;
     this.sippingWater = false; this.waterNear = null;
@@ -2407,6 +2437,8 @@ export class Garden {
     else if (this.phase === 'landed' && this.wetness > WET_WINGS && !this.resting) hint = 'Wings wet · Grooming them dry · E to rest and dry faster';
     else if (this.phase === 'flying' && this.wetness > .2 && this.weather.rain > .05 && !this.canLand && this.rainExposure > .05) hint = 'Wet wings are heavy · Tuck under a leaf, or hold Ctrl to drop into the grass';
     if (this.heat > .18 && this.shade > .99) hint = 'Cooling in the shade · E to rest · Space to fly when ready';
+    else if (this.coolingWithWater) hint = this.waterGoal > 0 ? 'Cooling with a drop of your water · The hive will need it topped up' : 'Cooling with a drop of your water';
+    else if (this.heat > .35 && this.water > .5 && !this.drinking && !this.sippingWater && !this.helping && !this.resting && (this.phase === 'flying' || this.phase === 'landed')) hint = 'Too hot · Hold F to cool yourself with a drop of the water you carry';
     const view: ViewState = {
       reducedMotion: this.reducedMotion, dayProgress: this.dayProgress(), resting: this.resting, loreOn: this.loreOn, lore: (active || this.phase === 'night') && this.loreView ? { id: this.loreView.card.id, kind: this.loreView.card.kind, lines: this.loreView.card.lines, source: this.loreView.card.source, opacity: this.loreView.opacity } : null, restProgress: this.restAge / REST_DURATION, endingStage: this.homecoming.stage, endingFade: this.homecoming.fade,
       quietFade: active ? this.quietFade() : 0, scenicFade: active ? this.restView.fade(this.reducedMotion) : 0, scenicAmount: active ? this.restView.amount : 0,
@@ -2570,6 +2602,7 @@ export class Garden {
       setPuddleFill: value => { this.puddles.setFill(value); },
       puddles: () => this.meadow.puddles.map(p => ({ ...p })),
       setHeat: value => { this.heat = THREE.MathUtils.clamp(value, 0, 1); },
+      coolingWithWater: () => this.coolingWithWater,
       setDayProgress: value => { this.dayElapsed = THREE.MathUtils.clamp(value, 0, 1) * DAY_DURATION; this.nightfallChecked = false; },
       setWindTime: value => { this.time = Math.max(0, value); this.windFX.reset(this.position, this.time); this.updateWorld(this.reducedMotion ? 0 : this.time); this.updateView(0); },
       setQuietTime: value => { this.quietAge = Math.max(0, value); },
