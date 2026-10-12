@@ -81,12 +81,16 @@ test('an ant mound counts quickly from a little way off', async ({ page }) => {
   await expect(page.locator('.message-toast')).toContainText('Ants!');
 });
 
-test('right beside an ant mound, looking straight ahead, it counts', async ({ page }) => {
+test('right beside an ant mound, it counts only once she looks down at it', async ({ page }) => {
   await open(page);
   const colony = (await page.evaluate(() => window.__BEE_TEST__!.antColonies()))[0];
   const nest = colony.nest;
-  // Level, half a unit away and facing past it: the mound sits below the view.
+  // Level, half a unit away and facing past it: the mound sits below the view, so it doesn't count.
   await page.evaluate(n => window.__BEE_TEST__!.setPose([n[0] + .5, n[1] + .5, n[2]], Math.PI / 2, 0), nest);
+  await page.waitForTimeout(1500);
+  expect((await page.evaluate(() => window.__BEE_TEST__!.antColonies())).find(c => c.id === colony.id)!.seen).toBe(false);
+  // Looking down at it: a quick look is enough.
+  await lookFrom(page, [nest[0] + .5, nest[1] + .5, nest[2]], nest);
   await expect.poll(async () => (await page.evaluate(() => window.__BEE_TEST__!.antColonies())).find(c => c.id === colony.id)!.seen, { timeout: 3_000 }).toBe(true);
 });
 
@@ -102,4 +106,17 @@ test('landing on a flower with a butterfly at its nectar counts the butterfly', 
   await expect.poll(async () => (await page.evaluate(() => window.__BEE_TEST__!.snapshot()) as any).canLand).toBe(true);
   await page.keyboard.press('e');
   await expect.poll(async () => (await page.evaluate(() => window.__BEE_TEST__!.butterflies())).find(b => b.id === butterfly!.id)!.seen, { timeout: 3_000 }).toBe(true);
+});
+
+test('standing on a flower, the aphids on its stem below are hidden by the head', async ({ page }) => {
+  await open(page);
+  const clusters = (await page.evaluate(() => window.__BEE_TEST__!.aphids())).filter(c => c.population > .5 && c.position.some(v => v !== 0) && !c.seen);
+  expect(clusters.length).toBeGreaterThan(0);
+  const cluster = clusters[0];
+  await page.evaluate(id => window.__BEE_TEST__!.approachFlower(id), cluster.flowerId);
+  await expect.poll(async () => (await page.evaluate(() => window.__BEE_TEST__!.snapshot())).canLand).toBe(true);
+  await page.keyboard.press('e');
+  await expect.poll(async () => (await page.evaluate(() => window.__BEE_TEST__!.snapshot())).phase).toBe('landed');
+  await page.waitForTimeout(2500);
+  expect(await aphidSeen(page, cluster.id)).toBe(false);
 });

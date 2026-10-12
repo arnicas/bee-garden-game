@@ -86,7 +86,7 @@ was built and where. Tidied 2026-09-28.
 ### Sky, night and video
 
 - [ ] Vary the sky and sunsets (Lynn, 2026-09-27). Ready: `atmosphere.ts` takes a `SkyLook` per day (haze, fair / high / no clouds and their amount, and a golden, rose, ember or pale sunset). Left to do: roll a look from each day's weather plan so it reads as the same day (clear pale blue; high haze; fair-weather clouds; a mackerel sky or clouds building before a shower; flat grey on a showery day; clearing with bright edges after rain; golden after a hot day, pink and lilac after a clear one, streaked orange after showers, pale after late rain); morning mist after a wet night, burning off; a crisp clear start after a dry one. Keep the daylight strip and watercolor edges readable against every sky; let the flowers' colours shift a little with the light.
-- [ ] Night between summers, still to do: a reduced-motion version (three stills: dusk, the night's weather, dawn, with short fades; today reduced motion skips the night); the day's wind streaks at night; a few moths drifting round the flowers by moonlight; the moon's phase moving on each summer.
+- [ ] Night between summers, still to do: a reduced-motion version (three stills: dusk, the night's weather, dawn, with short fades; today reduced motion skips the night); the day's wind streaks at night; the moon's phase moving on each summer.
 - [x] (2026-10-01, the nearest cornflower, in the shower) Showcase video: in the rain shot ("Shelter from the rain and the heat"), film a cornflower or daisy close-up instead of the poppy (the poppy already has its own shot). The camera is in `video/shots.spec.ts` (it uses `poppies[1]`); `video/README.md` explains how to remake the video.
 
 - [ ] A bee model from an external tool (GLB), maybe (Lynn, 2026-10-10; not decided). For the tired and fallen bees, the bees at the hive and in the homecoming, maybe the title flight; not the first-person bee (only her forelegs and tongue show, built separately). What the file should be:
@@ -207,3 +207,10 @@ was built and where. Tidied 2026-09-28.
 - [x] README rewritten player-first, with images in `docs/images/`.
 - [x] Docs reorganised (2026-10-02): a short README pointing to `docs/player-guide.md` (how to play, full rules) and `docs/development.md` (setup, source map, tests, hosting); design notes in `docs/design/`, research in `docs/research/`, an index in `docs/README.md`.
 - [x] Showcase video (`video/`): scripted frame-by-frame capture, captions, a synthesized soundtrack, results and facts screens, Lynn's web clip, and end titles over the high meadow view. See `video/README.md`.
+
+## Maybe: click to count a creature (on hold, 2026-10-11)
+After playtesting the stricter sighting fix (up-close sightings must now be on screen and not under a flower head):
+a short click on a visible snail, mushroom, ladybird, aphids, butterfly, caterpillar or ant mound counts it at once,
+with a small sparkle. Drag still turns the view, a held click still sips. Generous click radius for tiny ones (aphids, ladybirds).
+
+- [x] Night creatures (2026-10-12): butterflies roost from dusk to morning (under leaves or low in the grass, wings closed); three moths loop round the daisies by night (src/moths.ts), into the grass at dawn or in rain. Scenery only, not finds. Moths entry in Bee and Meadow Facts.

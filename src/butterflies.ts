@@ -17,6 +17,8 @@ import type { Flower } from './types';
  * too cool) and shelter under the broad leaves or down in the grass, wings
  * closed. When the rain stops they come out and bask, wings flat to the sun,
  * before feeding again. Under heavy cloud they sit longer between flights.
+ * Night: they roost the same way, under a leaf or low in the grass, wings closed, from dusk
+ * until the light comes back; the night's moths are in moths.ts.
  * The male common blue's blue is structural (tiny scale ridges), so it has an
  * angle-dependent sheen; females are brown.
  */
@@ -281,6 +283,8 @@ export interface ButterflyWorld {
   /** 0–1 rain, and 0–1 sunshine (1 - cloudiness). */
   rain: number;
   sun: number;
+  /** 0–1 how dark it is: after dusk they roost, wings closed, until the morning. */
+  night?: number;
 }
 
 export function createButterflies(scene: THREE.Scene, seed: number, flowers: readonly Flower[], count: number, leaves: readonly LeafShelter[] = []) {
@@ -402,13 +406,21 @@ export function createButterflies(scene: THREE.Scene, seed: number, flowers: rea
   place();
 
   const update = (time: number, dt: number, bee: THREE.Vector3, reduced: boolean, world: ButterflyWorld) => {
+    // Night: butterflies don't fly in the dark. At dusk each settles under a leaf or low
+    // in the grass, wings closed, and roosts until the morning sun warms it.
+    const night = world.night ?? 0, roost = night > .5, light = night < .3;
     const wet = world.rain > .08, dry = world.rain < .03;
     for (const f of fliers) {
       let open: number;
-      if (wet && !f.shelter) seekShelter(f);
+      if ((wet || roost) && !f.shelter) seekShelter(f);
       if (f.state === 'sheltering') {
-        // Out again once the rain has passed, each in its own time; it basks first.
-        if (dry && !reduced && f.random() < dt * .4) { f.shelter = null; f.baskNext = true; takeOff(f, world); }
+        // Out again once the rain has passed (and it's light), each in its own time; it basks first.
+        if (dry && light && reduced) {
+          // With reduced motion there's no flight to watch: it is simply back on a flower.
+          f.shelter = null; f.flower = chooseFlower(f, world);
+          if (f.flower) { f.state = 'feeding'; f.feedLeft = 8 + f.random() * 12; f.perchFlower = null; perchPoint(f, f.flower, f.position); }
+          else takeOff(f, world);
+        } else if (dry && light && f.random() < dt * .4) { f.shelter = null; f.baskNext = true; takeOff(f, world); }
       }
       if (f.state === 'sheltering' && f.shelter) {
         shelterPoint(f, f.position);

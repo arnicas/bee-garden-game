@@ -53,7 +53,7 @@ test('illustrated notes have accessible topics, readable sources and a bounded l
   await openFacts(page);
   const dialog = page.getByRole('dialog', { name: 'Bees & the Meadow' });
   const tabs = dialog.getByRole('tab');
-  await expect(tabs).toHaveCount(21);
+  await expect(tabs).toHaveCount(22);
   // Three sections: the bee herself, the meadow and its friends, and bee lore.
   await expect(dialog.locator('.facts-group')).toHaveText(['Bee facts', 'The meadow', 'Bee lore']);
   // Bee lore lists every card of its kind, with where it comes from.

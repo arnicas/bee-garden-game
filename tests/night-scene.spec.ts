@@ -52,3 +52,29 @@ test('the night ends by itself into the next summer', async ({ page }) => {
   await expect.poll(async () => (await state(page)).phase, { timeout: 10000 }).toBe('learning');
   await expect(page.locator('.night-caption')).toBeHidden();
 });
+
+test('by night the butterflies roost and a few moths come out round the daisies', async ({ page }) => {
+  await toNight(page);
+  await page.evaluate(() => window.__BEE_TEST__!.setNight('dry'));
+  await page.evaluate(() => window.__BEE_TEST__!.setNightAge(4));
+  // Dusk: every butterfly heads for a leaf or the grass and settles there, wings closed.
+  await expect.poll(async () => { const b = (await state(page)).butterflies; return b.count > 0 && b.sheltering === b.count; }, { timeout: 12_000 }).toBe(true);
+  expect((await state(page)).butterflies.feeding).toBe(0);
+  await expect.poll(async () => (await state(page)).moths.out, { timeout: 6_000 }).toBeGreaterThan(0);
+  await page.screenshot({ path: 'artifacts/night-scene/moths-overhead.png' });
+});
+
+test('close up at night: moths loop round a daisy while the butterflies sleep', async ({ page }) => {
+  await page.goto('/?test');
+  await startFlyingFixture(page);
+  await page.evaluate(() => window.__BEE_TEST__!.setSkyClock(1.5));
+  await expect.poll(async () => (await state(page)).moths.out, { timeout: 8_000 }).toBeGreaterThan(0);
+  const moth = (await state(page)).moths.positions[0] as number[];
+  await page.evaluate(m => window.__BEE_TEST__!.setPose([m[0] + 1.1, m[1] + .2, m[2] + 1.1], Math.atan2(1.1, 1.1), -.12), moth);
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: 'artifacts/night-scene/moths-close.png' });
+  // Back to day: the moths go down into the grass, and the butterflies come out again.
+  await page.evaluate(() => window.__BEE_TEST__!.setSkyClock(.4));
+  await expect.poll(async () => (await state(page)).moths.out, { timeout: 8_000 }).toBe(0);
+  await expect.poll(async () => (await state(page)).butterflies.sheltering, { timeout: 15_000 }).toBeLessThan((await state(page)).butterflies.count);
+});

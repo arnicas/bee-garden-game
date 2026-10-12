@@ -19,6 +19,7 @@ import { createFlowerRain } from './flower-rain';
 import { createWebs, type SpiderWeb } from './webs';
 import { createLadybirds } from './friends';
 import { createButterflies, type ButterflyWorld } from './butterflies';
+import { createMoths } from './moths';
 import { createSnails } from './snails';
 import { createAnts } from './ants';
 import { createMushrooms } from './mushrooms';
@@ -100,8 +101,8 @@ const SIGHT_GRASS_TOP = 1.1, SIGHT_GRASS_DEPTH = .7;
 /** About how big each kind looks (art units, one about 10 cm). An aphid cluster is a smudge of
  * specks; a trail is a line of ants; a mound is a heap of bare soil. */
 const SIGHT_SIZE = { ladybird: .085, aphids: .045, snail: .13, caterpillar: .22, butterfly: .32, antTrail: .12, antMound: .35, bee: .14 } as const;
-/** Right beside a creature (this close to the eye) the bee notices it wherever she is looking,
- * unless a leaf is in the way: an ant mound by her feet sits below the view. */
+/** Right beside a creature (this close to the eye) a quick look is enough at any size, as long as
+ * it is on screen and no leaf or flower head is in the way (nothing counts that she can't see). */
 const SIGHT_NEARBY = { ladybird: .35, aphids: .3, snail: .5, caterpillar: .6, butterfly: 1.1, antTrail: .5, antMound: 1.1, bee: .7 } as const;
 /** Helping a tired hive mate: how close to stand, and how much of the jar (percent) a share takes. */
 const HELP_REACH = .75, SHARE_NECTAR = 3;
@@ -230,6 +231,8 @@ export class Garden {
   private caughtWeb: SpiderWeb | null = null;
   private ladybirds: ReturnType<typeof createLadybirds>;
   private butterflies: ReturnType<typeof createButterflies>;
+  /** A few moths by night (scenery only). */
+  private moths: ReturnType<typeof createMoths>;
   private snails: ReturnType<typeof createSnails>;
   private ants: ReturnType<typeof createAnts>;
   private mushrooms: ReturnType<typeof createMushrooms>;
@@ -245,6 +248,10 @@ export class Garden {
   private helpedNoteShown = false;
   /** The run of five summers: the hive's hidden stores and each summer's record (see src/hive-stores.ts).
    * Off on test pages unless ?arc, which may also start partway (?arc=GGOL: good, good, okay, lost). */
+  /** Dev: ?sightdebug shows, for the unseen creatures on screen, why each isn't counting yet. */
+  private readonly sightDebugOn = new URLSearchParams(location.search).has('sightdebug');
+  private sightDebugBox: HTMLElement | null = null;
+  private sightDebugAge = 0;
   private readonly arcOn = (() => { const p = new URLSearchParams(location.search); return !p.has('test') || p.has('arc'); })();
   private hive: HiveState = (() => { const code = new URLSearchParams(location.search).get('arc'); return code ? hiveFromCode(code) : newHive(); })();
   private summerRecorded = false;
@@ -267,6 +274,7 @@ export class Garden {
     beeFlower: -1,
     rain: 0,
     sun: 1,
+    night: 0,
   };
   private butterflyTime = 0;
   /** The first-meeting note shows once per session; test pages skip it unless ?friends. */
@@ -601,6 +609,7 @@ export class Garden {
     this.caterpillars = createCaterpillars(this.scene, this.seed, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).caterpillars);
     this.groundedBees = createGroundedBees(this.scene, this.seed, this.leafShelters.shelters, this.meadow.puddles);
     this.butterflies = createButterflies(this.scene, this.seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).butterflies, this.leafShelters.shelters);
+    this.moths = createMoths(this.scene, this.seed, this.meadow.flowers);
     this.puddles = createPuddles(this.scene, this.meadow.puddles); this.puddles.setMoisture(this.groundMoisture); this.puddles.setBare(meadowDryness(countSpecies(this.meadow.flowers))); this.meadow.setHollows(this.puddles.hollows(moistureShift(this.groundMoisture).dry));
     this.snails = createSnails(this.scene, this.seed, this.meadow.flowers, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).snails, this.meadow.puddles, this.meadow.mushroomPatches);
     this.snailDryness = THREE.MathUtils.clamp(meadowDryness(countSpecies(this.meadow.flowers)) + moistureShift(this.groundMoisture).dry * .8, 0, 1);
@@ -643,7 +652,13 @@ export class Garden {
    * the side, too small, behind a broad leaf or a flower head, or deep in the grass. */
   private sightPixels(at: THREE.Vector3, size: number, clearing = 0, nearby = 0): number {
     const eye = this.camera.position, distance = eye.distanceTo(at);
-    if (distance < nearby && !this.behindLeaf(eye, at)) return SIGHT_REF_PIXELS * 2;
+    // Right beside one, a quick look is enough, but it still has to be on screen: not below the
+    // view, not under the flower head she stands on, not behind a leaf.
+    if (distance < nearby) {
+      const p = this.viewPoint.copy(at).project(this.camera);
+      const onScreen = p.z >= -1 && p.z <= 1 && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
+      return onScreen && !this.behindLeaf(eye, at) && !this.behindFlowerHead(eye, at) ? SIGHT_REF_PIXELS * 2 : 0;
+    }
     if (distance > SIGHT_MAX_RANGE) return 0;
     const pixels = size / Math.max(.05, distance) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
     if (pixels < SIGHT_MIN_PIXELS) return 0;
@@ -655,8 +670,8 @@ export class Garden {
    * disc. Seen from above, the head hides what's on the stem beneath it; from the side, it doesn't. */
   private behindFlowerHead(from: THREE.Vector3, to: THREE.Vector3): boolean {
     const length = from.distanceTo(to);
+    // The flower she stands on counts too: from on top, its head hides the stem and leaves below.
     for (const f of this.meadow.flowers) {
-      if (this.landed === f) continue;
       const t = THREE.MathUtils.clamp(this.leafProbe.subVectors(f.center, from).dot(this.leafTo.subVectors(to, from)) / Math.max(1e-6, length * length), 0, 1);
       if (this.leafProbe.copy(from).addScaledVector(this.leafTo, t).distanceTo(f.center) > f.radius) continue;
       const up = this.headUp.set(0, 1, 0).applyQuaternion(f.rotation);
@@ -705,6 +720,42 @@ export class Garden {
     sighting.lost = 0;
     sighting.time += dt * THREE.MathUtils.clamp(pickPixels / SIGHT_REF_PIXELS, SIGHT_SLOWEST, SIGHT_FASTEST);
     return sighting.time >= SIGHT_NEEDED ? pick : null;
+  }
+  /** Dev readout (?sightdebug): each unseen creature on screen and nearby, with what stops it counting. */
+  private showSightDebug(dt: number): void {
+    this.sightDebugAge += dt;
+    if (this.sightDebugAge < .2) return;
+    this.sightDebugAge = 0;
+    if (!this.sightDebugBox) {
+      this.sightDebugBox = document.createElement('pre');
+      this.sightDebugBox.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99;margin:0;padding:6px 8px;background:rgba(20,24,18,.72);color:#f4eed8;font:11px/1.35 ui-monospace,monospace;pointer-events:none;white-space:pre';
+      document.body.appendChild(this.sightDebugBox);
+    }
+    const eye = this.camera.position, lines: string[] = [];
+    const check = (kind: string, id: number, at: THREE.Vector3, size: number, nearby: number) => {
+      const distance = eye.distanceTo(at);
+      if (distance > SIGHT_MAX_RANGE + 2 || at.lengthSq() === 0) return;
+      const p = this.viewPoint.copy(at).project(this.camera);
+      if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) return;
+      const pixels = size / Math.max(.05, distance) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+      const why: string[] = [];
+      if (distance >= nearby) {
+        if (distance > SIGHT_MAX_RANGE) why.push('too far');
+        if (pixels < SIGHT_MIN_PIXELS) why.push(`too small (${pixels.toFixed(0)}px < ${SIGHT_MIN_PIXELS})`);
+        if (Math.abs(p.x) > SIGHT_FIELD_X || Math.abs(p.y) > SIGHT_FIELD_Y) why.push('edge of view');
+        if (this.hiddenInGrass(eye, at)) why.push(`in grass (${(at.y - meadowGroundHeight(at.x, at.z)).toFixed(2)} up)`);
+      }
+      if (this.behindLeaf(eye, at)) why.push('behind leaf');
+      if (this.behindFlowerHead(eye, at)) why.push('behind flower head');
+      const look = this.sightings.get(kind);
+      const progress = look && look.id === id ? ` look ${(look.time / SIGHT_NEEDED * 100).toFixed(0)}%` : '';
+      lines.push(`${kind} #${id} ${distance.toFixed(1)} away ${pixels.toFixed(0)}px: ${why.length ? why.join(', ') : 'visible' + progress}`);
+    };
+    for (const b of this.ladybirds.birds) if (!b.seen) check('ladybird', b.id, b.position, SIGHT_SIZE.ladybird, SIGHT_NEARBY.ladybird);
+    for (const c of this.ladybirds.aphids) if (!c.seen && c.population > .15) check('aphids', c.id, c.position, SIGHT_SIZE.aphids, SIGHT_NEARBY.aphids);
+    for (const b of this.butterflies.butterflies) if (!b.seen) check('butterfly', b.id, b.position, SIGHT_SIZE.butterfly, SIGHT_NEARBY.butterfly);
+    for (const s of this.snails.snails) if (!s.seen) check('snail', s.id, s.position, SIGHT_SIZE.snail, SIGHT_NEARBY.snail);
+    this.sightDebugBox.textContent = lines.length ? lines.slice(0, 8).join('\n') : 'no unseen creatures on screen';
   }
   private spotted(kind: string, id: number, at: THREE.Vector3, dt: number, size?: number): boolean {
     const sighting = this.sightings.get(kind);
@@ -784,7 +835,7 @@ export class Garden {
   private noticeLead = '';
   /** Replaces the meadow and everything built on its flowers. */
   private rebuildMeadow(seed: number, spots: readonly FlowerSpot[] | null): void {
-    this.stopRest(); this.clearShelter(); this.leafShelters.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.ladybirds.dispose(); this.ants.dispose(); this.mushrooms.dispose(); this.petals.dispose(); this.caterpillars.dispose(); this.groundedBees.dispose(); this.butterflies.dispose(); this.snails.dispose(); this.puddles.dispose(); this.caughtWeb = null; this.seed = seed;
+    this.stopRest(); this.clearShelter(); this.leafShelters.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.ladybirds.dispose(); this.ants.dispose(); this.mushrooms.dispose(); this.petals.dispose(); this.caterpillars.dispose(); this.groundedBees.dispose(); this.butterflies.dispose(); this.moths.dispose(); this.snails.dispose(); this.puddles.dispose(); this.caughtWeb = null; this.seed = seed;
     this.pollinationFX.reset(); this.homecoming.dispose(); this.meadow.dispose();
     this.meadow = createMeadow(this.scene, seed, spots, this.groundMoisture);
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
@@ -798,6 +849,7 @@ export class Garden {
     this.caterpillars = createCaterpillars(this.scene, seed, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).caterpillars);
     this.groundedBees = createGroundedBees(this.scene, seed, this.leafShelters.shelters, this.meadow.puddles);
     this.butterflies = createButterflies(this.scene, seed, this.meadow.flowers, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).butterflies, this.leafShelters.shelters);
+    this.moths = createMoths(this.scene, seed, this.meadow.flowers);
     this.puddles = createPuddles(this.scene, this.meadow.puddles); this.puddles.setMoisture(this.groundMoisture); this.puddles.setBare(meadowDryness(countSpecies(this.meadow.flowers))); this.meadow.setHollows(this.puddles.hollows(moistureShift(this.groundMoisture).dry));
     this.snails = createSnails(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters, friendCounts(countSpecies(this.meadow.flowers), this.groundMoisture).snails, this.meadow.puddles, this.meadow.mushroomPatches);
     this.snailDryness = THREE.MathUtils.clamp(meadowDryness(countSpecies(this.meadow.flowers)) + moistureShift(this.groundMoisture).dry * .8, 0, 1);
@@ -1422,6 +1474,7 @@ export class Garden {
       if (this.phase === 'flying') this.fly(dt); else if (!this.resting) this.crawl(dt);
       this.checkWebs();
     }
+    if (this.sightDebugOn) this.showSightDebug(dt);
     // Meadow friends: getting close to a ladybird counts it for the day; the
     // first one of the session brings a short note.
     { const near = this.ladybirds.nearest(this.position);
@@ -2276,7 +2329,11 @@ export class Garden {
     const butterflyDt = THREE.MathUtils.clamp(time - this.butterflyTime, 0, .1); this.butterflyTime = time;
     this.butterflyWorld.beeFlower = this.landed?.id ?? -1;
     this.butterflyWorld.rain = this.weather.rain; this.butterflyWorld.sun = 1 - this.weather.cloudiness;
+    // By night the butterflies roost and a few moths come out.
+    const dark = this.atmosphere.diagnostics().night;
+    this.butterflyWorld.night = dark;
     this.butterflies.update(time, butterflyDt, this.position, this.reducedMotion, this.butterflyWorld);
+    this.moths.update(time, butterflyDt, this.reducedMotion, { night: dark, rain: this.weather.rain });
     if (this.landed) this.position.copy(this.localPosition).applyQuaternion(this.landed.rotation).add(this.landed.center);
     if (this.underLeaf) this.position.copy(this.underLeaf.perch);
     if (this.onLeaf) this.position.copy(this.onLeaf.topPerch);
@@ -2618,7 +2675,7 @@ export class Garden {
       hideDebugUi: (_value: boolean) => { /* No debug panels in the player interface. */ },
     };
     window.__BEE_TEST__ = {
-      snapshot: () => ({ season: this.season, weatherPlan: this.weatherPlan, moisture: this.groundMoisture, outcomes: this.outcomes, queenLine: this.queenSays, nightAge: this.nightAge, previousDay: this.previousDay, night: this.weatherPlan.night, leafWet: this.leafWet, butterflies: this.butterflies.diagnostics(), snails: this.snails.diagnostics(), ants: this.ants.diagnostics(), mushrooms: this.mushrooms.diagnostics(), petals: this.petals.diagnostics(), caterpillars: this.caterpillars.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), lore: this.lore.diagnostics(), loreOn: this.loreOn, restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), water: { sips: this.waterSips, carried: this.water, goal: this.waterGoal, grassShade: this.grassShade(), sipping: this.sippingWater, near: this.waterNear, flower: this.landed ? this.flowerRain.waterOn(this.landed.id) : 0, puddles: this.puddles.diagnostics() }, raindrops: { on: this.raindropsOn, wetness: this.wetness, strikes: this.dropStrikes, count: this.dropCount, drips: this.dripCount, knockdown: this.knockdown, knockedDown: this.knockedDown, groom: this.bee.groomAmount(), splash: this.rainSplash.diagnostics() }, nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking && !this.sharingNectar, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), nearHomeEdge: this.nearHomeEdge(), edgeHold: this.edgeHold, homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
+      snapshot: () => ({ season: this.season, weatherPlan: this.weatherPlan, moisture: this.groundMoisture, outcomes: this.outcomes, queenLine: this.queenSays, nightAge: this.nightAge, previousDay: this.previousDay, night: this.weatherPlan.night, leafWet: this.leafWet, butterflies: this.butterflies.diagnostics(), moths: this.moths.diagnostics(), snails: this.snails.diagnostics(), ants: this.ants.diagnostics(), mushrooms: this.mushrooms.diagnostics(), petals: this.petals.diagnostics(), caterpillars: this.caterpillars.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), lore: this.lore.diagnostics(), loreOn: this.loreOn, restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), water: { sips: this.waterSips, carried: this.water, goal: this.waterGoal, grassShade: this.grassShade(), sipping: this.sippingWater, near: this.waterNear, flower: this.landed ? this.flowerRain.waterOn(this.landed.id) : 0, puddles: this.puddles.diagnostics() }, raindrops: { on: this.raindropsOn, wetness: this.wetness, strikes: this.dropStrikes, count: this.dropCount, drips: this.dripCount, knockdown: this.knockdown, knockedDown: this.knockedDown, groom: this.bee.groomAmount(), splash: this.rainSplash.diagnostics() }, nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking && !this.sharingNectar, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), nearHomeEdge: this.nearHomeEdge(), edgeHold: this.edgeHold, homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
       setPose: (p, yaw = 0, pitch = -.35, velocity = [0, 0, 0]) => { this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.fromArray(p); this.previousPosition.copy(this.position); this.yaw = yaw; this.pitch = pitch; this.velocity.fromArray(velocity); },
       walkToFloret: (index: number) => {
         const f = this.landed, spot = f?.nectarSpots[index];
@@ -2798,7 +2855,7 @@ export class Garden {
     cancelAnimationFrame(this.raf); this.abort.abort(); this.ui.dispose(); this.audio.dispose(); this.bee.dispose(); this.pollenFX.dispose(); this.pollinationFX.dispose(); this.windFX.dispose(); this.atmosphere.dispose(); this.meadow.dispose();
     this.nectarDrop.dispose(); this.nectarBeads.dispose(); this.energyWash.dispose(); this.rainSplash.dispose(); this.puddles.dispose(); this.renderer.dispose();
     this.homecoming.dispose();
-    this.leafShelters.dispose(); this.rainFX.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.ladybirds.dispose(); this.ants.dispose(); this.mushrooms.dispose(); this.petals.dispose(); this.caterpillars.dispose(); this.groundedBees.dispose(); this.butterflies.dispose(); this.snails.dispose();
+    this.leafShelters.dispose(); this.rainFX.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.ladybirds.dispose(); this.ants.dispose(); this.mushrooms.dispose(); this.petals.dispose(); this.caterpillars.dispose(); this.groundedBees.dispose(); this.butterflies.dispose(); this.moths.dispose(); this.snails.dispose();
     delete window.__BEE_TEST__; delete window.beeGarden; delete window.__THREE_GAME_TEST_HOOKS__; delete window.__THREE_GAME_DIAGNOSTICS__;
   }
 }
