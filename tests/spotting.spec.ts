@@ -60,10 +60,8 @@ test('aphids: hidden under the flower head from above, counted after a steady lo
   await lookFrom(page, [flower.center[0] + .05, flower.center[1] + 1.4, flower.center[2]], at);
   await page.waitForTimeout(2000);
   expect(await aphidSeen(page, cluster.id)).toBe(false);
-  // From the side, about a hand's width off: tiny, so it takes a steady look, then counts.
+  // From the side, about a hand's width off: in plain view, so after a short look it counts.
   await lookFrom(page, [at[0] + .9, at[1], at[2] + .3], at);
-  await page.waitForTimeout(350);
-  expect(await aphidSeen(page, cluster.id)).toBe(false);
   await expect.poll(() => aphidSeen(page, cluster.id), { timeout: 5_000 }).toBe(true);
   await expect(page.locator('.message-toast')).toContainText('Aphids!');
 });
@@ -119,4 +117,20 @@ test('standing on a flower, the aphids on its stem below are hidden by the head'
   await expect.poll(async () => (await page.evaluate(() => window.__BEE_TEST__!.snapshot())).phase).toBe('landed');
   await page.waitForTimeout(2500);
   expect(await aphidSeen(page, cluster.id)).toBe(false);
+});
+
+test('the real view decides: the depth check is running while flying', async ({ page }) => {
+  await open(page);
+  await expect.poll(() => page.evaluate(() => window.__BEE_TEST__!.sightReady())).toBe(true);
+});
+
+test('a clump of mushrooms by a pool counts from a little way off, once it is in plain view', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => window.__BEE_TEST__!.growMushrooms());
+  const patch = (await page.evaluate(() => window.__BEE_TEST__!.fairyRings())).find(r => r.kind === 'patch')!;
+  const c = patch.center;
+  // About 20 cm off and a little above the grass, looking at the clump.
+  await lookFrom(page, [c[0] + 1.6, c[1] + 1.5, c[2] + 1.2], [c[0], c[1] + .3, c[2]]);
+  await page.screenshot({ path: 'artifacts/spotting/mushrooms-off.png' });
+  await expect.poll(async () => (await page.evaluate(() => window.__BEE_TEST__!.fairyRings())).find(r => r.id === patch.id)!.seen, { timeout: 5_000 }).toBe(true);
 });

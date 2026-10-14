@@ -19,3 +19,19 @@ test('perched on a leaf with a ladybird, the bee is credited with it', async ({ 
   await expect.poll(async () => (await state(page)).onLeaf).toBe(leaf.id);
   await expect.poll(async () => (await state(page)).ladybirds.seen, { timeout: 5000 }).toBeGreaterThanOrEqual(1);
 });
+
+test('perched on a leaf with a snail on top of it, the bee is credited with it', async ({ page }) => {
+  await page.goto('/?test&friends');
+  await startFlyingFixture(page);
+  await page.evaluate(() => { window.__THREE_GAME_TEST_HOOKS__!.setPausedForScreenshot(false); window.__BEE_TEST__!.setDayProgress(.1); window.__BEE_TEST__!.setCargo(25, 5, 60); });
+  const { snails, leaves } = await page.evaluate(() => ({ snails: window.__BEE_TEST__!.snails(), leaves: window.__BEE_TEST__!.shelters() }));
+  const onTop = snails.filter(s => s.perch === 'leaf' && s.up[1] > .3);
+  test.skip(!onTop.length, 'no snail on a leaf top in this meadow');
+  const snail = onTop[0];
+  const leaf = leaves.reduce((best, l) => Math.hypot(l.center[0] - snail.position[0], l.center[2] - snail.position[2]) < Math.hypot(best.center[0] - snail.position[0], best.center[2] - snail.position[2]) ? l : best);
+  await page.evaluate(l => window.__BEE_TEST__!.setPose([l.center[0], l.center[1] + 1.5, l.center[2] + .8], 0, -.9), leaf);
+  await expect.poll(async () => (await state(page)).canLand).toBe(true);
+  await page.keyboard.press('e');
+  await expect.poll(async () => (await state(page)).onLeaf).toBe(leaf.id);
+  await expect.poll(async () => (await state(page)).snails.seen, { timeout: 5000 }).toBeGreaterThanOrEqual(1);
+});

@@ -156,7 +156,7 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export interface SummerCard {
   summer: number;
-  /** How the day went, in a word or two ("Good", "Not home"). */
+  /** How the day went, in a word or two ("Good", "Lost"). */
   day: string;
   /** The summer's weather in a word or two ("Wet", "Hot, dry"). */
   weather: string;
@@ -205,7 +205,7 @@ export interface RunSummary {
   facts: string;
 }
 
-const DAY: Record<SummerOutcome, string> = { fantastic: 'Fantastic', good: 'Good', reasonable: 'Reasonable', okay: 'Okay', lost: 'Not home' };
+const DAY: Record<SummerOutcome, string> = { fantastic: 'Fantastic', good: 'Good', reasonable: 'Reasonable', okay: 'Okay', lost: 'Lost' };
 const SEASON: Record<NonNullable<SummerRecord['season']>, string> = { wet: 'Wet', ordinary: 'Mild', dry: 'Dry', hotdry: 'Hot, dry' };
 const OUTCOME: Record<ArcEnding, [string, RunSummary['mood']]> = {
   wintered: ['A swarm in spring', 'happy'], lean: ['A new queen', 'bittersweet'],

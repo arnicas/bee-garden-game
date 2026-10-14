@@ -576,6 +576,10 @@ export function createSnails(scene: THREE.Scene, seed: number, flowers: readonly
       return best ? { snail: best as Snail, distance } : null;
     },
     markSeen(id: number) { const s = snails[id]; if (s) s.seen = true; },
+    /** An unseen snail on this leaf, on the same side as the bee (on top, or underneath), close by. */
+    sharingLeaf(leafId: number, underside: boolean, position: THREE.Vector3): Snail | null {
+      return snails.find(s => !s.seen && s.perch === 'leaf' && s.leaf?.id === leafId && s.underside === underside && s.position.distanceTo(position) < 1.1) ?? null;
+    },
     seenCount() { return snails.filter(s => s.seen).length; },
     reset() { place(); lastTime = 0; },
     diagnostics() {

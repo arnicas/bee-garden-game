@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { beeModelReady, BEE_MODEL_SCALE, cloneBeeModel, type BeeModelParts } from './bee-model';
 import { meadowGroundHeight, rng } from './world';
 import { leafSurfaceHeight, type LeafShelter } from './shelters';
 import type { PuddleSpot } from './types';
@@ -45,6 +46,8 @@ interface Bee extends GroundedBee {
   wings: THREE.Object3D[];
   antennae: THREE.Object3D[];
   forelegs: THREE.Object3D[];
+  /** The modelled bee (bee-model.ts) once it has loaded; null while she's the simple built one. */
+  model: BeeModelParts | null;
   leaf: LeafShelter | null;
   /** Leaf-local point and heading (leaf), or world point (rim). */
   local: THREE.Vector3;
@@ -61,6 +64,7 @@ interface Bee extends GroundedBee {
   giver: THREE.Vector3;
 }
 
+const FORWARD = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0), IDENTITY = new THREE.Quaternion(), wingBuzz = new THREE.Quaternion();
 const GOLD = '#d9a441', DARK = '#3d2b1c', FUZZ = '#a37b45', LEG = '#2e2219', EYE = '#1f1812';
 
 export function createGroundedBees(scene: THREE.Scene, seed: number, shelters: readonly LeafShelter[], pools: readonly PuddleSpot[]) {
@@ -105,7 +109,27 @@ export function createGroundedBees(scene: THREE.Scene, seed: number, shelters: r
     part(stick, legMat, [.003, length * .55, .003], [0, 0, 0], knee);
     return hip;
   }
+  /** One bee from the model: level on her feet, wings folded back; a fallen one rolled onto her back. */
+  function buildFromModel(model: BeeModelParts, fallen: boolean) {
+    const group = new THREE.Group();
+    const body = new THREE.Group(); group.add(body); body.add(model.root);
+    // Her tongue (folded away until she's fed) from her mouth, and a mark just beyond its tip.
+    const at = model.mouth.clone().multiplyScalar(BEE_MODEL_SCALE);
+    const proboscis = new THREE.Group(); proboscis.position.copy(at); proboscis.rotation.x = .35; proboscis.visible = false; body.add(proboscis);
+    part(stick, legMat, [.0028, .026, .0028], [0, 0, 0], proboscis).rotation.x = -Math.PI / 2;
+    const mouth = new THREE.Group(); mouth.position.set(at.x, at.y - .008, at.z + .02); body.add(mouth);
+    if (fallen) {
+      // Rolled most of the way onto her back, lying on the ground.
+      body.rotation.z = Math.PI * .8;
+      group.updateMatrixWorld(true);
+      body.position.y = -new THREE.Box3().setFromObject(body).min.y;
+    }
+    group.visible = false; root.add(group);
+    return { group, wings: model.wings.map(w => w.node), antennae: model.antennae, forelegs: model.forelegs, proboscis, mouth, model };
+  }
   function build(fallen: boolean) {
+    const model = cloneBeeModel(fallen);
+    if (model) return buildFromModel(model, fallen);
     const group = new THREE.Group();
     const body = new THREE.Group(); body.position.y = .028; group.add(body);
     part(abdomen, fallen ? fallenAbdomen : abdomenMat, [.024, .022, .042], [0, .004, -.04], body);
@@ -146,7 +170,7 @@ export function createGroundedBees(scene: THREE.Scene, seed: number, shelters: r
     const proboscis = new THREE.Group(); proboscis.position.set(0, -.002, .058); proboscis.rotation.x = .35; proboscis.visible = false; body.add(proboscis);
     part(stick, legMat, [.0028, .026, .0028], [0, 0, 0], proboscis).rotation.x = -Math.PI / 2;
     const mouth = new THREE.Group(); mouth.position.set(0, -.01, .078); body.add(mouth);
-    return { group, wings, antennae, forelegs, proboscis, mouth };
+    return { group, wings, antennae, forelegs, proboscis, mouth, model: null as BeeModelParts | null };
   }
 
   const bees: Bee[] = [];
@@ -192,7 +216,8 @@ export function createGroundedBees(scene: THREE.Scene, seed: number, shelters: r
       g.position.addScaledVector(target, Math.max(0, t - .15) * 14);
       g.quaternion.setFromAxisAngle(up, Math.atan2(target.x, target.z));
       bee.position.copy(g.position);
-      for (const w of bee.wings) w.rotation.y = w.userData.rest.y * 3 + Math.sin(time * 90) * .9;
+      if (bee.model) for (const w of bee.model.wings) w.node.quaternion.setFromAxisAngle(FORWARD, w.side * Math.sin(time * 90) * .7);
+      else for (const w of bee.wings) w.rotation.y = w.userData.rest.y * 3 + Math.sin(time * 90) * .9;
       if (t >= 1) bee.state = 'gone';
       return;
     }
@@ -208,10 +233,17 @@ export function createGroundedBees(scene: THREE.Scene, seed: number, shelters: r
     if (bee.kind === 'fallen' || reducedMotion) return;
     const t = time + bee.phase;
     // Antennae sway; now and then a shiver of the wings, more while she's being fed.
-    bee.antennae.forEach((a, i) => { a.rotation.x = -1.0 + Math.sin(t * 1.7 + i) * .18; });
+    bee.antennae.forEach((a, i) => { a.rotation.x = (bee.model ? 0 : -1.0) + Math.sin(t * 1.7 + i) * .18; });
     const shivering = bee.state === 'warming' || bee.fed > 0 && bee.state === 'resting' || (t % 6) < .7;
     const buzz = bee.state === 'warming' ? .5 : shivering ? .08 : 0;
-    for (const w of bee.wings) w.rotation.y = w.userData.rest.y * (bee.state === 'warming' ? 2.5 : 1) + Math.sin(time * 70) * buzz;
+    if (bee.model) {
+      // Folded back at rest; warming up, they lift halfway and buzz.
+      for (const w of bee.model.wings) {
+        w.node.quaternion.copy(w.rest);
+        if (bee.state === 'warming') w.node.quaternion.slerp(IDENTITY, .45);
+        w.node.quaternion.multiply(wingBuzz.setFromAxisAngle(UP, w.side * Math.sin(time * 70) * buzz));
+      }
+    } else for (const w of bee.wings) w.rotation.y = w.userData.rest.y * (bee.state === 'warming' ? 2.5 : 1) + Math.sin(time * 70) * buzz;
     // Grooming: the forelegs rub over the head.
     bee.forelegs.forEach((leg, i) => { leg.rotation.x = bee.state === 'grooming' ? -1.1 + Math.sin(time * 9 + i * Math.PI) * .45 : 0; });
   }
@@ -236,6 +268,8 @@ export function createGroundedBees(scene: THREE.Scene, seed: number, shelters: r
     update(time: number, reducedMotion: boolean) {
       const dt = Math.min(.1, Math.max(0, time - lastTime)); lastTime = time;
       for (const bee of bees) {
+        // The model arrived after the day began: give her the modelled body in place.
+        if (!bee.model && beeModelReady()) { root.remove(bee.group); Object.assign(bee, build(bee.kind === 'fallen')); }
         if (bee.kind === 'tired' && bee.state !== 'resting' && bee.state !== 'gone') {
           bee.age += dt;
           if (bee.state === 'grooming' && bee.age >= GROOM_TIME) { bee.state = 'warming'; bee.age = 0; }

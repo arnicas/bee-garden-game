@@ -76,7 +76,7 @@ test('the closing summary: one card per summer, and the weather, meadow, hive an
   expect(summary).toMatchObject({ outcome: 'A swarm in spring', mood: 'happy' });
   const [opening, weather, meadow, hive, farewell] = summary.speech;
   expect(opening).toContain('five summers have passed');
-  expect(summary.cards.map(c => c.day)).toEqual(['Good', 'Fantastic', 'Not home', 'Good', 'Good']);
+  expect(summary.cards.map(c => c.day)).toEqual(['Good', 'Fantastic', 'Lost', 'Good', 'Good']);
   expect(summary.cards[3].weather).toBe('Hot, dry');
   // Each card's colour and little pictures: what went well, and what didn't.
   expect(summary.cards.map(c => c.tone)).toEqual(['bright', 'bright', 'poor', 'bright', 'bright']);

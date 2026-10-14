@@ -23,11 +23,15 @@ test('a new meadow opens "Your five summers": the arc, then the weather for the 
   // A named combination sets both rows.
   await preset(page, 'Hot and dry').click();
   expect(await chosen(page)).toEqual({ rain: 'little', heat: 'hot' });
-  await expect(page.locator('[data-action="reign-rain"][data-value="little"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-text="reign-forecast"]')).toContainText('Water is scarce');
-  // Changing a row moves to the matching combination, or to "Mix your own".
+  // The rain and heat rows stay hidden unless "Mix your own" is chosen.
+  await expect(page.locator('.reign-mixer')).toBeHidden();
+  await preset(page, 'Mix your own').click();
+  await expect(page.locator('.reign-mixer')).toBeVisible();
+  await expect(preset(page, 'Mix your own')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[data-action="reign-rain"][data-value="little"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: 'artifacts/arc/reign-panel-mix.png' });
   await page.locator('[data-action="reign-rain"][data-value="lots"]').click();
-  await expect(preset(page, 'Muggy')).toHaveAttribute('aria-checked', 'true');
   await page.locator('[data-action="reign-heat"][data-value="nature"]').click();
   await expect(preset(page, 'Mix your own')).toHaveAttribute('aria-checked', 'true');
   expect(await chosen(page)).toEqual({ rain: 'lots', heat: 'nature' });

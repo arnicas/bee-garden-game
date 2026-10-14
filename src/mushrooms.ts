@@ -187,6 +187,17 @@ export function createMushrooms(scene: THREE.Scene, seed: number, spots: readonl
       }
       pose();
     },
+    /** Rings and patches with mushrooms up, each with the tops of its caps (for spotting by sight). */
+    sightable(): { ring: FairyRing; caps: THREE.Vector3[] }[] {
+      const groups = new Map<number, THREE.Vector3[]>();
+      for (const m of mushrooms) {
+        if (m.grown < .3) continue;
+        const caps = groups.get(m.ring) ?? [];
+        caps.push(new THREE.Vector3(m.position.x, m.position.y + STEM_HEIGHT * m.height * .9, m.position.z));
+        groups.set(m.ring, caps);
+      }
+      return [...groups].map(([id, caps]) => ({ ring: rings[id], caps }));
+    },
     /** The nearest ring with mushrooms up, measured to its nearest mushroom. */
     nearest(point: THREE.Vector3): { ring: FairyRing; distance: number; at: THREE.Vector3 } | null {
       let found: FairyRing | null = null, distance = Infinity;

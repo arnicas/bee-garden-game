@@ -20,6 +20,8 @@ import { createWebs, type SpiderWeb } from './webs';
 import { createLadybirds } from './friends';
 import { createButterflies, type ButterflyWorld } from './butterflies';
 import { createMoths } from './moths';
+import { createSightDepth } from './sight-depth';
+import { loadBeeModel } from './bee-model';
 import { createSnails } from './snails';
 import { createAnts } from './ants';
 import { createMushrooms } from './mushrooms';
@@ -98,12 +100,15 @@ const SIGHT_MIN_PIXELS = 14, SIGHT_FIELD_X = .88, SIGHT_FIELD_Y = .85, SIGHT_MAX
 const SIGHT_REF_PIXELS = 40, SIGHT_NEEDED = .5, SIGHT_FASTEST = 2.5, SIGHT_SLOWEST = .3, SIGHT_GRACE = .4;
 /** The dense grass layer's top above the ground, and how much of it a look can pass through. */
 const SIGHT_GRASS_TOP = 1.1, SIGHT_GRASS_DEPTH = .7;
-/** About how big each kind looks (art units, one about 10 cm). An aphid cluster is a smudge of
- * specks; a trail is a line of ants; a mound is a heap of bare soil. */
-const SIGHT_SIZE = { ladybird: .085, aphids: .045, snail: .13, caterpillar: .22, butterfly: .32, antTrail: .12, antMound: .35, bee: .14 } as const;
+/** The real-view check (sight-depth.ts): how often the bee's view is redrawn as a depth image,
+ * and the share of a creature's spot that must be clear of anything nearer for it to count. */
+const SIGHT_DEPTH_EVERY = .2, SIGHT_MIN_CLEAR = .2;
+/** About how big each kind looks (art units, one about 10 cm). An aphid cluster is a spread of
+ * specks along the stem, about 2.5 cm; a trail is a line of ants; a mound is a heap of bare soil. */
+const SIGHT_SIZE = { mushrooms: .3, ladybird: .085, aphids: .1, snail: .13, caterpillar: .22, butterfly: .32, antTrail: .12, antMound: .35, bee: .14 } as const;
 /** Right beside a creature (this close to the eye) a quick look is enough at any size, as long as
  * it is on screen and no leaf or flower head is in the way (nothing counts that she can't see). */
-const SIGHT_NEARBY = { ladybird: .35, aphids: .3, snail: .5, caterpillar: .6, butterfly: 1.1, antTrail: .5, antMound: 1.1, bee: .7 } as const;
+const SIGHT_NEARBY = { mushrooms: .9, ladybird: .35, aphids: .3, snail: .5, caterpillar: .6, butterfly: 1.1, antTrail: .5, antMound: 1.1, bee: .7 } as const;
 /** Helping a tired hive mate: how close to stand, and how much of the jar (percent) a share takes. */
 const HELP_REACH = .75, SHARE_NECTAR = 3;
 /** What a fallen bee's note says, by what happened to her. */
@@ -164,7 +169,7 @@ interface TestControl {
   setWebs(enabled: boolean): void;
   ladybirds(): { id: number; perch: string; position: number[]; up: number[]; seen: boolean }[];
   butterflies(): { id: number; state: string; flowerId: number; species: Species | null; position: number[]; seen: boolean }[];
-  snails(): { id: number; state: string; perch: string; position: number[]; extension: number; seen: boolean }[];
+  snails(): { id: number; state: string; perch: string; position: number[]; up: number[]; extension: number; seen: boolean }[];
   ants(): { id: number; flowerId: number; nest: number[]; seen: boolean }[];
   /** Flowers ants are raiding for nectar, with how many are at it. */
   antRaids(): { flowerId: number; feeding: number; ending: boolean }[];
@@ -203,6 +208,8 @@ interface TestControl {
   hive(): { stores: number; summers: number; outcomes: string[]; ending: string | null; stress: number };
   groundedBees(): { id: number; kind: string; place: string; state: string; cause: string | null; fed: number; seen: boolean; leafId: number | null; position: number[] }[];
   /** Why a point can or can't be made out from the view now (for tuning). */
+  growMushrooms(): void;
+  sightReady(): boolean;
   sight(point: number[], size: number): Record<string, unknown>;
   /** Ends the summer as if these flowers were pollinated and grows the next meadow. */
   nextSummer(pollinatedIds?: number[]): { counts: Record<Species, number>; badSummers: Record<Species, number>; gaps: number; ladybirds: number; aphidClusters: number };
@@ -211,6 +218,9 @@ declare global { interface Window { __BEE_TEST__?: TestControl; beeGarden?: { sc
 
 export class Garden {
   private renderer: THREE.WebGLRenderer;
+  /** What the bee can really see: a small depth image of her view, a few times a second. */
+  private sightDepth!: ReturnType<typeof createSightDepth>;
+  private sightDepthAge = 0;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(61, 1, .015, 175);
   private meadow: Meadow;
@@ -589,6 +599,9 @@ export class Garden {
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.sightDepth = createSightDepth(this.renderer);
+    // The modelled bee for the tired and fallen bees; they use simple built ones until it arrives.
+    void loadBeeModel();
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.06;
@@ -657,13 +670,19 @@ export class Garden {
     if (distance < nearby) {
       const p = this.viewPoint.copy(at).project(this.camera);
       const onScreen = p.z >= -1 && p.z <= 1 && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
-      return onScreen && !this.behindLeaf(eye, at) && !this.behindFlowerHead(eye, at) ? SIGHT_REF_PIXELS * 2 : 0;
+      if (!onScreen) return 0;
+      const clear = this.sightDepth.visible(at, size);
+      if (clear >= 0) return clear >= SIGHT_MIN_CLEAR ? SIGHT_REF_PIXELS * 2 : 0;
+      return !this.behindLeaf(eye, at) && !this.behindFlowerHead(eye, at) ? SIGHT_REF_PIXELS * 2 : 0;
     }
     if (distance > SIGHT_MAX_RANGE) return 0;
     const pixels = size / Math.max(.05, distance) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
     if (pixels < SIGHT_MIN_PIXELS) return 0;
     const p = this.viewPoint.copy(at).project(this.camera);
     if (p.z < -1 || p.z > 1 || Math.abs(p.x) > SIGHT_FIELD_X || Math.abs(p.y) > SIGHT_FIELD_Y) return 0;
+    // What's really drawn decides: through a gap in the grass yes, behind a blade, leaf or head no.
+    const clear = this.sightDepth.visible(at, size);
+    if (clear >= 0) return clear >= SIGHT_MIN_CLEAR ? pixels : 0;
     return this.hiddenInGrass(eye, at, clearing) || this.behindLeaf(eye, at) || this.behindFlowerHead(eye, at) ? 0 : pixels;
   }
   /** Whether a flower head stands between the eye and a point: the look crosses the head's
@@ -732,30 +751,38 @@ export class Garden {
       document.body.appendChild(this.sightDebugBox);
     }
     const eye = this.camera.position, lines: string[] = [];
-    const check = (kind: string, id: number, at: THREE.Vector3, size: number, nearby: number) => {
+    const check = (kind: string, id: number, at: THREE.Vector3, size: number, nearby: number, counted = false) => {
       const distance = eye.distanceTo(at);
       if (distance > SIGHT_MAX_RANGE + 2 || at.lengthSq() === 0) return;
       const p = this.viewPoint.copy(at).project(this.camera);
       if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) return;
       const pixels = size / Math.max(.05, distance) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-      const why: string[] = [];
+      if (counted) { lines.push(`${kind} #${id} ${distance.toFixed(1)} away: already counted`); return; }
+      const why: string[] = [], clear = this.sightDepth.visible(at, size);
       if (distance >= nearby) {
         if (distance > SIGHT_MAX_RANGE) why.push('too far');
         if (pixels < SIGHT_MIN_PIXELS) why.push(`too small (${pixels.toFixed(0)}px < ${SIGHT_MIN_PIXELS})`);
         if (Math.abs(p.x) > SIGHT_FIELD_X || Math.abs(p.y) > SIGHT_FIELD_Y) why.push('edge of view');
-        if (this.hiddenInGrass(eye, at)) why.push(`in grass (${(at.y - meadowGroundHeight(at.x, at.z)).toFixed(2)} up)`);
+        if (clear < 0 && this.hiddenInGrass(eye, at)) why.push(`in grass (${(at.y - meadowGroundHeight(at.x, at.z)).toFixed(2)} up)`);
       }
-      if (this.behindLeaf(eye, at)) why.push('behind leaf');
-      if (this.behindFlowerHead(eye, at)) why.push('behind flower head');
+      if (clear >= 0) { if (clear < SIGHT_MIN_CLEAR) why.push(`hidden (${(clear * 100).toFixed(0)}% clear)`); }
+      else {
+        if (this.behindLeaf(eye, at)) why.push('behind leaf');
+        if (this.behindFlowerHead(eye, at)) why.push('behind flower head');
+      }
       const look = this.sightings.get(kind);
       const progress = look && look.id === id ? ` look ${(look.time / SIGHT_NEEDED * 100).toFixed(0)}%` : '';
       lines.push(`${kind} #${id} ${distance.toFixed(1)} away ${pixels.toFixed(0)}px: ${why.length ? why.join(', ') : 'visible' + progress}`);
     };
-    for (const b of this.ladybirds.birds) if (!b.seen) check('ladybird', b.id, b.position, SIGHT_SIZE.ladybird, SIGHT_NEARBY.ladybird);
-    for (const c of this.ladybirds.aphids) if (!c.seen && c.population > .15) check('aphids', c.id, c.position, SIGHT_SIZE.aphids, SIGHT_NEARBY.aphids);
-    for (const b of this.butterflies.butterflies) if (!b.seen) check('butterfly', b.id, b.position, SIGHT_SIZE.butterfly, SIGHT_NEARBY.butterfly);
-    for (const s of this.snails.snails) if (!s.seen) check('snail', s.id, s.position, SIGHT_SIZE.snail, SIGHT_NEARBY.snail);
-    this.sightDebugBox.textContent = lines.length ? lines.slice(0, 8).join('\n') : 'no unseen creatures on screen';
+    for (const b of this.ladybirds.birds) check('ladybird', b.id, b.position, SIGHT_SIZE.ladybird, SIGHT_NEARBY.ladybird, b.seen);
+    for (const c of this.ladybirds.aphids) if (c.population > .15) check('aphids', c.id, c.position, SIGHT_SIZE.aphids, SIGHT_NEARBY.aphids, c.seen);
+    for (const b of this.butterflies.butterflies) check('butterfly', b.id, b.position, SIGHT_SIZE.butterfly, SIGHT_NEARBY.butterfly, b.seen);
+    for (const s of this.snails.snails) check('snail', s.id, s.position, SIGHT_SIZE.snail, SIGHT_NEARBY.snail, s.seen);
+    for (const g of this.mushrooms.sightable()) if (g.caps[0]) check('ring', g.ring.id, g.caps[0], SIGHT_SIZE.mushrooms, SIGHT_NEARBY.mushrooms, g.ring.seen);
+    for (const c of this.caterpillars.caterpillars) check('caterpillar', c.id, c.position, SIGHT_SIZE.caterpillar, SIGHT_NEARBY.caterpillar, c.seen);
+    // Not-yet-counted ones first, then the ones already counted.
+    lines.sort((a, b) => Number(a.endsWith('already counted')) - Number(b.endsWith('already counted')));
+    this.sightDebugBox.textContent = lines.length ? lines.slice(0, 10).join('\n') : 'no creatures on screen';
   }
   private spotted(kind: string, id: number, at: THREE.Vector3, dt: number, size?: number): boolean {
     const sighting = this.sightings.get(kind);
@@ -767,6 +794,8 @@ export class Garden {
   private inView(at: THREE.Vector3): boolean {
     const p = this.viewPoint.copy(at).project(this.camera);
     if (p.z < -1 || p.z > 1 || Math.abs(p.x) > .88 || Math.abs(p.y) > .85) return false;
+    const clear = this.sightDepth.visible(at, .1);
+    if (clear >= 0) return clear >= SIGHT_MIN_CLEAR;
     return !this.behindLeaf(this.camera.position, at);
   }
   /** Whether a broad leaf lies between two points: walking the line in each
@@ -1032,7 +1061,8 @@ export class Garden {
    * Test pages with ?hivemates get one tired bee on a leaf and one at a pool, and a fallen bee. */
   private planGroundedDay(): void {
     this.helping = null; this.tiredNoteShown = false;
-    const test = new URLSearchParams(location.search).has('test');
+    // Test pages, and ?hivemates in play (to look at them), get the fixed set.
+    const params = new URLSearchParams(location.search), test = params.has('test') || params.has('hivemates');
     const plan: GroundedPlan = !this.hiveMatesOn ? { tired: [], fallen: [] }
       : test ? { tired: ['leaf', 'rim'], fallen: [{ place: 'rim', cause: 'cold' }] }
       : planGroundedBees(rng((this.seed ^ this.summerNumber * 0x51ed) >>> 0 || 7), { showers: this.weatherPlan.showers.length, hot: hiveNeedsWater(this.weatherPlan) }, this.arcOn ? hiveStress(this.hive) : 0);
@@ -1382,6 +1412,9 @@ export class Garden {
     this.updateWorld(this.reducedMotion ? 0 : this.time);
     this.updateView(dt);
     this.renderer.render(this.scene, this.camera);
+    // A fresh look at what's really in view, about five times a second while out in the meadow.
+    this.sightDepthAge += dt;
+    if (this.sightDepthAge >= SIGHT_DEPTH_EVERY && (this.phase === 'flying' || this.phase === 'landed')) { this.sightDepthAge = 0; this.sightDepth.capture(this.scene, this.camera); }
     this.publishDiagnostics();
   }
   private step(dt: number): void {
@@ -1501,7 +1534,11 @@ export class Garden {
         if (!this.butterflyNoteShown) { this.butterflyNoteShown = true; this.notify('Butterflies sip nectar from daisies and cornflowers too, so a flower may be emptier after one visits.', 6, 'A butterfly!', NOTICE.discovery); }
         else this.foundAgain('A butterfly!', this.butterflies.seenCount(), 'butterfly', 'butterflies');
       } }
-    { const snail = this.spotAmong('snail', this.snails.snails, s => s.position, SIGHT_SIZE.snail, dt, p => this.rimClearing(p), SIGHT_NEARBY.snail);
+    // Sharing a leaf with one counts too, like the ladybirds: perched, the view looks out over
+    // the blade, so a snail by the bee's feet is below the frame.
+    { const leafHere = this.onLeaf ?? this.underLeaf;
+      const neighbour = leafHere ? this.snails.sharingLeaf(leafHere.id, !this.onLeaf, this.position) : null;
+      const snail = neighbour ?? this.spotAmong('snail', this.snails.snails, s => s.position, SIGHT_SIZE.snail, dt, p => this.rimClearing(p), SIGHT_NEARBY.snail);
       if (snail) {
         this.snails.markSeen(snail.id);
         if (!this.snailNoteShown) { this.snailNoteShown = true; this.notify('Snails come out when it’s damp, and seal themselves in when it’s hot.', 6, 'A snail!', NOTICE.discovery); }
@@ -1532,8 +1569,11 @@ export class Garden {
       }
     }
     // Small finds in the grass and on the leaves.
-    { const near = this.mushrooms.nearest(this.position);
-      if (near && near.distance < 1.1 && !near.ring.seen && this.spotted('ring', near.ring.id, near.at, dt)) {
+    // Mushrooms count by sight like the friends: a clump (or a whole fairy ring) once, from a little way off.
+    { const groups = this.mushrooms.sightable(), caps = new Map(groups.map(g => [g.ring.id, g.caps] as const));
+      const ring = this.spotAmong('ring', groups.map(g => g.ring), r => caps.get(r.id) ?? [], SIGHT_SIZE.mushrooms, dt, () => SIGHT_CLEARING.antMound, SIGHT_NEARBY.mushrooms);
+      const near = ring ? { ring } : null;
+      if (near) {
         this.mushrooms.markSeen(near.ring.id);
         if (near.ring.kind === 'ring') this.audio.chime('pollinate');
         if (near.ring.kind === 'ring' && !this.ringNoteShown) { this.ringNoteShown = true; this.notify('The fungus grows outward underground, so its mushrooms come up in a circle.', 8, 'A fairy ring, a rare find!', NOTICE.discovery); }
@@ -2730,7 +2770,7 @@ export class Garden {
       setAphids: (clusterId: number, population: number) => this.ladybirds.setAphids(clusterId, population),
       sight: (point: number[], size: number) => {
         const at = new THREE.Vector3(...point), eye = this.camera.position, p = at.clone().project(this.camera);
-        return { pixels: size / Math.max(.05, eye.distanceTo(at)) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)), ndc: [p.x, p.y, p.z], grass: this.hiddenInGrass(eye, at), leaf: this.behindLeaf(eye, at), head: this.behindFlowerHead(eye, at), seen: this.sightPixels(at, size), eye: eye.toArray(), onGround: this.onGround };
+        return { pixels: size / Math.max(.05, eye.distanceTo(at)) * 360 / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)), ndc: [p.x, p.y, p.z], grass: this.hiddenInGrass(eye, at), leaf: this.behindLeaf(eye, at), head: this.behindFlowerHead(eye, at), seen: this.sightPixels(at, size), clear: this.sightDepth.visible(at, size), eye: eye.toArray(), onGround: this.onGround };
       },
       farDry: () => ({ now: this.farDry, target: this.farDryTarget }),
       setFarDry: (dry: number) => { this.farDry = this.farDryTarget = dry; this.meadow.setFarDry(dry); },
@@ -2739,7 +2779,7 @@ export class Garden {
       hive: () => ({ stores: this.hive.stores, summers: this.hive.summers.length, outcomes: this.hive.summers.map(s => s.outcome), ending: this.hive.ending, stress: hiveStress(this.hive) }),
       groundedBees: () => this.groundedBees.diagnostics(),
       antColonies: () => this.ants.colonies.map(c => ({ id: c.id, nest: c.nest.toArray(), seen: c.seen })),
-      snails: () => this.snails.snails.map(s => ({ id: s.id, state: s.state, perch: s.perch, position: s.position.toArray(), extension: s.extension, seen: s.seen })),
+      snails: () => this.snails.snails.map(s => ({ id: s.id, state: s.state, perch: s.perch, position: s.position.toArray(), up: s.up.toArray(), extension: s.extension, seen: s.seen })),
       ants: () => this.ants.colonies.map(c => ({ id: c.id, flowerId: c.flowerId, nest: c.nest.toArray(), seen: c.seen })),
       antsOf: (colony: number) => this.ants.antsOf(colony),
       antRaids: () => this.ants.raids(),
@@ -2759,6 +2799,8 @@ export class Garden {
       endCapture: () => { this.captureMode = false; this.lastFrame = 0; },
       setHud: (visible: boolean) => { const ui = document.getElementById('ui'); if (ui) ui.style.opacity = visible ? '' : '0'; },
       setNightAge: (seconds: number) => { if (this.phase === 'night') this.nightAge = seconds; },
+      growMushrooms: () => this.mushrooms.setGrowth(1),
+      sightReady: () => this.sightDepth.ready,
       fairyRings: () => this.mushrooms.rings.map(r => ({ id: r.id, kind: r.kind, center: r.center.toArray(), radius: r.radius, seen: r.seen })),
       petals: () => this.petals.petals.filter(p => p.shown).map(p => ({ id: p.id, kind: p.kind, flowerId: p.flowerId, position: p.position.toArray(), falling: p.falling, seen: p.seen })),
       dropPetal: (flowerId: number, delay?: number) => this.petals.drop(flowerId, delay),

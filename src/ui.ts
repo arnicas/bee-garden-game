@@ -259,9 +259,9 @@ export function createUI(actions: UIActions): GameUI {
           <li><span class="reign-arc-art" aria-hidden="true">${reignArt.nature}</span>After five summers, the fate of the hive is decided. Work hard!</li>
         </ul>
         <h3 class="reign-heading">The weather for her reign</h3>
-        <div class="reign-presets" role="radiogroup" aria-label="The weather">${[...WEATHER_PRESETS.map(p => ({ id: p.id, name: p.name, line: p.line })), { id: 'mix', name: 'Mix your own', line: 'Choose the rain and the heat below.' }].map(p =>
+        <div class="reign-presets" role="radiogroup" aria-label="The weather">${[...WEATHER_PRESETS.map(p => ({ id: p.id, name: p.name, line: p.line })), { id: 'mix', name: 'Mix your own', line: 'Choose the rain and the heat yourself.' }].map(p =>
           `<button class="reign-preset" role="radio" aria-checked="false" data-action="reign-preset" data-value="${p.id}">${reignArt[p.id]}<b>${p.name}</b><small>${p.line}</small></button>`).join('')}</div>
-        <div class="reign-mixer">
+        <div class="reign-mixer" hidden>
           <div class="reign-row" role="group" aria-label="Rain"><span>Rain</span>${[['little', 'Little rain'], ['nature', 'As nature decides'], ['lots', 'A lot of rain']].map(([v, l]) => `<button data-action="reign-rain" data-value="${v}" aria-pressed="false">${l}</button>`).join('')}</div>
           <div class="reign-row" role="group" aria-label="Heat"><span>Heat</span>${[['cool', 'Cool'], ['nature', 'As nature decides'], ['hot', 'Hot']].map(([v, l]) => `<button data-action="reign-heat" data-value="${v}" aria-pressed="false">${l}</button>`).join('')}</div>
         </div>
@@ -468,6 +468,9 @@ export function createUI(actions: UIActions): GameUI {
   const factsReader = el('.facts-reader');
   const resultPage = el('.result-page');
   const reignOverlay = el('.reign-overlay');
+  /** Whether "Mix your own" is chosen: only then do the rain and heat rows show. */
+  let reignMixing = false;
+  const showMixer = () => show(el('.reign-mixer'), reignMixing);
   let reignWasOpen = false, reignChoice = { rain: 'nature', heat: 'nature' };
   const arcPage = el('.arc-page'), arcOpenButton = el<HTMLButtonElement>('[data-action="arc-open"]'), arcStrip = el('[data-arc-strip]');
   let arcOpen = false, arcShown: unknown = null;
@@ -609,6 +612,8 @@ export function createUI(actions: UIActions): GameUI {
       const value = button.dataset.value ?? '', now = reignChoice;
       if (button.dataset.action === 'reign-preset') {
         const preset = WEATHER_PRESETS.find(p => p.id === value);
+        // The rain and heat rows show only for "Mix your own".
+        reignMixing = !preset; showMixer();
         if (preset) actions.setWeather(preset.rain, preset.heat);
         else el<HTMLButtonElement>('[data-action="reign-rain"]').focus({ preventScroll: true });
       }
@@ -869,7 +874,10 @@ export function createUI(actions: UIActions): GameUI {
       if (reignOpen) el<HTMLElement>('#reign-title').focus({ preventScroll: true });
     }
     if (reignOpen) {
-      const presetId = WEATHER_PRESETS.find(p => p.rain === reignChoice.rain && p.heat === reignChoice.heat)?.id ?? 'mix';
+      const matched = WEATHER_PRESETS.find(p => p.rain === reignChoice.rain && p.heat === reignChoice.heat)?.id;
+      if (!matched) reignMixing = true;
+      const presetId = reignMixing ? 'mix' : matched!;
+      showMixer();
       for (const b of reignOverlay.querySelectorAll<HTMLButtonElement>('[data-action="reign-preset"]')) attribute(b, 'aria-checked', String(b.dataset.value === presetId));
       for (const b of reignOverlay.querySelectorAll<HTMLButtonElement>('[data-action="reign-rain"]')) attribute(b, 'aria-pressed', String(b.dataset.value === reignChoice.rain));
       for (const b of reignOverlay.querySelectorAll<HTMLButtonElement>('[data-action="reign-heat"]')) attribute(b, 'aria-pressed', String(b.dataset.value === reignChoice.heat));
