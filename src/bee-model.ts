@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import beeUrl from './assets/bee.glb?url';
 
 /**
@@ -72,4 +73,57 @@ export function cloneBeeModel(fallen: boolean): BeeModelParts | null {
   });
   root.scale.setScalar(BEE_MODEL_SCALE);
   return parts;
+}
+
+/** The model as plain geometry for instanced drawing (many bees in one or two draws): the body
+ * (with antennae and forelegs) in the model's frame, and each side's two wings merged, with the
+ * geometry moved so the fore wing's hinge is at its origin. Null before the model has loaded. */
+export interface BeeModelInstancing {
+  body: THREE.BufferGeometry;
+  wings: { geometry: THREE.BufferGeometry; hinge: THREE.Vector3; rest: THREE.Quaternion; side: number }[];
+  bodyMaterial: THREE.Material;
+  wingMaterial: THREE.Material;
+  /** The body's middle and its length (metres), to fit it to a drawn size. */
+  center: THREE.Vector3;
+  length: number;
+}
+let instancing: BeeModelInstancing | null = null;
+/** Plain float attributes (the model's are quantized), in the root's frame. */
+function flatten(mesh: THREE.Mesh, toRoot: THREE.Matrix4): THREE.BufferGeometry {
+  const g = mesh.geometry, out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv'] as const) {
+    const a = g.getAttribute(name); if (!a) continue;
+    const values = new Float32Array(a.count * a.itemSize);
+    for (let i = 0; i < a.count; i++) for (let k = 0; k < a.itemSize; k++) values[i * a.itemSize + k] = a.getComponent(i, k);
+    out.setAttribute(name, new THREE.BufferAttribute(values, a.itemSize));
+  }
+  if (g.index) out.setIndex(Array.from(g.index.array as ArrayLike<number>));
+  return out.applyMatrix4(toRoot);
+}
+export function beeModelInstancing(): BeeModelInstancing | null {
+  if (instancing || !source || !bodyMaterial || !wingMaterial) return instancing;
+  source.updateMatrixWorld(true);
+  const toRoot = new THREE.Matrix4().copy(source.matrixWorld).invert(), m = new THREE.Matrix4();
+  const bodyParts: THREE.BufferGeometry[] = [], sides = new Map<number, { parts: THREE.BufferGeometry[]; hinge: THREE.Vector3; rest: THREE.Quaternion }>();
+  source.traverse(o => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const geometry = flatten(mesh, m.multiplyMatrices(toRoot, mesh.matrixWorld));
+    const pivot = mesh.parent!;
+    if (pivot.name.startsWith('wing_')) {
+      const side = pivot.name.endsWith('_L') ? 1 : -1;
+      const entry = sides.get(side) ?? { parts: [], hinge: new THREE.Vector3(), rest: new THREE.Quaternion() };
+      if (pivot.name.includes('fore')) { entry.hinge.copy(pivot.position); entry.rest.fromArray((pivot.userData.rest as number[]) ?? [0, 0, 0, 1]); }
+      entry.parts.push(geometry); sides.set(side, entry);
+    } else bodyParts.push(geometry);
+  });
+  const body = mergeGeometries(bodyParts)!;
+  body.computeBoundingBox();
+  const box = body.boundingBox!;
+  instancing = {
+    body, bodyMaterial, wingMaterial,
+    wings: [...sides].map(([side, e]) => ({ geometry: mergeGeometries(e.parts)!.translate(-e.hinge.x, -e.hinge.y, -e.hinge.z), hinge: e.hinge, rest: e.rest, side })),
+    center: box.getCenter(new THREE.Vector3()), length: box.max.z - box.min.z,
+  };
+  return instancing;
 }

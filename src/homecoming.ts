@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Flower, ViewState } from './types';
 import { createButterflyMeshes } from './butterflies';
+import { beeModelInstancing } from './bee-model';
 
 const smooth = (x: number) => THREE.MathUtils.smoothstep(x, 0, 1);
 export const ENDING_DURATION = 11.8;
@@ -65,6 +66,44 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
   const flightEnd = home.clone().add(new THREE.Vector3(0, .9, -2.5));
   const lookRotation = new THREE.Quaternion(), wingOffset = new THREE.Vector3();
   let stage: ViewState['endingStage'] = 'none', fade = 0, firstPerson = false, active = false;
+  // The modelled bee (bee-model.ts), once it has loaded: the same instances, drawn as the model.
+  // Each bee's wing beat (or NaN for the perched one, wings folded) is kept for its wings.
+  const flaps = new Float32Array(count + 1);
+  let modelled: { bodies: THREE.InstancedMesh; wings: { mesh: THREE.InstancedMesh; hinge: THREE.Vector3; rest: THREE.Quaternion; side: number }[]; fit: THREE.Matrix4 } | null = null;
+  const instance = new THREE.Matrix4(), part = new THREE.Matrix4(), turn = new THREE.Quaternion(), FORWARD = new THREE.Vector3(0, 0, 1);
+  function useModel(): void {
+    if (modelled) return;
+    const model = beeModelInstancing();
+    if (!model) return;
+    // Fit: the drawn bee is about .4 long, centred, head toward -z; the model's head is +z.
+    const size = .4 / model.length;
+    const fit = new THREE.Matrix4().makeRotationY(Math.PI).multiply(new THREE.Matrix4().makeScale(size, size, size)).multiply(new THREE.Matrix4().makeTranslation(-model.center.x, -model.center.y, -model.center.z));
+    const make = (geometry: THREE.BufferGeometry, material: THREE.Material, name: string) => {
+      const mesh = new THREE.InstancedMesh(geometry, material, count + 1); mesh.name = name;
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.boundingSphere = bodies.boundingSphere!.clone(); root.add(mesh); return mesh;
+    };
+    modelled = { bodies: make(model.body, model.bodyMaterial, 'meadow workers (model)'), wings: model.wings.map(w => ({ mesh: make(w.geometry, model.wingMaterial, 'worker wings (model)'), hinge: w.hinge, rest: w.rest, side: w.side })), fit };
+    bodies.visible = false; wings.visible = false;
+  }
+  /** Copies each bee's place from the simple instances to the model's, with its own wings. */
+  function poseModel(): void {
+    if (!modelled) return;
+    const n = bodies.count;
+    modelled.bodies.count = n;
+    for (const w of modelled.wings) w.mesh.count = n;
+    for (let k = 0; k < n; k++) {
+      bodies.getMatrixAt(k, instance); instance.multiply(modelled.fit);
+      modelled.bodies.setMatrixAt(k, instance);
+      for (const w of modelled.wings) {
+        // In flight the wings stand as made and beat about the body's long axis; perched, folded back.
+        if (Number.isNaN(flaps[k])) turn.copy(w.rest); else turn.setFromAxisAngle(FORWARD, w.side * (flaps[k] * .7 - .2));
+        part.copy(instance).multiply(new THREE.Matrix4().makeTranslation(w.hinge.x, w.hinge.y, w.hinge.z)).multiply(new THREE.Matrix4().makeRotationFromQuaternion(turn));
+        w.mesh.setMatrixAt(k, part);
+      }
+    }
+    modelled.bodies.instanceMatrix.needsUpdate = true;
+    for (const w of modelled.wings) w.mesh.instanceMatrix.needsUpdate = true;
+  }
   let visibleWorkers = 0, perchedBee = false;
   let hiveVisitors = 0, hiveLanded = 0;
   // Butterflies share the overhead views: drawn larger than life, like the
@@ -101,7 +140,9 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
     visibleWorkers = workers; perchedBee = !!perch;
     animateButterflies(time, reduced, sunny);
     hiveVisitors = hiveAge === undefined ? 0 : 2; hiveLanded = 0;
+    useModel();
     if (perch) {
+      flaps[0] = NaN;
       dummy.position.copy(perch); dummy.position.y -= .30;
       dummy.rotation.set(0, .3, 0); dummy.scale.setScalar(.85); dummy.updateMatrix();
       bodies.setMatrixAt(0, dummy.matrix);
@@ -140,6 +181,7 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
           if (arrival >= 1) hiveLanded++;
           visitorPositions[visitor].copy(workerPosition);
         }
+        flaps[i + offset] = flap;
         dummy.position.copy(workerPosition); dummy.rotation.set(0, yaw, 0); dummy.scale.setScalar(scale); dummy.updateMatrix(); bodies.setMatrixAt(i + offset, dummy.matrix);
         for (let side = -1; side <= 1; side += 2) {
           wingOffset.set(side * .13, .06, -.035).applyQuaternion(dummy.quaternion).add(workerPosition);
@@ -149,6 +191,7 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
         }
       }
       bodies.instanceMatrix.needsUpdate = true; wings.instanceMatrix.needsUpdate = true;
+      poseModel();
   }
   return {
     begin(camera: THREE.PerspectiveCamera) { start.copy(camera.position); startRotation.copy(camera.quaternion); active = true; },
@@ -182,6 +225,6 @@ export function createHomecoming(scene: THREE.Scene, flowers: Flower[], home: TH
     },
     get stage() { return stage; }, get fade() { return fade; }, get firstPerson() { return firstPerson; },
     diagnostics() { return { stage, fade, firstPerson, workers: root.visible ? visibleWorkers : 0, butterflies: root.visible ? visibleButterflies : 0, perchedBee: root.visible && perchedBee, hiveVisitors: root.visible ? hiveVisitors : 0, hiveLanded: root.visible ? hiveLanded : 0, visitorPositions: root.visible && hiveVisitors ? visitorPositions.map(p => p.toArray()) : [], workerDraws: 2, active }; },
-    dispose() { root.removeFromParent(); bodies.dispose(); wings.dispose(); flutter.dispose(); geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); },
+    dispose() { root.removeFromParent(); bodies.dispose(); wings.dispose(); if (modelled) { modelled.bodies.dispose(); modelled.wings.forEach(w => w.mesh.dispose()); } flutter.dispose(); geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); },
   };
 }

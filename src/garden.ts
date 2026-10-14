@@ -21,6 +21,7 @@ import { createLadybirds } from './friends';
 import { createButterflies, type ButterflyWorld } from './butterflies';
 import { createMoths } from './moths';
 import { createSightDepth } from './sight-depth';
+import { daySkyFor, skyLookAt, type DaySky } from './sky-look';
 import { loadBeeModel } from './bee-model';
 import { createSnails } from './snails';
 import { createAnts } from './ants';
@@ -359,9 +360,10 @@ export class Garden {
     const value = new URLSearchParams(location.search).get('sky');
     return value === 'cycle' ? 'cycle' : value !== null && Number.isFinite(Number(value)) ? Number(value) : null;
   })();
-  /** The day's sky look (dev: ?skylook=rose,high,hazy tries sunset style, clouds and haze). */
-  private skyLook: SkyLook = (() => {
-    const look = { ...DEFAULT_SKY_LOOK };
+  /** The day's sky look, read from its weather plan (sky-look.ts); dev: ?skylook=rose,high,hazy
+   * pins sunset style, clouds and haze over it. */
+  private skyLookOverride: Partial<SkyLook> = (() => {
+    const look: Partial<SkyLook> = {};
     for (const word of (new URLSearchParams(location.search).get('skylook') ?? '').split(',')) {
       if (word === 'golden' || word === 'rose' || word === 'ember' || word === 'pale') look.sunset = word;
       else if (word === 'fair' || word === 'high' || word === 'none') look.clouds = word;
@@ -370,6 +372,19 @@ export class Garden {
     }
     return look;
   })();
+  private skyLook: SkyLook = { ...DEFAULT_SKY_LOOK };
+  private daySky: DaySky | null = null;
+  private daySkyPlan: WeatherPlan | null = null;
+  /** This moment's sky: the day's look (the fixed test day keeps the original one), with the morning and the coming showers. */
+  private updateSkyLook(): void {
+    if (this.daySkyPlan !== this.weatherPlan) {
+      this.daySkyPlan = this.weatherPlan;
+      this.daySky = this.weatherPlan === FIXED_WEATHER_PLAN ? null : daySkyFor(this.weatherPlan, DAY_DURATION);
+    }
+    if (this.daySky) skyLookAt(this.daySky, this.weatherPlan, this.dayElapsed, DAY_DURATION, this.skyLook);
+    else Object.assign(this.skyLook, DEFAULT_SKY_LOOK);
+    Object.assign(this.skyLook, this.skyLookOverride);
+  }
   private skyClock(time: number): number | undefined {
     // Through the night: from the last light (1) round to the next morning (2).
     if (this.phase === 'night') return 1 + Math.min(1, this.nightAge / Garden.NIGHT_DURATION);
@@ -411,7 +426,7 @@ export class Garden {
   // Test pages keep the original fixed day (seed 0); ?weather=N replays one day's weather.
   private pinnedWeatherSeed: number | null = (() => {
     const params = new URLSearchParams(location.search);
-    return params.has('test') ? 0 : params.has('weather') ? Number(params.get('weather')) >>> 0 : null;
+    return params.has('weather') ? Number(params.get('weather')) >>> 0 : params.has('test') ? 0 : null;
   })();
   private underLeaf: LeafShelter | null = null;
   private onLeaf: LeafShelter | null = null;
@@ -2379,6 +2394,7 @@ export class Garden {
     if (this.onLeaf) this.position.copy(this.onLeaf.topPerch);
     if (this.onGround) this.position.y = this.groundAltitude();
     this.sampleWeather();
+    this.updateSkyLook();
     this.atmosphere.update(time, elevated ? this.camera.position : this.position, this.uv, this.dayProgress(), this.weather.cloudiness, { clock: this.skyClock(time), look: this.phase === 'night' ? this.nightSkyLook() : this.skyLook, cloudSpeed: this.cloudSpeed() });
   }
   private updateNectarTarget(f: Flower): void {
@@ -2715,7 +2731,7 @@ export class Garden {
       hideDebugUi: (_value: boolean) => { /* No debug panels in the player interface. */ },
     };
     window.__BEE_TEST__ = {
-      snapshot: () => ({ season: this.season, weatherPlan: this.weatherPlan, moisture: this.groundMoisture, outcomes: this.outcomes, queenLine: this.queenSays, nightAge: this.nightAge, previousDay: this.previousDay, night: this.weatherPlan.night, leafWet: this.leafWet, butterflies: this.butterflies.diagnostics(), moths: this.moths.diagnostics(), snails: this.snails.diagnostics(), ants: this.ants.diagnostics(), mushrooms: this.mushrooms.diagnostics(), petals: this.petals.diagnostics(), caterpillars: this.caterpillars.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), lore: this.lore.diagnostics(), loreOn: this.loreOn, restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), water: { sips: this.waterSips, carried: this.water, goal: this.waterGoal, grassShade: this.grassShade(), sipping: this.sippingWater, near: this.waterNear, flower: this.landed ? this.flowerRain.waterOn(this.landed.id) : 0, puddles: this.puddles.diagnostics() }, raindrops: { on: this.raindropsOn, wetness: this.wetness, strikes: this.dropStrikes, count: this.dropCount, drips: this.dripCount, knockdown: this.knockdown, knockedDown: this.knockedDown, groom: this.bee.groomAmount(), splash: this.rainSplash.diagnostics() }, nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking && !this.sharingNectar, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), nearHomeEdge: this.nearHomeEdge(), edgeHold: this.edgeHold, homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
+      snapshot: () => ({ season: this.season, skyLook: { ...this.skyLook }, weatherPlan: this.weatherPlan, moisture: this.groundMoisture, outcomes: this.outcomes, queenLine: this.queenSays, nightAge: this.nightAge, previousDay: this.previousDay, night: this.weatherPlan.night, leafWet: this.leafWet, butterflies: this.butterflies.diagnostics(), moths: this.moths.diagnostics(), snails: this.snails.diagnostics(), ants: this.ants.diagnostics(), mushrooms: this.mushrooms.diagnostics(), petals: this.petals.diagnostics(), caterpillars: this.caterpillars.diagnostics(), pollenGoal: POLLEN_GOAL, windDrain: this.windDrain, heat: this.heat, heatDrain: this.heatDrain, heatExposure: this.heatExposure, shade: this.shade, needsShade: this.needsShade(), energyWash: this.energyWash.diagnostics(), quietAge: this.quietAge, quietFade: this.quietFade(), lore: this.lore.diagnostics(), loreOn: this.loreOn, restView: this.restView.diagnostics(), onGround: this.onGround, caughtWeb: this.caughtWeb?.id ?? null, webStruggle: this.webStruggle, webs: this.webs.diagnostics(), ladybirds: this.ladybirds.diagnostics(), grassCover: this.grassCover, chill: this.chill, cold: this.coldVignette(), coldDrain: this.coldDrain, lossProgress: this.lossProgress(), lossFromRain: this.lossFromRain, lossFromHeat: this.lossFromHeat, lossFromNight: this.lossFromNight, nightfallChecked: this.nightfallChecked, flowerRain: this.flowerRain.diagnostics(), underLeaf: this.underLeaf?.id, onLeaf: this.onLeaf?.id, leafTopTarget: this.shelterAssist ? this.shelterAssistTop : !!this.onLeaf || !!this.shelterTarget && !this.needsLeafShelter(), shelterTarget: this.shelterTarget?.id, shelterAssist: this.shelterAssist?.id, weather: { ...this.weather }, rainExposure: this.rainExposure, rainEffects: this.rainFX.diagnostics(), resting: this.resting, restAge: this.restAge, dayProgress: this.dayProgress(), dayElapsed: this.dayElapsed, ending: this.homecoming.diagnostics(), returnAge: this.returnAge, returnFuel: this.returnFuel, cameraPosition: this.camera.position.toArray(), cameraQuaternion: this.camera.quaternion.toArray(), phase: this.phase, position: this.position.toArray(), velocity: this.velocity.toArray(), wind: this.wind.toArray(), windTime: this.time, flightMode: this.flightMode, flightEffort: this.flightEffort, loadSway: this.loadSway, heavyWobble: this.heavyWobble, heavyStrain: this.heavyStrain, windEffects: this.windFX.diagnostics(), yaw: this.yaw, pitch: this.pitch, energy: this.energy, nectar: this.nectar, pollen: this.pollen, autoFeeding: this.autoFeeding, satiated: this.satiated, tongue: this.bee.tonguePose(), water: { sips: this.waterSips, carried: this.water, goal: this.waterGoal, grassShade: this.grassShade(), sipping: this.sippingWater, near: this.waterNear, flower: this.landed ? this.flowerRain.waterOn(this.landed.id) : 0, puddles: this.puddles.diagnostics() }, raindrops: { on: this.raindropsOn, wetness: this.wetness, strikes: this.dropStrikes, count: this.dropCount, drips: this.dripCount, knockdown: this.knockdown, knockedDown: this.knockedDown, groom: this.bee.groomAmount(), splash: this.rainSplash.diagnostics() }, nectarSurface: this.nectarDrop.diagnostics(), nectarFloret: this.nectarFloret, nectarBeads: this.nectarBeads.diagnostics(), audio: this.audio.diagnostics(), crawlDistance: this.crawlDistance, canLand: this.canLand, canDrink: this.canDrink, drinking: this.drinking && !this.sharingNectar, landed: this.landed?.id, landingAssist: this.landingAssist?.id, target: this.target?.id, elapsed: this.elapsed, homeCost: this.homeCost(), canReturn: this.canReturn(), harvestReady: this.harvestReady(), headingHome: this.headingHome, summerNumber: this.summerNumber, report: this.report, atHomeEdge: this.atHomeEdge(), nearHomeEdge: this.nearHomeEdge(), edgeHold: this.edgeHold, homeExit: HOME_EXIT.toArray(), homeDistance: Math.hypot(this.position.x - HOME_EXIT.x, this.position.z - HOME_EXIT.z) * .1, visited: this.visited, pollinated: this.pollinated, carriedPollen: { ...this.loose }, recentPollen: this.pollenOrder[0] ?? null, forelegPollen: this.bee.pollenCount(), forelegPollenColors: this.bee.pollenColors(), forelegCurl: this.bee.curlAmount(), resultScore: this.resultScore, load: this.load(), localPosition: this.localPosition.toArray(), frameMs: this.frameTimes.reduce((a,b)=>a+b,0)/Math.max(1,this.frameTimes.length), supplies: Array.from(this.supplies.entries()), diagnostics: window.__THREE_GAME_DIAGNOSTICS__ }),
       setPose: (p, yaw = 0, pitch = -.35, velocity = [0, 0, 0]) => { this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; this.position.fromArray(p); this.previousPosition.copy(this.position); this.yaw = yaw; this.pitch = pitch; this.velocity.fromArray(velocity); },
       walkToFloret: (index: number) => {
         const f = this.landed, spot = f?.nectarSpots[index];
@@ -2786,7 +2802,7 @@ export class Garden {
       startRaid: (flowerId: number, arrived = false) => this.ants.startRaid(flowerId, arrived),
       setSkyClock: (clock: number | null) => { this.skyOverride = clock; },
       skipNight: () => this.finishNight(),
-      setSkyLook: (look: Partial<SkyLook>) => { this.skyLook = { ...this.skyLook, ...look }; },
+      setSkyLook: (look: Partial<SkyLook>) => { this.skyLookOverride = { ...this.skyLookOverride, ...look }; },
       sky: () => this.atmosphere.diagnostics(),
       // During the night scene the new weather plays out; its morning comes when the night ends.
       setNight: (night: NightWeather) => {

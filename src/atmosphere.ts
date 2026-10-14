@@ -95,6 +95,8 @@ const TWILIGHT: Record<SunsetStyle, Palette> = {
 };
 /** Rain cloud at night: a low, dark slate lid with only a little of the moon through it. */
 const NIGHT_OVERCAST = { top: new THREE.Color('#1a1f2b'), horizon: new THREE.Color('#262b37'), cloud: new THREE.Color('#353b4a'), fog: new THREE.Color('#1c212b'), sky: new THREE.Color('#2c3344'), ground: new THREE.Color('#121612'), light: new THREE.Color('#8691a6') };
+/** Overhead on a clear, crisp day. */
+const CLEAR_TOP = new THREE.Color('#6fa9cc');
 const OVERCAST = { top: new THREE.Color('#9baeb2'), horizon: new THREE.Color('#cbd4c4'), cloud: new THREE.Color('#d4dbce'), fog: new THREE.Color('#becbbe'), sky: new THREE.Color('#d9e3dc'), ground: new THREE.Color('#697655'), light: new THREE.Color('#e0e5d9') };
 /** Warm light for the sunset bloom near the horizon, by style. */
 const GLOW: Record<SunsetStyle, THREE.Color> = { golden: new THREE.Color('#f7b46e'), rose: new THREE.Color('#f2a0a6'), ember: new THREE.Color('#f5784a'), pale: new THREE.Color('#ead2b4') };
@@ -182,8 +184,9 @@ export function createAtmosphere(scene: THREE.Scene) {
         // The sun itself, dimmed by cloud and gone below the horizon.
         float s=max(dot(d,sunDirection),0.);
         c+=vec3(1.,.73,.39)*(pow(s,450.)*.7+pow(s,18.)*.16)*(1.-cloudiness*.96)*sunGlow;
-        // Haze pales the whole sky a little toward the horizon colour.
-        c=mix(c,horizonColor,haze*.18*(1.-night));
+        // Haze pales the whole sky toward the horizon colour (the meadow's usual haze, .35, a little;
+        // a milky hot day much more; a clear day not at all).
+        c=mix(c,horizonColor,clamp(.063+(haze-.35)*.55,0.,.45)*(1.-night));
         gl_FragColor=vec4(c,1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -220,7 +223,10 @@ export function createAtmosphere(scene: THREE.Scene) {
       const bloom = Math.exp(-(((elevation - 1) / 7) ** 2)) * (evening ? 1 : .6);
 
       for (const k of ['top', 'horizon', 'cloud', 'fog', 'sky', 'ground', 'light'] as const) overcast[k].copy(OVERCAST[k]).lerp(NIGHT_OVERCAST[k], night);
-      uniforms.topColor.value.copy(palette.top).lerp(overcast.top, cloudiness * .9);
+      uniforms.topColor.value.copy(palette.top);
+      // A clear day's sky is a deeper blue overhead (less so toward evening and at night).
+      if (look.haze < .35) uniforms.topColor.value.lerp(CLEAR_TOP, Math.min(.55, (.35 - look.haze) * 2) * THREE.MathUtils.smoothstep(elevation, 8, 30));
+      uniforms.topColor.value.lerp(overcast.top, cloudiness * .9);
       uniforms.horizonColor.value.copy(palette.horizon).lerp(overcast.horizon, cloudiness * .78);
       uniforms.cloudColor.value.copy(palette.cloud).lerp(overcast.cloud, cloudiness);
       uniforms.cloudiness.value = cloudiness;
@@ -240,8 +246,10 @@ export function createAtmosphere(scene: THREE.Scene) {
 
       const fog = scene.fog as THREE.Fog;
       fog.color.copy(palette.fog).lerp(overcast.fog, cloudiness * .8);
-      fog.near = 18 - cloudiness * 5 - night * 4;
-      fog.far = 73 - cloudiness * 16 - night * 18;
+      // Haze closes the distance in (a hot, milky day), and a clear day opens it out.
+      const hazeShift = look.haze - .35;
+      fog.near = 18 - cloudiness * 5 - night * 4 - hazeShift * 10;
+      fog.far = 73 - cloudiness * 16 - night * 18 - hazeShift * 30;
       (scene.background as THREE.Color).copy(fog.color);
       hemi.color.copy(palette.sky).lerp(overcast.sky, cloudiness * .85);
       hemi.groundColor.copy(palette.ground).lerp(overcast.ground, cloudiness * .6);

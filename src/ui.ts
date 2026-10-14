@@ -91,7 +91,7 @@ const summerKinds = [['poppy', 'Poppies'], ['daisy', 'Daisies'], ['cornflower', 
 const flowerTypes = [ ['poppy', 'Poppy'], ['daisy', 'Daisy'], ['cornflower', 'Cornflower'] ] as const;
 const controls = [
   [key('W A S D'), 'Fly & walk<small>W follows your view</small>'],
-  [`<span class="guide-arrows" role="img" aria-label="Arrow keys: up, down, left and right">${key('↑')}${key('↓')}${key('←')}${key('→')}</span>`, 'Look around'],
+  [`<span class="guide-arrows" role="img" aria-label="Arrow keys: up, down, left and right">${key('↑')}${key('↓')}${key('←')}${key('→')}</span>`, 'Look direction (arrows or mouse)<small>or move the mouse: easier</small>'],
   [key('Space'), 'Rise / take off'],
   [key('Ctrl'), 'Descend'],
   [key('E'), 'Land / shelter / rest'],
@@ -296,7 +296,7 @@ export function createUI(actions: UIActions): GameUI {
           <summary>Keyboard controls</summary>
         <div class="learning-movement">
           <div>${keyboardCluster()}<strong>Fly & walk</strong><p>W goes where you look</p></div>
-          <div>${keyboardCluster(true)}<strong>Look around</strong><p>Up, down & turn</p></div>
+          <div>${keyboardCluster(true)}<strong>Look direction (arrows or mouse)</strong><p>Up, down & turn, or move the mouse</p></div>
         </div>
         <div class="learning-actions">
           <div>${learningKey('E', 'KeyE')}<strong>Land & rest</strong></div>
