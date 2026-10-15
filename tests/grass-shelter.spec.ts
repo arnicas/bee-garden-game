@@ -1,6 +1,7 @@
 import { startFlyingFixture } from './support/start';
 import { expect, test } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { settled } from './support/supplies';
 
 test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
 
@@ -63,7 +64,7 @@ test('wet leaf tops and sheltered ground rest follow weather, pause and takeoff'
   const rested = await state();
   expect(rested.energy).toBeGreaterThan(85); expect(rested.nectar).toBeLessThan(15);
   expect(rested.chill).toBe(0); expect(rested.onGround).toBe(true);
-  expect(rested.supplies).toEqual(landed.supplies);
+  expect(settled(rested.supplies)).toEqual(settled(landed.supplies));
   await page.evaluate(() => window.__BEE_TEST__!.setDayProgress(.35));
   await page.keyboard.down('Space'); await page.waitForTimeout(1100); await page.keyboard.up('Space');
   const airborne = await state();

@@ -164,6 +164,8 @@ export function createMoths(scene: THREE.Scene, seed: number, flowers: readonly 
       meshes.pose(m.id, m.position, m.rotation, open, Math.min(1, m.out * 1.5) * WING_SPAN / .15);
     }
     meshes.commit(moths.length);
+    // By day they're all down in the grass: draw nothing.
+    meshes.wings.visible = meshes.bodies.visible = moths.some(m => m.out > 0);
   };
 
   return {

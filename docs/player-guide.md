@@ -273,7 +273,7 @@ its name in bold, and the results screen lists them under “Meadow friends” a
 - **Mushrooms** (`mushrooms.ts`): clumps at about half the pools and one full
   fairy ring (a rare find, with a chime) come up after rain, shrivel in the heat
   and revive in the next rain.
-- **Fallen petals** (`petals.ts`): poppy petals and daisy rays under the flowers;
+- **Fallen petals** (`petals.ts`): poppy petals under the poppies, some fresh, some withered;
   a poppy you pollinate drops a petal a little later.
 - **Caterpillars** (`caterpillars.ts`): five on the broad leaves, eating bites
   into the leaf edges (cut out in the leaf shader).

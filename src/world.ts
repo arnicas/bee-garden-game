@@ -73,10 +73,12 @@ function stemBetween(a: THREE.Vector3, b: THREE.Vector3, radius: number, color: 
 }
 
 interface PollenGrain { position: THREE.Vector3; scale: THREE.Vector3; color: THREE.Color; }
-interface FlowerHead { geometry: THREE.BufferGeometry; grains: PollenGrain[]; nectarSpots: THREE.Vector3[]; }
+/** pieces: the vertex count of each poppy petal, which come first in the geometry (empty for the others). */
+interface FlowerHead { geometry: THREE.BufferGeometry; grains: PollenGrain[]; nectarSpots: THREE.Vector3[]; pieces: number[]; }
 function flowerHead(species: Species, variant: number, simple = false, medium = false): FlowerHead {
   const random = rng(331 + variant * 477 + SPECIES.indexOf(species) * 7121), parts: THREE.BufferGeometry[] = [];
   const grains: PollenGrain[] = [], nectarSpots: THREE.Vector3[] = [];
+  let petalCount = 0;
   const grain = (x: number, y: number, z: number, sx: number, sy: number, sz: number, color: THREE.Color) => {
     grains.push({ position: new THREE.Vector3(x, y, z), scale: new THREE.Vector3(sx, sy, sz), color });
   };
@@ -102,7 +104,8 @@ function flowerHead(species: Species, variant: number, simple = false, medium = 
       grain(Math.cos(angle) * r, top, Math.sin(angle) * r, simple ? 0.026 : 0.017, 0.020, simple ? 0.026 : 0.017, color);
     }
   } else if (species === 'poppy') {
-    for (let i = 0; i < 6; i++) {
+    petalCount = POPPY_PETALS;
+    for (let i = 0; i < POPPY_PETALS; i++) {
       const theta = i * TAU / 6 + 0.06 * Math.sin(variant + i), length = 0.94 + random() * 0.06;
       parts.push(surface(simple ? 4 : medium ? 6 : 12, simple ? 4 : medium ? 8 : 14, (u, v) => {
         const side = v * 2 - 1, angle = theta + side * 0.65;
@@ -202,7 +205,26 @@ function flowerHead(species: Species, variant: number, simple = false, medium = 
     const j = Math.floor(shuffle() * (i + 1));
     [grains[i], grains[j]] = [grains[j], grains[i]];
   }
-  return { geometry: combine(parts), grains, nectarSpots };
+  const pieces = parts.slice(0, petalCount).map(g => g.index ? g.index.count : g.getAttribute('position').count);
+  return { geometry: combine(parts), grains, nectarSpots, pieces };
+}
+const POPPY_PETALS = 6;
+
+/** Takes one more petal off a poppy's head (chosen at random from those left) and returns
+ * which, or -1 if it has none to lose. Never the last one. */
+export function losePetal(f: Flower, random: () => number): number {
+  const total = f.species === 'poppy' ? POPPY_PETALS : 0;
+  const left: number[] = [];
+  for (let i = 0; i < total; i++) if (!(f.petalsGone & (1 << i))) left.push(i);
+  if (left.length <= 1) return -1;
+  const i = left[Math.floor(random() * left.length)];
+  f.petalsGone |= 1 << i;
+  return i;
+}
+/** The middle of one of a poppy's petals, in the world (where it lets go from). */
+export function petalPoint(f: Flower, index: number, out: THREE.Vector3): THREE.Vector3 {
+  const theta = index * TAU / POPPY_PETALS + 0.06 * Math.sin(f.id % 3 + index);
+  return out.set(Math.cos(theta) * .55, .12, Math.sin(theta) * .55).multiplyScalar(f.radius).applyQuaternion(f.rotation).add(f.center);
 }
 
 /** A flower's resting stalk: a gentle curve from the base to the head. */
@@ -267,13 +289,33 @@ function bendFlowerStems(material: THREE.Material, clock: { value: number }): vo
   };
   material.customProgramCacheKey = () => `${cacheKey}-rooted-flower-v1`;
 }
+/** How far the poppies and daisies have closed against the rain (0 open, 1 as closed as they go),
+ * shared by every petal material. Daisies fold their rays partly up over the disc; poppies cup
+ * right in. Cornflowers don't close. Set from the garden with setPetalClose. */
+const petalClose = { value: 0 };
+export function setPetalClose(amount: number): void { petalClose.value = amount; }
 function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, petals: boolean, bend: boolean, pollenPulse = { value: 0 }, wilt = { value: 0 }): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.18 });
   material.onBeforeCompile = shader => {
     shader.uniforms.uMeadowTime = clock; shader.uniforms.uMeadowUV = uvMode; Object.assign(shader.uniforms, windUniforms);
-    shader.uniforms.uPollenPulse = pollenPulse; shader.uniforms.uPetalWilt = wilt;
-    shader.vertexShader = 'uniform float uMeadowTime; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition; varying float vPoppyWash; varying float vCornflowerWash;\n' + windGLSL + '\n' + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBotanicalUv = uv; vCornflowerWash = step(4.0, uv.y); vPoppyWash = step(2.0, uv.y) - vCornflowerWash; vBotanicalUv.y -= vPoppyWash * 2.0 + vCornflowerWash * 4.0; vBotanicalPosition = position;');
+    shader.uniforms.uPollenPulse = pollenPulse; shader.uniforms.uPetalWilt = wilt; shader.uniforms.uPetalClose = petalClose;
+    shader.vertexShader = 'uniform float uMeadowTime; uniform float uPetalClose; varying vec2 vBotanicalUv; varying vec3 vBotanicalPosition; varying float vPoppyWash; varying float vCornflowerWash;\n' + windGLSL + '\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBotanicalUv = uv; vCornflowerWash = step(4.0, uv.y); vPoppyWash = step(2.0, uv.y) - vCornflowerWash; vBotanicalUv.y -= vPoppyWash * 2.0 + vCornflowerWash * 4.0; vBotanicalPosition = position;' + (petals ? `
+      #ifndef USE_INSTANCING
+      // Closing against the rain: daisy rays (chart y 0..1) and poppy petals (2..3) fold up about
+      // their base, more toward the tip; cornflowers (4..5) and the discs (y < 0) stay as they are.
+      if (uPetalClose > 0.001 && uv.y >= 0.0 && uv.y < 4.0) {
+        float poppyPetal = step(2.0, uv.y);
+        float along = clamp(uv.y - poppyPetal * 2.0, 0.0, 1.0);
+        float fold = uPetalClose * mix(0.62, 0.85, poppyPetal) * smoothstep(0.0, 1.0, along);
+        float pivot = mix(0.19, 0.135, poppyPetal), r = length(transformed.xz);
+        if (r > pivot) {
+          float d = r - pivot; vec2 outward = transformed.xz / r;
+          transformed.xz = outward * (pivot + d * cos(fold));
+          transformed.y += d * sin(fold);
+        }
+      }
+      #endif` : ''));
     if (bend) shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `
       vec4 mvPosition = vec4(transformed, 1.0);
       vec3 rootPosition = vec3(0.0);
@@ -348,7 +390,7 @@ function botanicalMaterial(clock: { value: number }, uvMode: { value: number }, 
       ${petals ? 'totalEmissiveRadiance += vec3(0.82, 0.64, 0.22) * uPollenPulse * 0.22 * smoothstep(0.15, 0.75, vBotanicalUv.y);' : ''}
     `);
   };
-  material.customProgramCacheKey = () => `bee-garden-botanical-v7-${petals}-${bend}`;
+  material.customProgramCacheKey = () => `bee-garden-botanical-v8-${petals}-${bend}`;
   return material;
 }
 
@@ -503,6 +545,27 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     const far = flowerHead(species, variant, true); keep(far.geometry);
     flowerHeads.set(`${species}-${variant}-far`, far);
   }
+  // A head with some petals gone: the same vertices, drawn without those petals (built once per pattern).
+  const headsWithout = new Map<string, THREE.BufferGeometry>();
+  function headGeometry(flower: Flower, detail: number): THREE.BufferGeometry {
+    const key = `${flower.species}-${flower.id % 3}${detail === 2 ? '-far' : detail === 1 ? '-mid' : ''}`;
+    const head = flowerHeads.get(key)!;
+    const mask = flower.petalsGone;
+    if (!mask || !head.pieces.length) return head.geometry;
+    let geometry = headsWithout.get(`${key}~${mask}`);
+    if (!geometry) {
+      geometry = keep(new THREE.BufferGeometry());
+      for (const [name, attribute] of Object.entries(head.geometry.attributes)) geometry.setAttribute(name, attribute);
+      const total = head.geometry.getAttribute('position').count, index: number[] = [];
+      let start = 0;
+      head.pieces.forEach((n, i) => { if (!(mask & (1 << i))) for (let v = start; v < start + n; v++) index.push(v); start += n; });
+      for (let v = start; v < total; v++) index.push(v);
+      geometry.setIndex(index);
+      geometry.boundingSphere = head.geometry.boundingSphere!.clone(); geometry.boundingBox = head.geometry.boundingBox!.clone();
+      headsWithout.set(`${key}~${mask}`, geometry);
+    }
+    return geometry;
+  }
   const grainGeometry = keep(painted(new THREE.IcosahedronGeometry(1, 0), C(0xffffff)));
   const detailedGrainGeometry = keep(painted(new THREE.IcosahedronGeometry(1, 1), C(0xffffff)));
   const grainTransform = new THREE.Object3D();
@@ -532,7 +595,7 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     mesh.instanceMatrix.needsUpdate = true;
     state.fraction = fraction; state.detail = detail;
   }
-  const headDetail: number[] = [];
+  const headDetail: number[] = [], headGone: number[] = [];
   const flowers: Flower[] = [], stems: THREE.Mesh[] = [], heights: number[] = [], twists: number[] = [];
   const wiltRandom = rng(seed ^ 0xd7009), nods: (THREE.Quaternion | null)[] = [];
   function plant(species: Species, x: number, z: number, height: number, radius: number) {
@@ -556,9 +619,9 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     const nodRoll = wiltRandom(), brownRoll = wiltRandom(), nodYaw = wiltRandom() * TAU;
     const droop = species === 'daisy' && id !== 0 ? dry * (.3 + .7 * nodRoll) : 0, browned = species === 'daisy' && id !== 0 && brownRoll < dry * .55;
     nods.push(droop > .02 ? new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(Math.cos(nodYaw), 0, Math.sin(nodYaw)), droop * DROOP_ANGLE) : null);
-    const flower: Flower = { id, species, base, center, height, stalk: stalkCurve(height, id * 1.728), velocity: new THREE.Vector3(), radius, group, pollen, pollenFraction: 1, visited: false, pollenMatch: false, rotation: new THREE.Quaternion(), nectarSpots: head.nectarSpots.map(p => p.clone().multiplyScalar(radius)), droop, browned };
+    const flower: Flower = { id, species, base, center, height, stalk: stalkCurve(height, id * 1.728), velocity: new THREE.Vector3(), radius, group, pollen, pollenFraction: 1, visited: false, pollenMatch: false, rotation: new THREE.Quaternion(), nectarSpots: head.nectarSpots.map(p => p.clone().multiplyScalar(radius)), droop, browned, petalsGone: 0 };
     flowers.push(flower); updatePollen(flower, 0);
-    stems.push(stalk); heights.push(height); twists.push(random() * TAU); headDetail.push(0);
+    stems.push(stalk); heights.push(height); twists.push(random() * TAU); headDetail.push(0); headGone.push(0);
   }
   plant('daisy', 0, -3.5, 3.4, 1.03); plant('poppy', 3, -7, 4.2, 1.05); plant('cornflower', -3, -6, 3.8, 0.98);
   // Deliberately composed near blooms, then seeded, spaced habitat records.
@@ -640,12 +703,11 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
     if (fairyRings.some(q => Math.hypot(q.x - x, q.z - z) < 5)) continue;
     fairyRings.push({ x, z, radius });
   }
-  // Fallen petals under the flowers: poppy petals and daisy rays from earlier
-  // days, and a spare spot under each poppy for the petal it drops once
+  // Fallen petals under the poppies, from earlier days, and a spare spot under each poppy for the petal it drops once
   // pollinated. The low leafy cover is kept off these spots so they show.
   const petalSpots: PetalSpot[] = [];
   const petalRandom = rng(seed ^ 0x9e7a1);
-  const petalSpot = (f: Flower, kind: 'poppy' | 'daisy', spare: boolean) => {
+  const petalSpot = (f: Flower, kind: 'poppy', spare: boolean) => {
     const a = petalRandom() * TAU, d = .18 + f.radius * (.25 + petalRandom() * .75);
     petalSpots.push({ flowerId: f.id, kind, x: f.base.x + Math.cos(a) * d, z: f.base.z + Math.sin(a) * d, spare });
   };
@@ -655,11 +717,11 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       const count = petalRandom() < .45 ? 0 : petalRandom() < .7 ? 1 : 2;
       for (let i = 0; i < count; i++) petalSpot(f, 'poppy', false);
       petalSpot(f, 'poppy', true);
-    } else if (f.species === 'daisy' && petalRandom() < .4) {
-      const count = petalRandom() < .7 ? 1 : 2;
-      for (let i = 0; i < count; i++) petalSpot(f, 'daisy', false);
     }
   }
+  // The petals on the ground came off these heads: each one is missing from its flower.
+  const goneRandom = rng(seed ^ 0x5e7a1);
+  for (const spot of petalSpots) if (!spot.spare) losePetal(flowers[spot.flowerId], goneRandom);
   // Grass blades lean up to about .3 from their roots, so the patch is wider than a petal.
   const onPetal = (x: number, z: number) => petalSpots.some(p => (x - p.x) ** 2 + (z - p.z) ** 2 < .55 ** 2);
   const mushroomPatches: MushroomPatchSpot[] = [];
@@ -782,9 +844,9 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       flowerMesh.material = flower.visited ? (flower.browned ? wiltedVisitedMaterial : visitedPetalMaterial) : flower.pollenMatch ? matchingPetalMaterial : flower.browned ? wiltedPetalMaterial : petalMaterial;
       // 3.5-unit hysteresis prevents repeated toggling while hovering in gusts.
       const nextDetail = aerial ? 2 : headDetail[i] === 0 ? (distance > 17 ? 1 : 0) : (distance < 13.5 ? 0 : 1);
-      if (nextDetail !== headDetail[i]) {
-        headDetail[i] = nextDetail;
-        flowerMesh.geometry = flowerHeads.get(`${flower.species}-${i % 3}${nextDetail === 2 ? '-far' : nextDetail === 1 ? '-mid' : ''}`)!.geometry;
+      if (nextDetail !== headDetail[i] || flower.petalsGone !== headGone[i]) {
+        headDetail[i] = nextDetail; headGone[i] = flower.petalsGone;
+        flowerMesh.geometry = headGeometry(flower, nextDetail);
       }
       updatePollen(flower, nextDetail);
       flowerMesh.castShadow = !aerial && distance < 9; flower.pollen.castShadow = !aerial && distance < 9; stems[i].castShadow = !aerial && distance < 7;

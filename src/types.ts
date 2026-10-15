@@ -26,13 +26,16 @@ export interface Flower {
   droop: number;
   /** Daisies in a dry summer: petals going brown. */
   browned: boolean;
+  /** Poppies: petals already gone from the head, one bit each (0–5): the ones lying on
+   * the ground below, and any that fall during the day. */
+  petalsGone: number;
 }
 /** A low spot where rain pools: a small clearing in the grass. */
 export interface PuddleSpot { x: number; z: number; radius: number }
 /** A small ant mound in the grass, with a trail to one flower's stem. */
 export interface AntNestSpot { x: number; z: number; flowerId: number }
 /** Where a fallen petal lies under a flower; a spare one is a poppy's next to fall. */
-export interface PetalSpot { flowerId: number; kind: 'poppy' | 'daisy'; x: number; z: number; spare: boolean }
+export interface PetalSpot { flowerId: number; kind: 'poppy'; x: number; z: number; spare: boolean }
 /** A few mushrooms together at the damp edge of a rain pool. */
 export interface MushroomPatchSpot { x: number; z: number; count: number }
 /** A ring of fairy ring mushrooms in the open grass. */

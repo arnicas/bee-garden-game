@@ -1,6 +1,7 @@
 import { startFlyingFixture, leaveWelcome } from './support/start';
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { settled } from './support/supplies';
 
 test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
 const state = (page: Page) => page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Promise<Record<string, any>>;
@@ -61,7 +62,7 @@ test('a quiet flower rest advances sunlight, spends stored nectar, pauses and fi
   expect(middle.crawlDistance).toBe(0);
   expect(middle.tongue.extension).toBeLessThan(.03);
   expect(middle.nectarSurface.touching).toBe(false);
-  expect(middle.supplies).toEqual(before.supplies);
+  expect(settled(middle.supplies)).toEqual(settled(before.supplies));
   expect(middle.pollen).toBe(before.pollen);
   expect(await page.locator('[data-day-sun]').getAttribute('transform')).not.toBe(initialSun);
   await expect.poll(async () => (await state(page)).resting).toBe(false);
@@ -79,7 +80,7 @@ test('a quiet flower rest advances sunlight, spends stored nectar, pauses and fi
   expect(restSeconds).toBeCloseTo(6, 1);
   expect((before.nectar - after.nectar) * 3.5 - (after.energy - before.energy)).toBeCloseTo(metabolicCost, 6);
   expect(elapsed).toBeLessThan(7.5);
-  expect(after.supplies).toEqual(before.supplies);
+  expect(settled(after.supplies)).toEqual(settled(before.supplies));
   await expect(page.locator('[data-action="rest"]')).toContainText('Rest and pass time');
   await page.screenshot({ path: 'artifacts/day-rest-1/after-rest.png' });
   await page.setViewportSize({ width: 1024, height: 600 });

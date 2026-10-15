@@ -1,6 +1,7 @@
 import { startFlyingFixture, leaveWelcome } from './support/start';
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { settled } from './support/supplies';
 
 test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
 const state = (page: Page) => page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Promise<Record<string, any>>;
@@ -28,7 +29,7 @@ test('quiet rest fades the HUD naturally, keeps ordinary time, and consumes only
   const quiet = await state(page);
   expect(quiet.dayElapsed - rested.dayElapsed).toBeCloseTo(quiet.elapsed - rested.elapsed, 5);
   expect(quiet.nectar).toBeCloseTo(rested.nectar, 5);
-  expect(quiet.supplies).toEqual(rested.supplies);
+  expect(settled(quiet.supplies)).toEqual(settled(rested.supplies));
   await expect(page.locator('.game-heading')).toHaveCSS('opacity', '0');
   await expect(page.locator('.top-actions')).toHaveCSS('opacity', '0');
   await page.screenshot({ path: 'artifacts/quiet-rest-1/quiet-petal.png' });
@@ -55,7 +56,7 @@ test('the meadow view rises, orbits with workers, pauses and returns to the same
   expect(wide.cameraPosition[1]).toBeGreaterThan(12);
   expect(wide.phase).toBe('landed');
   expect(wide.localPosition).toEqual(before.localPosition);
-  expect(wide.supplies).toEqual(before.supplies);
+  expect(settled(wide.supplies)).toEqual(settled(before.supplies));
   expect(wide.ending.workers).toBe(14);
   expect(wide.ending.butterflies).toBe(8);
   expect(wide.ending.perchedBee).toBe(true);
@@ -78,7 +79,7 @@ test('the meadow view rises, orbits with workers, pauses and returns to the same
   expect(back.cameraPosition).toEqual(back.position);
   expect(back.localPosition).toEqual(before.localPosition);
   expect(back.ending.workers).toBe(0);
-  expect(back.supplies).toEqual(before.supplies);
+  expect(settled(back.supplies)).toEqual(settled(before.supplies));
   await page.setViewportSize({ width: 1024, height: 600 });
   await page.screenshot({ path: 'artifacts/quiet-rest-1/wake-small.png' });
   await scenic(page);

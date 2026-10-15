@@ -99,6 +99,13 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   expect(next.badSummers).toEqual({ daisy: 1, poppy: 1, cornflower: 1 });
   expect(next.ladybirds).toBeLessThan(before.ladybirds);
   expect(next.gaps).toBeGreaterThan(20);
+  // Where they stood, last summer's dead stalks.
+  const stalks = (await page.evaluate(() => window.__BEE_TEST__!.snapshot()) as { dryStalks: { count: number; tops: number[][] } }).dryStalks;
+  expect(stalks.count).toBeGreaterThan(20);
+  const top = stalks.tops[0];
+  await page.evaluate(t => window.__BEE_TEST__!.setPose([t[0] + 2.2, t[1] + .5, t[2] + 2.2], Math.atan2(2.2, 2.2), -.2), top);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'artifacts/summers-1/dry-stalks.png' });
   expect((await page.evaluate(() => window.__BEE_TEST__!.flowers().length))).toBeLessThan(before.flowers);
   // The results screen looks ahead to next summer.
   await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.setState('complete'));

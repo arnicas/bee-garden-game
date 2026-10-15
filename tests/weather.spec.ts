@@ -2,6 +2,7 @@ import { startFlyingFixture, leaveWelcome } from './support/start';
 import { expect, test, type Page } from '@playwright/test';
 import { Quaternion, Vector3 } from 'three';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { settled } from './support/supplies';
 
 test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
 const state = (page: Page) => page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Promise<Record<string, any>>;
@@ -91,7 +92,7 @@ test('E tucks under a leaf, rain stays outside, rest passes the shower, and Spac
   expect(cleared.energy).toBeGreaterThan(dry.energy + 34);
   expect(cleared.nectar).toBeLessThan(dry.nectar);
   expect(cleared.pollen).toBe(dry.pollen);
-  expect(cleared.supplies).toEqual(dry.supplies);
+  expect(settled(cleared.supplies)).toEqual(settled(dry.supplies));
   await page.screenshot({ path: 'artifacts/weather-1/cleared-under-leaf.png' });
   await page.keyboard.down('Space');
   await page.waitForTimeout(2000);

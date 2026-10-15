@@ -2,6 +2,7 @@ import { startFlyingFixture, leaveWelcome } from './support/start';
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { Quaternion, Vector3 } from 'three';
+import { settled } from './support/supplies';
 
 test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
 const state = (page: Page) => page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Promise<Record<string, any>>;
@@ -38,7 +39,7 @@ test('rain accumulates cold, exposed flowers cost energy, and leaf shelter resto
   expect(cold.energy).toBeGreaterThan(initial.energy - 4);
   expect(cold.coldDrain).toBeLessThan(.5);
   expect(cold.cold).toBeGreaterThan(.16);
-  expect(cold.supplies).toEqual(initial.supplies);
+  expect(settled(cold.supplies)).toEqual(settled(initial.supplies));
   await page.screenshot({ path: 'artifacts/cold-rain-1/cold-flower.png' });
   // With modest fuel, there is time to react and fly after the warning.
   await page.evaluate(() => window.__BEE_TEST__!.setCargo(0, 5, 35));
@@ -71,7 +72,7 @@ test('rain accumulates cold, exposed flowers cost energy, and leaf shelter resto
   expect(recovered.cold).toBe(0);
   expect(recovered.energy).toBeGreaterThan(94);
   expect(recovered.nectar).toBeLessThan(25);
-  expect(recovered.supplies).toEqual(initial.supplies);
+  expect(settled(recovered.supplies)).toEqual(settled(initial.supplies));
   await page.screenshot({ path: 'artifacts/cold-rain-1/warmed-under-leaf.png' });
   await writeFile('artifacts/cold-rain-1/recovery.json', JSON.stringify({ initial, cold, reacting, afterReaction, sheltered, paused, recovered }, null, 2));
 });
@@ -99,7 +100,8 @@ test('rain on each flower has bounded droplets that move with petals and clear o
       expect(sample.supportError).toBeLessThan(.025);
     }
     expect(wet.diagnostics.renderer.calls).toBeLessThan(300);
-    expect(wet.diagnostics.renderer.triangles).toBeLessThan(750_000);
+    // (Closed poppies and daisies stand taller in the rain, so a little more of the meadow is in view.)
+    expect(wet.diagnostics.renderer.triangles).toBeLessThan(770_000);
     await page.screenshot({ path: `artifacts/cold-rain-1/wet-flower-${id}.png` });
     await page.waitForTimeout(150);
     expect((await state(page)).flowerRain).toEqual(wet.flowerRain);

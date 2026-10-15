@@ -204,7 +204,7 @@ starting a new meadow; Continue goes straight on):
    Esc or Back returns to the title. Off on test pages unless `?choose`.
 4. **Starting ground** from the rain choice (done with step 1); the Farewell and start
    page name the choice (done with step 2).
-5. **Rain and drought costs**: nectar washed out by rain and refilling in the sun; grasses
+5. **Rain and drought costs** (done 2026-10-14 except leaf-sheltered flowers and poppy petals; see TODO): nectar washed out by rain and refilling in the sun; grasses
    crowding out flowers on very damp ground; flowers closed in rain; rainy days costing the
    hive's stores; less nectar per flower in a drought; a Bee Facts page.
 6. **Flowers** (mix and fullness), as a later step.

@@ -24,6 +24,8 @@ export const ARC = {
   honey: 1.15,
   /** A hot day with too little water: brood overheats and foragers go for water instead. */
   thirst: .2,
+  /** Rainy days: foragers can't fly and the colony lives on its stores. Per minute of rain beyond the first, at most `rainMost`. */
+  rain: .075, rainMost: .2,
   /** The most the hive can hold (comb space). */
   most: 3,
   /** At the end of summer five: a good winter at or above this, a lean one at or above `lean`. */
@@ -58,6 +60,8 @@ export interface SummerRecord {
   climate?: string;
   chosen?: string;
   showers?: number;
+  /** Minutes of rain in the day (absent in older saves). */
+  rainMinutes?: number;
   hot?: boolean;
 }
 
@@ -81,11 +85,13 @@ export function haul(r: Pick<SummerRecord, 'outcome' | 'nectar' | 'pollen'>): nu
 }
 
 /** The change in stores over one summer, with the reasons (for the end-of-run summary). */
-export function summerGain(r: SummerRecord): { gain: number; honey: number; thirst: number } {
+export function summerGain(r: SummerRecord): { gain: number; honey: number; thirst: number; rain: number } {
   const meadow = clamp(r.meadow, .3, 1.4);
   const honey = meadow * ARC.honey * haul(r);
   const thirst = r.waterGoal > 0 && r.water < r.waterGoal - 1e-6 ? ARC.thirst * (1 - r.water / r.waterGoal) : 0;
-  return { gain: honey - thirst - ARC.use, honey, thirst };
+  // True to bees: wet summers are poor honey years, whatever the bee brings home.
+  const rain = clamp(((r.rainMinutes ?? 0) - 1) * ARC.rain, 0, ARC.rainMost);
+  return { gain: honey - thirst - rain - ARC.use, honey, thirst, rain };
 }
 
 const poor = (o: SummerOutcome) => o === 'lost' || o === 'okay';

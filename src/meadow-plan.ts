@@ -70,7 +70,7 @@ export function moistureShift(moisture = .5): { dry: number; wet: number } {
  * daisy is a grassland perennial that suffers in drought. Small, so the bee's
  * pollination still leads. */
 export const MOISTURE_SPECIES: Readonly<Record<Species, { dry: number; wet: number }>> = {
-  daisy: { dry: .8, wet: 1.15 }, poppy: { dry: 1.25, wet: .8 }, cornflower: { dry: 1.1, wet: 1 },
+  daisy: { dry: .8, wet: 1.15 }, poppy: { dry: 1.25, wet: .8 }, cornflower: { dry: 1.1, wet: .9 },
 };
 export function moistureFactor(species: Species, moisture = .5): number {
   const { dry, wet } = moistureShift(moisture), k = MOISTURE_SPECIES[species];

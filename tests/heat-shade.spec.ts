@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { PNG } from 'pngjs';
 import { startFlyingFixture, leaveWelcome } from './support/start';
+import { settled } from './support/supplies';
 
 test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
 const state = (page: Page) => page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Promise<Record<string, any>>;
@@ -44,7 +45,7 @@ test('sun heats an exposed flower, wakes the quiet UI, and real E shade/rest coo
   expect(hot.energy).toBeGreaterThan(before.energy - 2);
   expect(hot.heatDrain).toBeLessThan(.12);
   expect(hot.chill).toBe(0); expect(hot.coldDrain).toBe(0);
-  expect(hot.supplies).toEqual(before.supplies);
+  expect(settled(hot.supplies)).toEqual(settled(before.supplies));
   expect(hot.energyWash.warmth).toBe(1);
   expect(hot.quietFade).toBe(0);
   await page.screenshot({ path: 'artifacts/heat-shade-1/flower-too-hot.png' });
@@ -84,7 +85,7 @@ test('sun heats an exposed flower, wakes the quiet UI, and real E shade/rest coo
   expect(cooled.heat).toBe(0); expect(cooled.heatDrain).toBe(0);
   expect(cooled.energy).toBeGreaterThan(89); expect(cooled.nectar).toBeLessThan(10);
   expect(cooled.energyWash.visible).toBe(false);
-  expect(cooled.supplies).toEqual(before.supplies);
+  expect(settled(cooled.supplies)).toEqual(settled(before.supplies));
   await page.screenshot({ path: 'artifacts/heat-shade-1/cooled-under-leaf.png' });
   expect(errors).toEqual([]);
   await writeFile('artifacts/heat-shade-1/exposure-recovery.json', JSON.stringify({ before, hot, reacting, afterReaction, paused, covered, cooled, errors }, null, 2));

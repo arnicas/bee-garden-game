@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { Quaternion, Vector3 } from 'three';
 import { leafSurfaceHeight } from '../src/shelters';
+import { settled } from './support/supplies';
 
 test.use({ viewport: { width: 1280, height: 720 }, video: 'on' });
 const state = (page: Page) => page.evaluate(() => window.__BEE_TEST__!.snapshot()) as Promise<Record<string, any>>;
@@ -47,7 +48,7 @@ test('a dry leaf top carries the resting bee with the wind and releases it with 
     expect(sample.leaf.root).toEqual(perched.leaf.root);
     expect(sample.state.underLeaf).toBeUndefined();
     expect(sample.state.rainExposure).toBe(0);
-    expect(sample.state.supplies).toEqual(perched.state.supplies);
+    expect(settled(sample.state.supplies)).toEqual(settled(perched.state.supplies));
   }
   const excursion = Math.max(...samples.map(s => new Vector3().fromArray(s.leaf.center).distanceTo(new Vector3().fromArray(perched.leaf.center))));
   const tilt = Math.max(...samples.map(s => new Quaternion().fromArray(s.leaf.rotation).angleTo(new Quaternion().fromArray(perched.leaf.rotation))));
@@ -69,7 +70,7 @@ test('a dry leaf top carries the resting bee with the wind and releases it with 
   expect(rested.onLeaf).toBe(0);
   expect(rested.energy).toBeGreaterThan(perched.state.energy + 34);
   expect(rested.nectar).toBeLessThan(perched.state.nectar);
-  expect(rested.supplies).toEqual(perched.state.supplies);
+  expect(settled(rested.supplies)).toEqual(settled(perched.state.supplies));
   expect(rested.pollinated).toBe(0); expect(rested.visited).toBe(0);
   await page.keyboard.down('Space'); await page.waitForTimeout(1000); await page.keyboard.up('Space');
   const airborne = await state(page);

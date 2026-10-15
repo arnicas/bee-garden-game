@@ -24,6 +24,8 @@ export interface RunSave {
   /** That summer's meadow: its seed and seeded flower spots (the fixed flowers are always the same). */
   seed: number;
   spots: FlowerSpot[];
+  /** Where that summer's gaps were (dry stalks); absent in older saves. */
+  gaps?: FlowerSpot[];
   /** Which flowers were pollinated, by index (fixed flowers first). */
   pollinated: boolean[];
   won: boolean;
