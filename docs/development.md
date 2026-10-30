@@ -302,9 +302,14 @@ source ([src/bee-facts.ts](../src/bee-facts.ts)).
 
 Current limits and follow-up work:
 
-- Desktop keyboard/trackpad play; iPhone/iPad controls and validation are deferred.
-- One outing per summer, no saved progress, multiple delivery trips or queen/hive
-  metric. Summers are in progress (see [TODO.md](../TODO.md)).
+- Desktop keyboard/mouse play, and tablets held sideways with touch controls
+  ([src/touch-controls.ts](../src/touch-controls.ts)); tablets get lighter settings
+  (`light` in `garden.ts`; `?light` / `?full` on any device). `npm run lan` serves a
+  build on the home network for trying a tablet, and `?bench` runs a speed check
+  ([src/bench.ts](../src/bench.ts)). Phones still get a "not yet" note.
+- One outing per summer, five summers to a run (a queen's reign, with hive stores
+  between summers and saved in the browser); no multiple delivery trips. See
+  [TODO.md](../TODO.md) for open work.
 - Pacing, weather costs, fuel availability and remaining HUD text need continued
   playtesting; open work is tracked in [TODO.md](../TODO.md).
 - Gameplay shapes, pollen colors, energy costs, weather and time are stylized.
