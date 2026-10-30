@@ -6,6 +6,7 @@ import { describeChoice, parseWeatherChoice, WEATHER_PRESETS } from './weather';
 import { coveragePetals, happyMeadowArt, pollinationFlowers } from './meadow-art';
 import { beeFacts, beeFactsMarkup } from './bee-facts';
 import { dayArt } from './day-art';
+import { touchChip, touchDevice, touchHtml, touchParts, touchWords } from './touch-controls';
 
 const icons = {
   bee: '<svg viewBox="0 0 56 40" fill="none" aria-hidden="true"><path d="M23 20C5 23 6 3 17 5c7 1 9 10 11 16M32 20C50 23 49 3 38 5c-7 1-9 10-11 16" stroke="currentColor" stroke-width="1.3"/><ellipse cx="28" cy="26" rx="10" ry="8" fill="currentColor"/><path d="M24 19v14m7-14v14" stroke="var(--paper)" stroke-width="2.6"/><path d="m19 24-6-1m25 1 5-1M24 17l-3-4m10 4 3-4m-8 21 2 3 2-3" stroke="currentColor" stroke-width="1.3"/></svg>',
@@ -24,6 +25,8 @@ const icons = {
 };
 
 const key = (label: string) => `<kbd>${label}</kbd>`;
+/** Who made the game, and where its code lives: on the title page and atop the field guide. */
+const credits = `Made by <a href="https://ghostweather.com" target="_blank" rel="noopener">Lynn Cherny/@arnicas</a> · <a href="https://github.com/arnicas/bee-garden-game" target="_blank" rel="noopener">Code on GitHub</a>`;
 const learningKey = (label: string, code: string) => `<kbd data-learn-key="${code}">${label}</kbd>`;
 const keyboardCluster = (arrows = false) => `<div class="learning-keys" aria-label="${arrows ? 'Arrow keys' : 'W A S D keys'}">
   ${learningKey(arrows ? '↑' : 'W', arrows ? 'ArrowUp' : 'KeyW')}
@@ -101,6 +104,18 @@ const controls = [
   [key('M'), 'Sound on / off'],
 ];
 
+/** The same controls on a tablet: the touch buttons (touch-controls.ts). */
+const touchControls = [
+  [touchChip('stick', 'Stick'), 'Fly & walk<small>left thumb: the bee goes where you look</small>'],
+  [touchChip('drag', 'Drag'), 'Look direction<small>right thumb: drag anywhere on the right</small>'],
+  [touchChip('up', '▲'), 'Rise / take off<small>reads Fly when perched</small>'],
+  [touchChip('down', '▼'), 'Descend'],
+  [touchChip('land', 'Land'), 'Land / shelter<small>appears when there is somewhere to land</small>'],
+  [touchChip('rest', 'Rest'), 'Rest<small>in the panel at left, once perched</small>'],
+  [touchChip('sip', 'Sip'), 'Hold to sip nectar<small>blue near water</small>'],
+  [touchChip('eye', 'Bee Vision'), 'Bee vision'],
+];
+
 /** Words that don't change what a cue says, for comparing it with the hint. */
 const CUE_FILLER = new Set(['a', 'an', 'the', 'on', 'in', 'into', 'under', 'beneath', 'underneath', 'to', 'of', 'by', 'gently']);
 /** Different words for the same action. */
@@ -142,15 +157,16 @@ const titleFlight = `<svg class="title-flight" viewBox="0 0 560 330" aria-hidden
 /** Paint: roughens the letters' edges like watercolour on paper. */
 const titlePaint = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="title-paint"><feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.5"/></filter></svg>';
 
-/** Phones and tablets: a mobile browser, an iPad (which reports a Mac), or touch
- * with no mouse at all. ?mobile shows the note on any device; test pages never do otherwise. */
+/** Phones, which aren't supported yet (tablets are: touch-controls.ts). An iPhone or iPod, an
+ * Android phone, or any touch screen under 600 points on its short side. ?mobile shows the note on
+ * any device; test pages and the speed check never do otherwise. */
 function onMobile(): boolean {
   const params = new URLSearchParams(location.search);
   if (params.has('mobile')) return true;
-  if (params.has('test')) return false;
-  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-    || navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)
-    || matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+  if (params.has('test') || params.has('bench') || params.has('tablet')) return false;
+  const touch = navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches;
+  return /iPhone|iPod/i.test(navigator.userAgent) || /Android.*Mobile/i.test(navigator.userAgent)
+    || touch && Math.min(screen.width, screen.height) < 600;
 }
 
 export function createUI(actions: UIActions): GameUI {
@@ -191,6 +207,7 @@ export function createUI(actions: UIActions): GameUI {
     <div class="top-actions">
       <button class="icon-button vision-button play-only" data-action="uv" aria-label="Toggle bee vision" title="Bee vision · Q" aria-pressed="false">${icons.eye}<span>Q</span></button>
       <button class="icon-button play-only" data-action="photo" aria-label="Take a photo" title="Photo · P">${icons.camera}<span>P</span></button>
+      <button class="icon-button play-only touch-only touch-home" data-action="return" aria-label="Way home" title="Head home with what you carry">${icons.hive}</button>
       <button class="icon-button" data-action="sound" aria-label="Mute sound" title="Mute sound · M" aria-pressed="false">${icons.sound}</button>
       <button class="icon-button play-only" data-action="pause" aria-label="Pause game" title="Pause · Esc">${icons.pause}<span>Esc</span></button>
     </div>
@@ -222,7 +239,7 @@ export function createUI(actions: UIActions): GameUI {
     </section>
     </aside>
     <div class="home-marker" hidden aria-hidden="true"><span>${icons.hive}</span><b>WAY HOME</b><small data-text="home-marker-note">Fly to the meadow edge</small></div>
-    <div class="target-marker" hidden aria-hidden="true"><kbd>E</kbd></div>
+    <div class="target-marker" hidden aria-hidden="true"><kbd class="keyboard-only">E</kbd><span class="touch-only">${touchChip('land', 'Land')}</span></div>
     <div class="aim play-only" aria-hidden="true"><i></i><span></span></div>
     <div class="center-note play-only"><span class="interaction-label" data-text="interaction"></span><p data-text="hint"></p></div>
     <div class="night-caption" hidden><span>The night passes</span><button class="text-button" data-action="skip-night">Skip <kbd>Space</kbd></button></div>
@@ -236,9 +253,9 @@ export function createUI(actions: UIActions): GameUI {
     <div class="mobile-note" data-mobile-note role="dialog" aria-modal="true" aria-labelledby="mobile-note-title" hidden>
       <div class="mobile-note-card">
         <div class="mobile-note-bee" aria-hidden="true">${icons.bee}</div>
-        <h2 id="mobile-note-title">Not on mobile yet</h2>
-        <p>This game isn’t yet supported on mobile devices. Stay tuned!</p>
-        <small>For now it plays on a computer, with a keyboard and mouse.</small>
+        <h2 id="mobile-note-title">Not on phones yet</h2>
+        <p>This game isn’t yet ready for phones. Stay tuned!</p>
+        <small>For now it plays on a computer, or on a tablet held sideways.</small>
         <button class="primary-button start-button mobile-note-close" data-action="mobile-close"><span>Back to the meadow</span></button>
       </div>
     </div>
@@ -248,6 +265,7 @@ export function createUI(actions: UIActions): GameUI {
       <button class="primary-button start-button continue-button" data-action="continue" hidden><span data-text="continue-label">Continue</span><span class="button-arrow">${icons.arrow}</span></button>
       <button class="primary-button start-button" data-action="start"><span data-text="start-label">Take flight</span><span class="button-arrow">${icons.arrow}</span></button>
     </section>
+    <footer class="title-footer"><p class="credits">${credits}</p></footer>
     <section class="reign-overlay" hidden>
       <div class="journal-page reign-page" role="dialog" aria-modal="true" aria-labelledby="reign-title">
         <span class="eyebrow">A QUEEN’S REIGN</span>
@@ -292,7 +310,12 @@ export function createUI(actions: UIActions): GameUI {
           <li><span class="learning-cycle-art" aria-hidden="true">${ladybirdArt}</span>Aphids, ladybirds and butterflies follow the flowers.</li>
           <li><span class="learning-cycle-art" aria-hidden="true">${butterflyArt}</span>Skipped flowers thin out, and meadow life with them.</li>
         </ul>
-        <details class="learning-controls" open>
+        <details class="learning-controls touch-only" open>
+          <summary>Touch controls</summary>
+          <div class="touch-controls-grid">${touchControls.map(([input, label]) => `<div>${input}<span>${label}</span></div>`).join('')}</div>
+          <p class="learning-more">The buttons along the top: Bee Vision, photo, sound and pause.</p>
+        </details>
+        <details class="learning-controls keyboard-only" open>
           <summary>Keyboard controls</summary>
         <div class="learning-movement">
           <div>${keyboardCluster()}<strong>Fly & walk</strong><p>W goes where you look</p></div>
@@ -311,11 +334,13 @@ export function createUI(actions: UIActions): GameUI {
     </section>
     <section class="modal-overlay" hidden aria-label="Game menu">
       <div class="journal-page pause-page" hidden>
+        <p class="credits guide-credits">${credits}</p>
         <div class="pause-heading"><div><h2>Rest your wings.</h2></div>
           <button class="primary-button" data-action="resume" aria-label="Back to the breeze"><span>Back to the breeze</span>${key('Esc')}</button>
         </div>
         <div class="guide-heading"><span>YOUR FIELD GUIDE</span><span>✳</span></div>
-        <div class="controls-grid">${controls.map(([input, label]) => `<div>${input}<span>${label}</span></div>`).join('')}</div>
+        <div class="controls-grid keyboard-only">${controls.map(([input, label]) => `<div>${input}<span>${label}</span></div>`).join('')}</div>
+        <div class="controls-grid touch-controls-grid touch-only">${touchControls.map(([input, label]) => `<div>${input}<span>${label}</span></div>`).join('')}</div>
         <div class="guide-tips" aria-label="Meadow essentials">
           <div>${icons.pollen}<p><strong>Gather & pollinate</strong>Walk through pollen; visit matching flowers.</p></div>
           <div>${icons.nectar}<p><strong>Refuel</strong>Nectar restores energy. Rest uses your stored nectar.</p></div>
@@ -332,7 +357,7 @@ export function createUI(actions: UIActions): GameUI {
           <button class="text-button" data-action="restart">Start the day again ${icons.arrow}</button>
         </div>
       </div>
-      ${beeFactsMarkup()}
+      ${touchDevice() ? touchHtml(touchWords(beeFactsMarkup())) : beeFactsMarkup()}
       <div class="journal-page result-page" hidden>
         <span class="eyebrow" data-text="result-eyebrow"></span><div class="result-bee">${icons.bee}</div><h2 data-text="result-title"></h2><div class="result-voice result-voice-queen"><span class="result-voice-art" aria-hidden="true">${queenBee}</span><p class="menu-intro" data-text="result-description"></p></div><div class="result-voice result-voice-meadow" hidden><span class="result-voice-art" aria-hidden="true">${resultArt(happyMeadowArt, 'result-voice')}</span><p class="menu-intro result-meadow" data-text="result-meadow"></p></div><p class="result-why" data-text="result-why"></p><p class="result-tip" data-text="result-tip" hidden></p><p class="result-next" data-text="result-next" hidden></p>
         <div class="result-harvest" role="group" aria-label="The day's harvest">
@@ -375,9 +400,14 @@ export function createUI(actions: UIActions): GameUI {
   stillTitle();
   const el = <T extends Element = HTMLElement>(selector: string): T => root.querySelector<T>(selector)!;
   const labels = new Map(Array.from(root.querySelectorAll<HTMLElement>('[data-text]')).map(item => [item.dataset.text!, item]));
+  const touch = touchDevice();
+  const touchKey = /\b(E|F|Q|R|Space|Ctrl|WASD)\b|Arrow keys/;
   const text = (name: string, value: string) => {
+    // On a tablet any line naming a key shows the touch buttons instead (touch-controls.ts).
+    if (touch && (touchKey.test(value) || value.includes('⟦'))) { keyText(name, touchWords(value)); return; }
     const label = labels.get(name)!;
-    if (label.textContent !== value) label.textContent = value;
+    if (label.dataset.source) label.dataset.source = '';
+    if (label.textContent !== value || label.children.length) label.textContent = value;
   };
   // Hints and interaction labels render key names as <kbd> chips; WASD becomes W/A/S/D.
   const keyPattern = /\b(Arrow keys|WASD|Space|Shift|Ctrl|Esc|Enter|[WEFQR])\b/g;
@@ -392,6 +422,15 @@ export function createUI(actions: UIActions): GameUI {
     if (label.dataset.source === value) return;
     label.dataset.source = value;
     const nodes: Node[] = [];
+    if (value.includes('⟦')) {
+      // A tablet's line (touchWords): touch-button chips instead of key caps.
+      for (const part of touchParts(value)) {
+        if ('text' in part) nodes.push(document.createTextNode(part.text));
+        else { const holder = document.createElement('span'); holder.innerHTML = touchChip(part.kind, part.label); nodes.push(holder.firstElementChild!); }
+      }
+      label.replaceChildren(...nodes);
+      return;
+    }
     let last = 0;
     for (const match of value.matchAll(keyPattern)) {
       const start = match.index ?? 0;
@@ -451,7 +490,7 @@ export function createUI(actions: UIActions): GameUI {
   const learningOverlay = el('.learning-overlay');
   const learningTitle = el('#learning-title');
   const learningSummer = el('.learning-summer');
-  const learningControls = el<HTMLDetailsElement>('.learning-controls');
+  const learningControls = Array.from(root.querySelectorAll<HTMLDetailsElement>('.learning-controls'));
   const learningGoals = el('#learning-goals');
   const learningCycle = el('.learning-cycle');
   let controlsFoldedFor = -1;
@@ -491,7 +530,7 @@ export function createUI(actions: UIActions): GameUI {
   const resultSpeciesPetals = flowerTypes.map(([species, name]) => ({ species, name, element: el(`.result-species-petal[data-result-species="${species}"]`) }));
   const soundButton = el<HTMLButtonElement>('[data-action="sound"]');
   const uvButton = el<HTMLButtonElement>('[data-action="uv"]');
-  const returnButton = el<HTMLButtonElement>('[data-action="return"]');
+  const returnButton = el<HTMLButtonElement>('.return-ready [data-action="return"]'), touchHome = el<HTMLButtonElement>('.touch-home');
   const messageToast = el('.message-toast');
   const pollinationToast = el('.pollination-toast');
   const pollinationBlooms = flowerTypes.map(([species, name]) => ({ species, name, element: el(`[data-pollinated-species="${species}"]`) }));
@@ -825,7 +864,7 @@ export function createUI(actions: UIActions): GameUI {
       show(el('[data-text="summer-hive-line"]'), !!arc?.hiveLine);
       if (learningTitle.textContent !== title) learningTitle.textContent = title;
       const summer = start?.summer ?? 1;
-      if (controlsFoldedFor !== summer) { controlsFoldedFor = summer; learningControls.open = !start; }
+      if (controlsFoldedFor !== summer) { controlsFoldedFor = summer; for (const controls of learningControls) controls.open = !start; }
       if (start) {
         // One plain sentence per group (the weather first); the numbers behind "More details".
         text('summer-flowers-line', start.flowersLine);
@@ -959,7 +998,7 @@ export function createUI(actions: UIActions): GameUI {
     const homeward = state.harvestReady || state.headingHome;
     show(homeReady, homeward && playing);
     // R works any time there is nectar for the flight; the button appears once homeward.
-    returnButton.disabled = !state.canHeadHome;
+    returnButton.disabled = !state.canHeadHome; touchHome.disabled = !state.canHeadHome;
     show(homeMarker, (homeward || !!state.nearHomeEdge) && playing && state.homeVisible);
     text('home-marker-note', homeward ? 'Fly to the meadow edge' : 'Keep flying to go home');
     homeMarker.style.left = `${state.homeX * 100}%`;
@@ -981,11 +1020,14 @@ export function createUI(actions: UIActions): GameUI {
     show(flowerGuidance, !!guidance);
     keyText('hint', state.hint);
     const interaction = shelterBeneath ? 'E  ·  SHELTER BENEATH' : resting ? (state.restProgress >= .85 ? 'A LITTLE REST, NEARLY DONE' : 'RESTING · THE DAY DRIFTS BY') : state.landing ? (state.leafTopTarget ? 'SETTLING ON A LEAF' : state.shelterTarget ? 'SETTLING UNDER A LEAF' : 'LANDING GENTLY') : onGround ? 'E  ·  REST IN THE GRASS' : underLeaf ? 'E  ·  REST UNDER THE LEAF' : onLeaf ? 'E  ·  REST ON THE LEAF' : state.drinking ? (state.energy < 99.5 ? 'SIPPING · RESTORING ENERGY' : 'SIPPING NECTAR') : state.phase === 'landed' ? (state.satiated ? 'ALL TOPPED UP' : state.canDrink ? 'HOLD F TO SIP' : 'WASD  ·  EXPLORE THE FLOWER') : highlightLanding ? (state.leafTopTarget ? 'E  ·  LAND ON LEAF' : state.shelterTarget ? 'E  ·  SHELTER UNDER LEAF' : 'E  ·  LAND GENTLY') : '';
-    keyText('interaction', redundantCue(interaction, state.hint) ? '' : interaction);
+    // On a tablet the touch buttons carry the action: the cue drops its key letters.
+    const cue = document.documentElement.classList.contains('touch-playing') ? interaction.replace(/^E  ·  /, '').replace('WASD  ·  ', '').replace('HOLD F TO SIP', 'HOLD SIP TO DRINK') : interaction;
+    keyText('interaction', redundantCue(cue, state.hint) ? '' : cue);
     aim.classList.toggle('can-land', highlightLanding);
     aim.classList.toggle('is-sipping', state.drinking);
     show(el('.night-caption'), state.phase === 'night');
-    text('message-lead', state.messageLead); text('message-body', state.message);
+    text('message-lead', state.messageLead);
+    if (state.message.includes('⟦')) keyText('message-body', state.message); else text('message-body', state.message);
     show(messageToast, playing && !!state.message && !state.pollinationSpecies);
     show(target, playing && state.phase === 'flying' && state.targetVisible && highlightLanding);
     if (state.targetVisible) {
@@ -1016,7 +1058,8 @@ export function createUI(actions: UIActions): GameUI {
       show(el('.result-voice-meadow'), won);
       text('result-why', report.why);
       const lossTip = !won && state.lossStreak >= 2 ? 'Keys that save a bee: Ctrl drops you into the grass · E tucks you under a leaf · F sips water to cool down.' : '';
-      text('result-tip', won ? report.tip : lossTip);
+      const tip = won ? report.tip : lossTip, touchTip = touchDevice() ? touchWords(tip) : tip;
+      text('result-tip', touchTip);
       show(el('[data-text="result-tip"]'), won ? !!report.tip : !!lossTip);
       text('result-eyebrow', won ? `SUMMER ${Math.max(1, state.summerNumber)} · ONE SMALL BEE` : state.lossFromNight ? 'DAYLIGHT RAN OUT' : state.lossFromHeat ? 'TOO MUCH SUN' : state.lossFromRain ? 'CAUGHT IN THE COLD RAIN' : 'AT THE END OF YOUR ENERGY');
       text('result-title', won ? report.title : state.lossFromNight ? 'Night in the meadow.' : 'The meadow grows quiet.');

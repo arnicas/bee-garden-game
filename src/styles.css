@@ -559,7 +559,8 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
   .modal-overlay { padding: 14px; }
   .return-transition p { font-size: 24px; }
 }
-@media (max-height: 620px) {
+/* Short windows: a laptop with its browser bars, or an iPad in Safari (655 px tall). */
+@media (max-height: 700px) {
   .field-label { margin-top: 4px; }
   .flower-rest { margin-top: 8px; min-height: 29px; padding-top: 5px; padding-bottom: 5px; }
   .pollination-summary .meadow-art { width: 69px; }
@@ -706,7 +707,7 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .arc-signature { margin: 2px auto 0; max-width: 540px; text-align: right; font: italic 15px/1.3 var(--serif); color: #6b5a33; }
 .arc-signature::before { content: '— '; }
 .arc-facts { margin: 14px auto 0; max-width: 540px; padding-top: 10px; border-top: 1px solid #77855e2e; text-align: left; font-size: 11px; line-height: 1.5; color: #6b6a58; }
-.arc-page { max-height: calc(100vh - 40px); overflow-y: auto; }
+/* The farewell is long: the page around it scrolls (see .modal-overlay), so its frame stays whole. */
 
 /* The Queen's Farewell, illustrated: honey-gold summers that went well, dusty ones that didn't. */
 .arc-page { position: relative; }
@@ -761,3 +762,86 @@ h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(78px, 7.8vw, 
 .reign-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
 .reign-actions .primary-button { width: auto; margin-top: 0; padding-right: 0; }
 @media (max-width: 640px) { .reign-arc { grid-template-columns: 1fr; } .reign-presets { grid-template-columns: 1fr 1fr; } }
+
+/* Touch controls for tablets (touch-controls.ts): under the HUD, shown while flying or perched. */
+.touch-controls { position: fixed; inset: 0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.touch-zone { position: absolute; top: 0; bottom: 0; touch-action: none; }
+.touch-move-zone { left: 0; width: 42%; }
+.touch-look-zone { left: 42%; right: 0; }
+.touch-stick { position: absolute; width: 132px; height: 132px; margin: -66px 0 0 -66px; border-radius: 50%; border: 2px solid rgba(251,245,229,.75); background: radial-gradient(circle, rgba(251,245,229,.18), rgba(251,245,229,.34) 70%, rgba(251,245,229,.12)); box-shadow: 0 2px 14px rgba(52,69,55,.18); opacity: 0; transition: opacity .18s; pointer-events: none; }
+.touch-stick.is-on { opacity: 1; }
+.touch-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fffaf0, #efe2bd); border: 1px solid rgba(104,84,47,.35); box-shadow: 0 2px 8px rgba(52,69,55,.25); }
+.touch-hint { position: absolute; bottom: calc(110px + env(safe-area-inset-bottom)); padding: 6px 12px; border-radius: 14px; background: rgba(251,245,229,.6); color: var(--muted); font-size: 13px; pointer-events: none; transition: opacity .6s; }
+.touch-move-hint { left: calc(8% + env(safe-area-inset-left)); }
+.touch-look-hint { left: 56%; }
+.touch-controls.is-used .touch-hint { opacity: 0; }
+.touch-button { position: absolute; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid rgba(104,84,47,.32); background: rgba(251,245,229,.62); color: var(--ink); box-shadow: 0 3px 12px rgba(52,69,55,.16); touch-action: none; padding: 0; transition: transform .08s, background .12s; }
+.touch-button span { pointer-events: none; font-weight: 600; letter-spacing: .02em; }
+.touch-button.is-pressed { transform: scale(.93); background: rgba(251,245,229,.92); }
+.touch-up, .touch-down { right: calc(22px + env(safe-area-inset-right)); width: 64px; height: 64px; font-size: 20px; }
+.touch-up { bottom: calc(104px + env(safe-area-inset-bottom)); }
+.touch-up.is-fly { font-size: 16px; background: rgba(251,245,229,.8); border-color: rgba(185,147,65,.7); }
+.touch-down { bottom: calc(26px + env(safe-area-inset-bottom)); }
+.touch-action { right: calc(104px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 96px; height: 96px; font-size: 17px; background: rgba(251,245,229,.82); border-color: rgba(185,147,65,.75); }
+.touch-sip { right: calc(214px + env(safe-area-inset-right)); bottom: calc(52px + env(safe-area-inset-bottom)); width: 76px; height: 76px; font-size: 14px; text-align: center; line-height: 1.1; }
+.touch-sip[data-kind="nectar"], .touch-sip[data-kind="share"] { background: rgba(247,222,140,.85); border-color: rgba(185,147,65,.85); }
+.touch-sip[data-kind="water"] { background: rgba(196,224,236,.88); border-color: rgba(84,130,160,.7); }
+/* While playing by touch: bigger HUD buttons for fingers, no key letters. */
+.touch-playing .icon-button { width: 50px; height: 50px; }
+.touch-playing .icon-button span { display: none; }
+.touch-playing .top-actions { gap: 12px; }
+.turn-sideways { display: none; }
+@media (orientation: portrait) {
+  .touch-device .turn-sideways { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 24px; background: rgba(251,245,229,.94); text-align: center; font-family: var(--serif); font-size: 22px; color: var(--ink); }
+  .turn-sideways-icon { font-size: 54px; line-height: 1; margin-bottom: 10px; transform: rotate(90deg); display: inline-block; }
+}
+/* Touch: the meters as three slim pills stacked under the hive note, each with a small picture
+   (dial, jar, pouch), so the view stays clear and the right thumb's buttons have the lower right
+   corner; a tap on a pill shows its note below it (no hover on touch). */
+.touch-playing .cargo-bar { width: max-content; grid-template-columns: max-content; gap: 5px; }
+.touch-playing .cargo-meter { display: grid; grid-template-columns: 26px max-content; align-items: center; column-gap: 5px; padding: 2px 10px 2px 4px; border-radius: 999px; background: #fbf5e5e0; box-shadow: 0 1px 6px #39472714; text-align: left; }
+.touch-playing .cargo-meter::before { display: none; }
+.touch-playing .cargo-art { width: 26px; margin: 0; grid-row: 1 / span 3; filter: none; }
+.touch-playing .meter-caption { grid-column: 2; justify-content: flex-start; gap: 6px; padding: 0; min-height: 0; background: none; font-size: 12px; line-height: 18px; }
+.touch-playing .meter-caption b { font-size: 12px; }
+.touch-playing .water-caption { margin-top: 0; padding: 0 6px; border-radius: 6px; font-size: 11px; }
+.touch-playing .is-low { background: #fff0dfe8; }
+.touch-playing .feeding-status { grid-column: 2; position: static; font-size: 10px; }
+.touch-playing .meter-detail { right: 0; top: calc(100% + 8px); transform: none; }
+.touch-playing #ui:is([data-phase="flying"], [data-phase="landed"]) .cargo-meter:focus .meter-detail { visibility: visible; opacity: 1; }
+.touch-playing #ui button kbd { display: none; }
+/* Touch: taps on buttons and pages never double-tap-zoom the page. */
+.touch-device, .touch-device body, .touch-device button, .touch-device #ui { touch-action: manipulation; }
+/* Touch-button chips in hints, notes and pages (touch-controls.ts touchChip): small pictures of the buttons. */
+.touch-chip { display: inline-flex; align-items: center; gap: 3px; vertical-align: -1px; margin: 0 2px; padding: 1px 7px; min-height: 1.45em; border-radius: 999px; border: 1px solid rgba(104,84,47,.35); background: #fbf5e5; color: var(--ink); font-size: .86em; font-weight: 600; line-height: 1.2; white-space: nowrap; }
+.touch-chip-land { border-color: rgba(185,147,65,.85); background: #fdf6e2; }
+.touch-chip-up, .touch-chip-down { min-width: 1.6em; justify-content: center; padding: 1px 6px; }
+.touch-chip-sip { background: #f7de8c; border-color: rgba(185,147,65,.85); }
+.touch-chip-water { background: #c4e0ec; border-color: rgba(84,130,160,.7); }
+.touch-chip-rest { border-radius: 4px; border-color: #87916c99; color: #50613e; }
+.touch-chip-stick .chip-ring { width: .9em; height: .9em; border-radius: 50%; border: 1.5px solid currentColor; box-shadow: inset 0 0 0 2px #fbf5e5, inset 0 0 0 5px #d9cba4; }
+.touch-chip-drag::before { content: '↔'; font-weight: 400; }
+.touch-chip-eye { padding: 1px 6px; }
+.touch-only { display: none !important; }
+.touch-device .touch-only { display: revert !important; }
+.touch-device .keyboard-only { display: none !important; }
+.touch-controls-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 10px 0 6px; text-align: left; }
+.touch-controls-grid > div { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.touch-controls-grid .touch-chip { font-size: 14px; flex: none; min-width: 64px; justify-content: center; }
+.touch-controls-grid small { display: block; color: var(--muted); font-size: 11px; }
+/* The sidebar's Rest button is the way to rest on a tablet: big enough for a finger. */
+.touch-playing .flower-rest { min-height: 46px; padding: 10px 16px 10px 12px; font-size: 14px; border-radius: 8px; }
+.touch-device .touch-only.touch-controls-grid { display: grid !important; }
+/* Pages taller than the window scroll (by touch too: the overlay takes touches), starting at
+   their top rather than centred off the top edge. */
+.modal-overlay { pointer-events: auto; place-items: start center; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.modal-overlay > * { margin-block: auto; }
+.target-marker .touch-chip { font-size: 13px; text-shadow: none; box-shadow: 0 2px 8px #27362333; }
+/* Credits: who made the game and where its code is (title page footer, top of the field guide). */
+.credits { margin: 0; font-size: 12px; letter-spacing: .02em; color: var(--muted); }
+.credits a { color: var(--ink); text-decoration: underline; text-decoration-color: #77855e66; text-underline-offset: 2px; pointer-events: auto; }
+.credits a:hover { text-decoration-color: currentColor; }
+.title-footer .credits { padding: 4px 10px; border-radius: 10px; background: #fbf5e5b8; }
+.guide-credits { margin: -6px 0 10px; text-align: center; font-size: 11px; }
+/* On the title page the credit sits at left, under the title and Take flight. */
+.title-footer { justify-content: flex-start; }

@@ -123,7 +123,7 @@ test('a summer with nothing pollinated grows a thinner meadow with fewer friends
   await expect(page.locator('[data-summer-split="flowers"] [data-split="bee"]')).toContainText('nothing was pollinated');
   await expect(page.locator('[data-summer-split="flowers"] [data-split="own"]')).toContainText('The meadow on its own');
   // The keyboard controls fold away after the first summer.
-  await expect(page.locator('.learning-controls')).not.toHaveAttribute('open', '');
+  await expect(page.locator('.learning-controls.keyboard-only')).not.toHaveAttribute('open', '');
   await expect(page.locator('[data-text="summer-count-poppy"]')).not.toHaveText('');
   await expect(page.locator('[data-text="summer-count-ladybird"]')).not.toHaveText('');
   await expect(page.locator('[data-text="summer-delta-poppy"]')).toHaveText(/^[+−]\d+$|^same$/);

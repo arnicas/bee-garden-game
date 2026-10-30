@@ -569,13 +569,17 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
   const grainGeometry = keep(painted(new THREE.IcosahedronGeometry(1, 0), C(0xffffff)));
   const detailedGrainGeometry = keep(painted(new THREE.IcosahedronGeometry(1, 1), C(0xffffff)));
   const grainTransform = new THREE.Object3D();
+  /** Lighter settings for slower devices (setDetail): the share of grass blades and of low ground
+   * cover drawn, how far off flowers are drawn, plain pollen grains on daisies, and how near a
+   * flower head must be to get its finest version. */
+  const lod = { grass: 1, cover: 1, flowerRange: 48, simplePollen: false, nearHeads: 17 };
   const pollenVisuals: { fraction: number; detail: number }[] = [];
   function updatePollen(flower: Flower, detail: number) {
     const state = pollenVisuals[flower.id], fraction = THREE.MathUtils.clamp(flower.pollenFraction, 0, 1);
     if (state.fraction === fraction && state.detail === detail) return;
     const { grains } = flowerHeads.get(`${flower.species}-${flower.id % 3}${detail === 2 ? '-far' : detail === 1 ? '-mid' : ''}`)!;
     const mesh = flower.pollen;
-    mesh.geometry = flower.species === 'daisy' && detail === 0 ? detailedGrainGeometry : grainGeometry;
+    mesh.geometry = flower.species === 'daisy' && detail === 0 && !lod.simplePollen ? detailedGrainGeometry : grainGeometry;
     // Refill only on reset or LOD changes; ordinary collection updates one grain.
     if (fraction > state.fraction || state.detail !== detail) {
       for (let i = 0; i < grains.length; i++) {
@@ -837,13 +841,13 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       if (nods[i]) flower.rotation.multiply(nods[i]!);
       flower.rotation.multiply(twistRotation);
       flower.group.position.copy(flower.center); flower.group.quaternion.copy(flower.rotation);
-      const distance = flower.center.distanceTo(cameraPosition), visible = distance < 48;
+      const distance = flower.center.distanceTo(cameraPosition), visible = distance < lod.flowerRange;
       flower.group.visible = visible; stems[i].visible = visible;
       const flowerMesh = flower.group.children[0] as THREE.Mesh;
       flower.pollenMatch = uv && !flower.visited && (carriedPollen?.[flower.species] ?? 0) > .01;
       flowerMesh.material = flower.visited ? (flower.browned ? wiltedVisitedMaterial : visitedPetalMaterial) : flower.pollenMatch ? matchingPetalMaterial : flower.browned ? wiltedPetalMaterial : petalMaterial;
       // 3.5-unit hysteresis prevents repeated toggling while hovering in gusts.
-      const nextDetail = aerial ? 2 : headDetail[i] === 0 ? (distance > 17 ? 1 : 0) : (distance < 13.5 ? 0 : 1);
+      const nextDetail = aerial ? 2 : headDetail[i] === 0 ? (distance > lod.nearHeads ? 1 : 0) : (distance < lod.nearHeads - 3.5 ? 0 : 1);
       if (nextDetail !== headDetail[i] || flower.petalsGone !== headGone[i]) {
         headDetail[i] = nextDetail; headGone[i] = flower.petalsGone;
         flowerMesh.geometry = headGeometry(flower, nextDetail);
@@ -852,14 +856,15 @@ export function createMeadow(scene: THREE.Scene, seed = 7919, spots: readonly Fl
       flowerMesh.castShadow = !aerial && distance < 9; flower.pollen.castShadow = !aerial && distance < 9; stems[i].castShadow = !aerial && distance < 7;
     }
     for (const page of pages) page.mesh.visible = (!aerial || page.mesh.name.startsWith('grass page')) && Math.hypot(cameraPosition.x - page.x, cameraPosition.z - page.z) < page.range;
+    for (const page of pages) if (page.mesh.name.startsWith('groundcover')) page.mesh.count = Math.ceil(page.mesh.instanceMatrix.count * lod.cover);
     for (const page of grassPages) {
       const distance = Math.hypot(cameraPosition.x - page.x, cameraPosition.z - page.z);
       const detailed = !aerial && (page.detailed ? distance < 21 : distance < 17);
       if (detailed !== page.detailed) { page.detailed = detailed; page.mesh.geometry = detailed ? bladeGeometry : distantBladeGeometry; }
       // A fixed prefix of each seeded page stays spatially scattered from above.
-      page.mesh.count = aerial ? Math.ceil(page.mesh.instanceMatrix.count * .6) : page.mesh.instanceMatrix.count;
+      page.mesh.count = Math.ceil(page.mesh.instanceMatrix.count * (aerial ? .6 : 1) * lod.grass);
     }
   }
   update(0, new THREE.Vector3(0, 4.6, 3.5), false);
-  return { flowers, puddles, antNests, fairyRings, mushroomPatches, petalSpots, update, setHollows: groundMaterial.setHollows, setFarDry: groundMaterial.setFarDry, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
+  return { flowers, puddles, antNests, fairyRings, mushroomPatches, petalSpots, update, setDetail(next: Partial<typeof lod>) { Object.assign(lod, next); for (const state of pollenVisuals) state.detail = -1; }, setHollows: groundMaterial.setHollows, setFarDry: groundMaterial.setFarDry, dispose() { scene.remove(root); root.traverse(object => { if (object instanceof THREE.InstancedMesh) object.dispose(); }); for (const geometry of geometries) geometry.dispose(); for (const material of materials) material.dispose(); } };
 }

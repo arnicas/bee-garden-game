@@ -6,6 +6,8 @@ a phone needs: speed, screen layout and the browser's quirks. Drafted 2026-10-04
 built yet. Today a phone or tablet gets the "This game isn't yet supported on mobile devices"
 note (`onMobile()` in `src/ui.ts`). The decisions for Lynn are listed first.
 
+**Update 2026-10-30:** the touch layer and a tablet speed check are built, and tablets now play (see TODO.md, "Tablets, first round"). Look is drag-on-the-right (decision 2); the input layer is a light one for now: touch buttons arrive as key presses and the move stick is read in `moveForward` / `moveSide` in `garden.ts`.
+
 ## Decisions for Lynn
 
 1. **Tablets first** (decided, Lynn, 2026-10-04). An iPad or Android tablet has room for two

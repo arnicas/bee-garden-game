@@ -41,6 +41,8 @@ import { choiceNote, chosenSeason, describeChoice, isNatureDecides, parseWeather
 import { FIXED_WEATHER_PLAN, planWeather, weatherAt, type MeadowWeather, type NightWeather, type WeatherPlan, moistureFriendsLine, hiveNeedsWater, coverMoisture, moistureLine, nextMoisture, rollSeason, seasonNote, type Season } from './weather';
 import { edgeExposureAt, flightWindAt, MEADOW_EDGE_FULL, setWindGale, setWindVariation, surfaceHeight } from './wind';
 import type { Flower, GameUI, Meadow, Phase, Species, ViewState } from './types';
+import { createBench } from './bench';
+import { createTouchControls, touchDevice, touchWords, type TouchView } from './touch-controls';
 
 const NAMES: Record<Species, string> = { daisy: 'Oxeye daisy', poppy: 'Corn poppy', cornflower: 'Cornflower' };
 const HOME = new THREE.Vector3(0, 4, 46);
@@ -65,6 +67,14 @@ const LOSS_DURATION = 3.6, QUIET_LOSS_DURATION = 1.5;
 /** A fresh 32-bit seed for a new day's meadow or weather. */
 /** Modifier keys alone never wake the quiet view or count as activity, so
  * system shortcuts (like Cmd+Shift+4 for a screenshot) leave a rest alone. */
+/** Tablets get the lighter settings (Garden.light); ?light and ?full choose either on any device. */
+function lightDetail(): boolean {
+  const params = new URLSearchParams(location.search);
+  if (params.has('full')) return false;
+  return params.has('light') || touchDevice();
+}
+/** Radians of turn per pixel of a look drag on a touch screen. */
+const TOUCH_LOOK = .0055;
 const MODIFIER_KEYS = new Set(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight']);
 const randomSeed = (): number => (Math.random() * 2 ** 32) >>> 0 || 1;
 
@@ -225,6 +235,7 @@ interface TestControl {
   /** Why a point can or can't be made out from the view now (for tuning). */
   growMushrooms(): void;
   sightReady(): boolean;
+  sceneBudget(): Record<string, number>;
   sight(point: number[], size: number): Record<string, unknown>;
   /** Ends the summer as if these flowers were pollinated and grows the next meadow. */
   nextSummer(pollinatedIds?: number[]): { counts: Record<Species, number>; badSummers: Record<Species, number>; gaps: number; ladybirds: number; aphidClusters: number };
@@ -235,6 +246,12 @@ export class Garden {
   private renderer: THREE.WebGLRenderer;
   /** What the bee can really see: a small depth image of her view, a few times a second. */
   private sightDepth!: ReturnType<typeof createSightDepth>;
+  /** Lighter settings for tablets (and ?light; ?full turns them off): 1× resolution, no edge
+   * smoothing, less grass and ground cover, plain pollen grains, flower heads simpler sooner, and
+   * the sight pass less often. Chosen from the iPad (A16) speed checks, October 2026. */
+  private light = lightDetail();
+  /** Seconds between looks by the depth pass for what the bee can see (0: off, and the older rules decide; see sight-depth.ts). */
+  private sightEvery = this.light ? .5 : SIGHT_DEPTH_EVERY;
   private sightDepthAge = 0;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(61, 1, .015, 175);
@@ -511,6 +528,10 @@ export class Garden {
   private accumulator = 0;
   private frame = 0;
   private raf = 0;
+  /** ?bench: the tablet speed check (bench.ts) flies the bee on a fixed route once the day starts. */
+  private bench: ReturnType<typeof createBench> | null = null;
+  /** Tablets: the touch layer (touch-controls.ts). Its buttons arrive as key presses; the move stick is read in moveForward / moveSide. */
+  private touch: ReturnType<typeof createTouchControls> | null = null;
   private pausedCapture = false;
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private uv = false;
@@ -629,7 +650,7 @@ export class Garden {
   private fillLight: THREE.PointLight;
 
   constructor(private canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.light, powerPreference: 'high-performance' });
     this.sightDepth = createSightDepth(this.renderer);
     // The modelled bee for the tired and fallen bees; they use simple built ones until it arrives.
     void loadBeeModel();
@@ -641,6 +662,7 @@ export class Garden {
     this.scene.add(this.camera);
     this.atmosphere = createAtmosphere(this.scene);
     this.meadow = createMeadow(this.scene, this.seed, null, this.groundMoisture);
+    this.meadow.setDetail(this.meadowDetail());
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
     this.rainFX = createRain(this.scene);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
@@ -672,6 +694,36 @@ export class Garden {
     this.ui = createUI({ start: () => this.startFresh(), continueRun: () => this.continueRun(), setWeather: (rain, heat) => this.setWeather(rain, heat), beginReign: () => this.beginReign(), closeWeather: () => { this.choosingWeather = false; }, explore: () => this.explore(), restart: () => this.begin(), resume: () => this.resume(), pause: () => this.pause(), toggleSound: () => this.audio.toggle(), toggleUV: () => { this.uv = !this.uv; }, photo: () => this.saveScreenshot(), returnHome: () => this.returnHome(), skipReturn: () => this.skipClosing(), skipNight: () => this.finishNight(), toggleRest: () => this.toggleRest(), toggleLore: () => this.toggleLore() });
     this.resetSupply(); this.bindInput(); this.resize(); this.updateWorld(0); this.updateView(0); this.installHooks();
     window.beeGarden = { screenshot: () => this.saveScreenshot() };
+    if (touchDevice()) this.touch = createTouchControls({
+      key: (code, down) => this.touchKey(code, down),
+      look: (dx, dy) => {
+        if (this.phase !== 'flying' && this.phase !== 'landed') return;
+        if (this.quietFade() > 0 || this.restView.active) return;
+        this.quietAge = 0;
+        this.yaw -= dx * TOUCH_LOOK; this.pitch = THREE.MathUtils.clamp(this.pitch - dy * TOUCH_LOOK, -1.35, 1.25);
+      },
+    });
+    if (new URLSearchParams(location.search).has('bench')) this.bench = createBench({
+      renderer: this.renderer,
+      parts: () => this.frameParts,
+      restore: () => {
+        this.resize(); this.renderer.shadowMap.autoUpdate = true;
+        this.sightEvery = this.light ? .5 : SIGHT_DEPTH_EVERY; this.meadow.setDetail(this.meadowDetail());
+        const ui = document.getElementById('ui'); if (ui) ui.style.visibility = '';
+      },
+      setFeatures: f => {
+        this.renderer.shadowMap.autoUpdate = f.shadows; this.renderer.shadowMap.needsUpdate = true;
+        this.sightEvery = f.sightEvery;
+        this.meadow.setDetail({ grass: f.grass, cover: f.cover, flowerRange: f.flowerRange, simplePollen: f.simplePollen, nearHeads: f.nearHeads });
+        const ui = document.getElementById('ui'); if (ui) ui.style.visibility = f.hud ? '' : 'hidden';
+      },
+      // After the opening guide is closed (perched on the daisy, or flying).
+      ready: () => this.phase === 'flying' || this.phase === 'landed',
+      pose: (p, yaw, pitch) => {
+        if (this.phase !== 'flying') { this.stopRest(); this.clearShelter(); this.landed = null; this.landingAssist = null; this.phase = 'flying'; }
+        this.previousPosition.copy(this.position); this.position.copy(p); this.yaw = yaw; this.pitch = pitch; this.velocity.set(0, 0, 0); this.energy = 100;
+      },
+    });
     this.raf = requestAnimationFrame(this.tick);
   }
 
@@ -945,6 +997,7 @@ export class Garden {
     this.stopRest(); this.clearShelter(); this.leafShelters.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.ladybirds.dispose(); this.ants.dispose(); this.mushrooms.dispose(); this.petals.dispose(); this.caterpillars.dispose(); this.groundedBees.dispose(); this.butterflies.dispose(); this.moths.dispose(); this.snails.dispose(); this.puddles.dispose(); this.caughtWeb = null; this.seed = seed;
     this.pollinationFX.reset(); this.homecoming.dispose(); this.meadow.dispose();
     this.meadow = createMeadow(this.scene, seed, spots, this.groundMoisture);
+    this.meadow.setDetail(this.meadowDetail());
     this.leafShelters = createShelters(this.scene, this.meadow.flowers);
     this.flowerRain = createFlowerRain(this.scene, this.meadow.flowers, this.leafShelters.shelters, this.leafShelters.surface);
     this.webs = createWebs(this.scene, seed, this.meadow.flowers, this.leafShelters.shelters); this.webs.setVisible(this.websEnabled);
@@ -1326,7 +1379,26 @@ export class Garden {
     if (this.phase !== 'paused') return;
     this.phase = this.resumePhase; this.clearInput(); this.canvas.focus({ preventScroll: true });
   }
-  private clearInput(): void { this.keys.clear(); this.mouseDown = false; this.dragging = false; }
+  private clearInput(): void { this.keys.clear(); this.mouseDown = false; this.dragging = false; this.touch?.release(); }
+  /** Forward and sideways, -1..1: W/S and A/D, or the touch move stick. */
+  private moveForward(): number { return THREE.MathUtils.clamp(Number(this.keys.has('KeyW')) - Number(this.keys.has('KeyS')) + (this.touch?.stick.y ?? 0), -1, 1); }
+  private moveSide(): number { return THREE.MathUtils.clamp(Number(this.keys.has('KeyD')) - Number(this.keys.has('KeyA')) + (this.touch?.stick.x ?? 0), -1, 1); }
+  /** The meadow's detail: lighter on tablets (see light). */
+  private meadowDetail() { return this.light ? { grass: .55, cover: .5, simplePollen: true, nearHeads: 9 } : { grass: 1, cover: 1, simplePollen: false, nearHeads: 17 }; }
+  /** What the touch buttons show this moment (touch-controls.ts). */
+  private touchView(): TouchView {
+    const visible = this.phase === 'flying' || this.phase === 'landed';
+    let action: TouchView['action'] = null;
+    if (this.caughtWeb) action = { label: 'Pull free', code: 'Space' };
+    else if (this.landingAssist || this.shelterAssist) action = { label: 'Cancel', code: 'Space' };
+    else if (this.phase === 'flying') {
+      if (this.canLand) action = { label: this.shelterTarget && this.needsLeafShelter() ? 'Shelter' : 'Land', code: 'KeyE' };
+      else if (this.grassCover > .99 && this.takeoffCooldown <= 0) action = { label: 'Settle', code: 'KeyE' };
+    }
+    // Perched, resting (or tucking under a leaf) is the sidebar's Rest button, so no big button here.
+    const sip = this.helping ? (this.nectar > .05 ? 'share' : null) : this.canDrink || this.drinking ? 'nectar' : this.waterNear || this.sippingWater ? 'water' : null;
+    return { visible, action, perched: this.phase === 'landed' && !this.caughtWeb, sip: this.phase === 'landed' || this.helping ? sip : null };
+  }
   private latchClosingKeys(): void {
     // Arrival can occur while climbing. Release that Space before allowing a
     // fresh press to skip, including native activation of the focused button.
@@ -1396,20 +1468,41 @@ export class Garden {
     window.addEventListener('keydown', e => {
       if (e.metaKey || e.code === 'MetaLeft' || e.code === 'MetaRight') return;
       if (this.closingHeldKeys.has(e.code)) { e.preventDefault(); return; }
-      if (e.target instanceof HTMLButtonElement && (e.code === 'Space' || e.code === 'Enter')) return;
+      if ((e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) && (e.code === 'Space' || e.code === 'Enter')) return;
       if (['Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault();
       this.keys.add(e.code);
       if (this.phase === 'landed' && this.resting && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyF', 'Space'].includes(e.code)) this.stopRest();
       if (e.repeat) return;
+      if ((e.code === 'Space' || e.code === 'Enter') && (this.phase === 'returning' || this.phase === 'failing' || this.phase === 'night')) e.preventDefault();
+      this.keyAction(e.code);
+    }, { signal });
+    window.addEventListener('keyup', e => {
+      this.quietHeldKeys.delete(e.code);
+      this.keys.delete(e.code);
+      if (this.closingHeldKeys.delete(e.code)) e.preventDefault();
+    }, { signal });
+    this.bindPointer(signal);
+  }
+  /** A touch button, as the key it stands for (held buttons stay in keys until let go). */
+  private touchKey(code: string, down: boolean): void {
+    if (!down) { this.keys.delete(code); return; }
+    this.keys.add(code);
+    if (this.phase === 'landed' && this.resting && ['KeyF', 'Space'].includes(code)) this.stopRest();
+    this.keyAction(code);
+  }
+  /** What a key press does, once (not on repeats): shared by the keyboard and the touch buttons. */
+  private keyAction(code: string): void {
+    {
+      const e = { code };
       if (e.code === 'Escape' && this.choosingWeather) { this.choosingWeather = false; return; }
       if (e.code === 'Escape') { if (this.phase === 'paused') this.resume(); else this.pause(); }
       if (e.code === 'KeyM') this.audio.toggle();
       if (this.phase === 'returning' || this.phase === 'failing') {
-        if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); this.skipClosing(); }
+        if (e.code === 'Space' || e.code === 'Enter') this.skipClosing();
         return;
       }
       if (this.phase === 'night') {
-        if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); this.finishNight(); }
+        if (e.code === 'Space' || e.code === 'Enter') this.finishNight();
         return;
       }
       if (e.code === 'Enter' && this.phase === 'title') { if (this.choosingWeather) this.beginReign(); else this.startFresh(); }
@@ -1424,12 +1517,9 @@ export class Garden {
       if (e.code === 'Space' && this.phase === 'landed') this.takeoff();
       if (e.code === 'Space' && (this.landingAssist || this.shelterAssist)) { this.landingAssist = null; this.shelterAssist = null; this.notify('Landing cancelled · Hold Space to rise', 3); }
       if (e.code === 'KeyR') this.returnHome();
-    }, { signal });
-    window.addEventListener('keyup', e => {
-      this.quietHeldKeys.delete(e.code);
-      this.keys.delete(e.code);
-      if (this.closingHeldKeys.delete(e.code)) e.preventDefault();
-    }, { signal });
+    }
+  }
+  private bindPointer(signal: AbortSignal): void {
     window.addEventListener('blur', () => this.pause(), { signal });
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); }, { signal });
     this.canvas.addEventListener('pointerdown', e => {
@@ -1466,7 +1556,7 @@ export class Garden {
     this.canvas.addEventListener('contextmenu', e => e.preventDefault(), { signal });
   }
   private resize(): void {
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.light ? 1 : 1.5));
     this.renderer.setSize(innerWidth, innerHeight, false);
     this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
   }
@@ -1475,6 +1565,8 @@ export class Garden {
     this.lastFrame = stamp;
     if (dt > 0) { this.frameTimes.push(dt * 1000); if (this.frameTimes.length > 240) this.frameTimes.shift(); }
     // During video capture the game advances only when asked, by exact frame steps.
+    this.bench?.update(dt);
+    this.touch?.update(this.touchView());
     if (!this.captureMode) this.advance(dt, 6);
     this.raf = requestAnimationFrame(this.tick);
   };
@@ -1482,20 +1574,37 @@ export class Garden {
   /** Video capture: once captureFrame is called, frames advance only through it, by exact steps. */
   private captureMode = false;
 
+  /** Where the last frame's time went, in ms (for the speed check, bench.ts): the simulation
+   * steps (and how many), the world and HUD updates, handing the frame to the GPU, the sight pass. */
+  readonly frameParts = { steps: 0, step: 0, world: 0, view: 0, render: 0, sight: 0, diagnostics: 0 };
+  private drawn = { calls: 0, triangles: 0 };
   private advance(dt: number, maxSteps: number): void {
     this.frame++;
+    const parts = this.frameParts;
+    let t = performance.now(), now: number;
+    const lap = (key: Exclude<keyof typeof parts, 'steps'>) => { now = performance.now(); parts[key] = now - t; t = now; };
+    parts.steps = 0;
     if (!this.pausedCapture && this.phase !== 'paused') {
       this.accumulator += dt;
       let steps = 0;
-      while (this.accumulator >= FIXED && steps++ < maxSteps) { this.step(FIXED); this.accumulator -= FIXED; }
+      while (this.accumulator >= FIXED && steps++ < maxSteps) { this.step(FIXED); this.accumulator -= FIXED; parts.steps++; }
     }
+    lap('step');
     this.updateWorld(this.reducedMotion ? 0 : this.time);
+    lap('world');
     this.updateView(dt);
+    lap('view');
     this.renderer.render(this.scene, this.camera);
+    // The frame's own drawing, before the sight pass draws again.
+    this.drawn.calls = this.renderer.info.render.calls; this.drawn.triangles = this.renderer.info.render.triangles;
+    lap('render');
     // A fresh look at what's really in view, about five times a second while out in the meadow.
     this.sightDepthAge += dt;
-    if (this.sightDepthAge >= SIGHT_DEPTH_EVERY && (this.phase === 'flying' || this.phase === 'landed')) { this.sightDepthAge = 0; this.sightDepth.capture(this.scene, this.camera); }
+    parts.sight = 0;
+    if (this.sightEvery > 0 && this.sightDepthAge >= this.sightEvery && (this.phase === 'flying' || this.phase === 'landed')) { this.sightDepthAge = 0; this.sightDepth.capture(this.scene, this.camera); }
+    lap('sight');
     this.publishDiagnostics();
+    lap('diagnostics');
   }
   private step(dt: number): void {
     this.time += dt;
@@ -1753,7 +1862,7 @@ export class Garden {
       else this.notify('The last light · Your harvest is ready. Follow the hive marker home.', 9, '', NOTICE.urgent);
     }
     const safePerch = this.phase === 'landed' && this.dayElapsed < DUSK_START && this.energy > 35 && this.chill < .18 && this.rainExposure < .05 && this.heat < .18 && this.heatExposure < .18;
-    const idle = safePerch && ![...this.keys].some(code => !MODIFIER_KEYS.has(code)) && !this.quietHeldKeys.size && !this.mouseDown && !this.dragging && !this.drinking && !this.suppressQuietClick;
+    const idle = safePerch && ![...this.keys].some(code => !MODIFIER_KEYS.has(code)) && !this.quietHeldKeys.size && !this.mouseDown && !this.dragging && !this.touch?.active && !this.drinking && !this.suppressQuietClick;
     this.quietAge = idle ? this.quietAge + dt : 0;
     this.restView.step(dt, this.quietAge >= SCENIC_AFTER, this.position, this.reducedMotion);
     this.loreView = this.lore.step(dt, { enabled: this.loreOn && this.loreAllowed, resting: this.resting, restAge: this.restAge, restLength: REST_DURATION, scenic: this.restView.amount, moods: this.loreMoods() });
@@ -1952,8 +2061,8 @@ export class Garden {
     }
     if (this.shelterAssist) { this.settleOnLeaf(dt); return; }
     if (this.landingAssist) { this.settleOntoFlower(dt); return; }
-    const forwardInput = Number(this.keys.has('KeyW')) - Number(this.keys.has('KeyS'));
-    const side = Number(this.keys.has('KeyD')) - Number(this.keys.has('KeyA'));
+    const forwardInput = this.moveForward();
+    const side = this.moveSide();
     const lift = Number(this.keys.has('Space')) - Number(this.keys.has('ControlLeft') || this.keys.has('ControlRight'));
     const brake = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
     // Forward follows the view. Explicit lift replaces its vertical component,
@@ -2062,8 +2171,8 @@ export class Garden {
   }
   private crawl(dt: number): void {
     if (this.onGround) {
-      const forward = Number(this.keys.has('KeyW')) - Number(this.keys.has('KeyS'));
-      const side = Number(this.keys.has('KeyD')) - Number(this.keys.has('KeyA'));
+      const forward = this.moveForward();
+      const side = this.moveSide();
       this.temp.set(-Math.sin(this.yaw) * forward + Math.cos(this.yaw) * side, 0, -Math.cos(this.yaw) * forward - Math.sin(this.yaw) * side);
       if (this.temp.lengthSq() > 1) this.temp.normalize();
       // The edge current reaches into the grass too: outward steps fade across the
@@ -2083,8 +2192,8 @@ export class Garden {
     }
     const f = this.landed; if (!f) return;
     this.localPrevious.copy(this.localPosition);
-    const a = Number(this.keys.has('KeyW')) - Number(this.keys.has('KeyS'));
-    const b = Number(this.keys.has('KeyD')) - Number(this.keys.has('KeyA'));
+    const a = this.moveForward();
+    const b = this.moveSide();
     this.temp.set(-Math.sin(this.yaw) * a + Math.cos(this.yaw) * b, 0, -Math.cos(this.yaw) * a - Math.sin(this.yaw) * b);
     if (this.temp.lengthSq() > 1) this.temp.normalize();
     this.temp.applyQuaternion(f.rotation.clone().invert()); this.temp.y = 0;
@@ -2385,7 +2494,7 @@ export class Garden {
    * its arrow a reason before the player has found R. Only with W held facing out, so
    * hovering or drifting by the edge never ends the day by surprise. */
   private flyOutHome(dt: number): void {
-    const pushing = this.nearHomeEdge() && this.keys.has('KeyW') && -Math.cos(this.yaw) > .5;
+    const pushing = this.nearHomeEdge() && this.moveForward() > .5 && -Math.cos(this.yaw) > .5;
     if (!pushing) { this.edgeHold = 0; return; }
     if (!this.edgeNoteShown && this.position.z >= HOME_EXIT.z - HOME_APPROACH_DEPTH + 2) {
       this.edgeNoteShown = true;
@@ -2697,7 +2806,7 @@ export class Garden {
       pollinatedBySpecies: this.pollinatedBySpecies,
       carriedPollen: this.loose,
       flowerPollinated: supply?.pollinated ?? false, flowerVisited: supply?.visited ?? false, pollinationSpecies: this.time < this.pollinationUntil ? this.pollinationSpecies : null,
-      elapsed: this.elapsed, message: this.noticeUntil > this.time ? this.notice : '', messageLead: this.noticeUntil > this.time ? this.noticeLead : '', nightProgress: this.phase === 'night' ? Math.min(1, this.nightAge / Garden.NIGHT_DURATION) : 0, hint, resultScore: this.resultScore,
+      elapsed: this.elapsed, message: this.noticeUntil > this.time ? (this.touch ? touchWords(this.notice) : this.notice) : '', messageLead: this.noticeUntil > this.time ? this.noticeLead : '', nightProgress: this.phase === 'night' ? Math.min(1, this.nightAge / Garden.NIGHT_DURATION) : 0, hint: this.touch ? touchWords(hint) : hint, resultScore: this.resultScore,
     };
     this.ui.update(view);
   }
@@ -2761,7 +2870,7 @@ export class Garden {
     window.__THREE_GAME_DIAGNOSTICS__ = {
       frame: this.frame, elapsed: this.elapsed, score: this.resultScore, targetScore: 1, complete: this.phase === 'won',
       player: { position: { x: this.position.x, y: this.position.y, z: this.position.z }, speed: this.velocity.length() },
-      renderer: { calls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures },
+      renderer: { calls: this.drawn.calls, triangles: this.drawn.triangles, geometries: info.memory.geometries, textures: info.memory.textures },
       canvas: { clientWidth: this.canvas.clientWidth, clientHeight: this.canvas.clientHeight, width: this.canvas.width, height: this.canvas.height, dpr: this.renderer.getPixelRatio() },
     };
   }
@@ -2791,7 +2900,7 @@ export class Garden {
         if (name === 'failed') { this.energy = 0; this.beginLoss(); this.finishLoss(); }
         this.bee.snapPose(!!this.landed);
         this.windFX.reset(this.position, this.time);
-        this.updateWorld(this.reducedMotion ? 0 : this.time); this.updateView(0); this.renderer.render(this.scene, this.camera); this.publishDiagnostics();
+        this.updateWorld(this.reducedMotion ? 0 : this.time); this.updateView(0); this.renderer.render(this.scene, this.camera); this.drawn.calls = this.renderer.info.render.calls; this.drawn.triangles = this.renderer.info.render.triangles; this.publishDiagnostics();
         return { state: name };
       },
       setPausedForScreenshot: (value: boolean) => { this.pausedCapture = value; },
@@ -2885,6 +2994,19 @@ export class Garden {
       setNightAge: (seconds: number) => { if (this.phase === 'night') this.nightAge = seconds; },
       growMushrooms: () => this.mushrooms.setGrowth(1),
       sightReady: () => this.sightDepth.ready,
+      /** Triangles each part of the scene would draw from here (visible meshes, by name, times instances). */
+      sceneBudget: () => {
+        const out: Record<string, number> = {};
+        this.scene.traverseVisible(o => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh || !m.geometry) return;
+          const g = m.geometry, per = (g.index ? g.index.count : g.getAttribute('position')?.count ?? 0) / 3;
+          const count = (m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1;
+          const key = (m.name || m.parent?.name || 'unnamed').replace(/\s\d+$/, '').replace(/ page.*/, ' page');
+          out[key] = (out[key] ?? 0) + per * count;
+        });
+        return out;
+      },
       fairyRings: () => this.mushrooms.rings.map(r => ({ id: r.id, kind: r.kind, center: r.center.toArray(), radius: r.radius, seen: r.seen })),
       petals: () => this.petals.petals.filter(p => p.shown).map(p => ({ id: p.id, kind: p.kind, flowerId: p.flowerId, position: p.position.toArray(), falling: p.falling, seen: p.seen, age: p.age })),
       dropPetal: (flowerId: number, delay?: number) => this.petals.drop(flowerId, delay),
@@ -2943,7 +3065,7 @@ export class Garden {
   private webPull(): number { return (1 - .45 * this.load()) * (this.energy < 20 ? 1.6 : 1); }
   private struggle(dt: number): void {
     this.velocity.set(0, 0, 0); this.flightEffort = .7; this.flightMode = 'flying';
-    if (this.keys.has('Space') || this.keys.has('KeyW')) { this.webStruggle += dt * .1 * this.webPull(); this.energy -= dt * .45; }
+    if (this.keys.has('Space') || this.moveForward() > .5) { this.webStruggle += dt * .1 * this.webPull(); this.energy -= dt * .45; }
     else this.webStruggle = Math.max(0, this.webStruggle - dt * .04);
     // A bee this tired slips out as the silk gives way.
     if (this.webStruggle >= 1 || this.energy < 6) this.freeFromWeb();
@@ -2978,7 +3100,7 @@ export class Garden {
   }
 
   dispose(): void {
-    cancelAnimationFrame(this.raf); this.abort.abort(); this.ui.dispose(); this.audio.dispose(); this.bee.dispose(); this.pollenFX.dispose(); this.pollinationFX.dispose(); this.windFX.dispose(); this.atmosphere.dispose(); this.meadow.dispose();
+    cancelAnimationFrame(this.raf); this.abort.abort(); this.touch?.dispose(); this.ui.dispose(); this.audio.dispose(); this.bee.dispose(); this.pollenFX.dispose(); this.pollinationFX.dispose(); this.windFX.dispose(); this.atmosphere.dispose(); this.meadow.dispose();
     this.nectarDrop.dispose(); this.nectarBeads.dispose(); this.energyWash.dispose(); this.rainSplash.dispose(); this.puddles.dispose(); this.renderer.dispose();
     this.homecoming.dispose();
     this.leafShelters.dispose(); this.rainFX.dispose(); this.flowerRain.dispose(); this.webs.dispose(); this.ladybirds.dispose(); this.ants.dispose(); this.mushrooms.dispose(); this.petals.dispose(); this.caterpillars.dispose(); this.groundedBees.dispose(); this.butterflies.dispose(); this.moths.dispose(); this.dryStalks.dispose(); this.snails.dispose();

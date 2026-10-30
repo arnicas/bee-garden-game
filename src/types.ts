@@ -48,6 +48,8 @@ export interface Meadow {
   mushroomPatches: MushroomPatchSpot[];
   petalSpots: PetalSpot[];
   update(time: number, cameraPosition: Vector3, uv: boolean, carriedPollen?: CarriedPollen): void;
+  /** Lighter settings for slower devices: the share of grass blades drawn (0–1), and how far off flowers are drawn. */
+  setDetail(detail: { grass?: number; cover?: number; flowerRange?: number; simplePollen?: boolean; nearHeads?: number }): void;
   /** Dry pool beds to paint as cracked clay (see ground-paint.ts). */
   setHollows(hollows: readonly { x: number; z: number; radius: number; amount: number }[]): void;
   /** 0–1: how dry the land beyond the meadow looks (see ground-paint.ts). */

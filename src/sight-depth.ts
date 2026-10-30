@@ -28,21 +28,25 @@ export function createSightDepth(renderer: THREE.WebGLRenderer, height = 144) {
   quad.frustumCulled = false;
   const quadScene = new THREE.Scene(); quadScene.add(quad);
   const quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  let pixels = new Float32Array(width * height * 4);
+  let pixels = new Float32Array(width * height * 4), incoming = new Float32Array(width * height * 4);
   // The view the image was taken from, so a point is projected exactly as it was drawn.
   const view = new THREE.Matrix4(), viewProjection = new THREE.Matrix4();
+  const nextView = new THREE.Matrix4(), nextViewProjection = new THREE.Matrix4();
   // Reading back a float image needs this WebGL extension; without it the old rules decide.
-  let fovTan = 1, ready = false, failed = !renderer.extensions.has('EXT_color_buffer_float');
+  let fovTan = 1, nextFovTan = 1, ready = false, failed = !renderer.extensions.has('EXT_color_buffer_float');
+  // The image is read back without stalling the frame (the graphics chip hands it over a frame
+  // or two later), one read at a time. Where that isn't supported, it reads at once.
+  let pending = false, asyncRead = true, imageWidth = width;
   const point = new THREE.Vector3(), inView = new THREE.Vector3();
 
   return {
     /** Draws the depth image from this camera (skip while nothing needs looking for). */
     capture(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
-      if (failed) return;
+      if (failed || pending) return;
       const w = Math.max(16, Math.round(height * camera.aspect));
       if (w !== width) {
         width = w; target.setSize(width, height); out.setSize(width, height);
-        pixels = new Float32Array(width * height * 4);
+        incoming = new Float32Array(width * height * 4);
       }
       const previous = renderer.getRenderTarget(), shadows = renderer.shadowMap.autoUpdate;
       try {
@@ -51,11 +55,24 @@ export function createSightDepth(renderer: THREE.WebGLRenderer, height = 144) {
         renderer.setRenderTarget(target); renderer.render(scene, camera);
         material.uniforms.near.value = camera.near; material.uniforms.far.value = camera.far;
         renderer.setRenderTarget(out); renderer.render(quadScene, quadCamera);
-        renderer.readRenderTargetPixels(out, 0, 0, width, height, pixels);
-        view.copy(camera.matrixWorldInverse);
-        viewProjection.multiplyMatrices(camera.projectionMatrix, view);
-        fovTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-        ready = true;
+        nextView.copy(camera.matrixWorldInverse);
+        nextViewProjection.multiplyMatrices(camera.projectionMatrix, nextView);
+        nextFovTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+        const readWidth = width, buffer = incoming;
+        const take = () => {
+          // The new image replaces the old one, with the view it was taken from.
+          incoming = pixels.length === buffer.length ? pixels : new Float32Array(buffer.length);
+          pixels = buffer; imageWidth = readWidth;
+          view.copy(nextView); viewProjection.copy(nextViewProjection); fovTan = nextFovTan;
+          ready = true; pending = false;
+        };
+        if (asyncRead) {
+          pending = true;
+          renderer.readRenderTargetPixelsAsync(out, 0, 0, readWidth, height, buffer).then(take, () => { asyncRead = false; pending = false; });
+        } else {
+          renderer.readRenderTargetPixels(out, 0, 0, readWidth, height, buffer);
+          take();
+        }
       } catch {
         failed = true; ready = false;
       } finally {
@@ -71,7 +88,7 @@ export function createSightDepth(renderer: THREE.WebGLRenderer, height = 144) {
       if (point.z < -1 || point.z > 1 || Math.abs(point.x) > 1 || Math.abs(point.y) > 1) return 0;
       const depth = -inView.copy(at).applyMatrix4(view).z;
       if (depth <= 0) return 0;
-      const cx = Math.floor((point.x * .5 + .5) * width), cy = Math.floor((point.y * .5 + .5) * height);
+      const cx = Math.floor((point.x * .5 + .5) * imageWidth), cy = Math.floor((point.y * .5 + .5) * height);
       // How many pixels across it is in this small image: look over that spot (at most 3 out).
       const across = size / depth * (height / 2) / fovTan;
       const r = Math.max(0, Math.min(3, Math.round(across / 2)));
@@ -80,9 +97,9 @@ export function createSightDepth(renderer: THREE.WebGLRenderer, height = 144) {
       let clear = 0, total = 0;
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         const x = cx + dx, y = cy + dy;
-        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        if (x < 0 || y < 0 || x >= imageWidth || y >= height) continue;
         total++;
-        if (pixels[(y * width + x) * 4] >= depth - slack) clear++;
+        if (pixels[(y * imageWidth + x) * 4] >= depth - slack) clear++;
       }
       return total ? clear / total : 0;
     },
